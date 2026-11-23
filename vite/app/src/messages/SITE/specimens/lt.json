@@ -1,0 +1,90 @@
+{
+  "company": "Pavyzdys, UAB",
+  "finding": {
+    "ref": "70 str. 1 d.",
+    "obligation": "Pareiga",
+    "duty": "Kriptoturto paslaugų teikėjai, kurie laiko klientams priklausantį kriptoturtą […], imasi tinkamų priemonių, kad apsaugotų klientų nuosavybės teises […] ir užkirstų kelią klientų kriptoturto naudojimui savo sąskaita.",
+    "evidence": "Įrodymas",
+    "document": "Kriptoturto saugojimo politika",
+    "place": "4.2 p.",
+    "before": "Klientų kriptoturtas laikomas atskirai nuo Bendrovės turto. ",
+    "quote": "Bendrovė gali naudoti klientų kriptoturtą savo sąskaita, gavusi išankstinį rašytinį kliento sutikimą.",
+    "after": " Sutikimai registruojami.",
+    "assessment": "Vertinimas",
+    "verdict": "Politika leidžia naudoti klientų kriptoturtą savo sąskaita gavus sutikimą, o reglamentas reikalauja tokiam naudojimui užkirsti kelią.",
+    "open": "Atverti dokumente"
+  },
+  "acts": {
+    "later": "Taikomas nuo 2027-07-10",
+    "confirm": "Taikymą reikia patvirtinti"
+  },
+  "statuses": {
+    "total": "{count} įvertinta pareiga"
+  },
+  "plan": {
+    "closes": "uždaro išvadų: {count}",
+    "custody": {
+      "title": "Atnaujinti kriptoturto saugojimo politiką",
+      "owner": "Valdyba"
+    },
+    "cdd": {
+      "title": "Pateikti klientų patikrinimo procedūras",
+      "owner": "PPTFP pareigūnas"
+    },
+    "refs": {
+      "title": "Ištaisyti teisės aktų nuorodas politikose",
+      "owner": "Atitikties pareigūnas"
+    }
+  },
+  "report": {
+    "title": "Atitikties ataskaita",
+    "acts": "Įvertinti teisės aktai",
+    "duties": "Įvertintos pareigos",
+    "actions": "Veiksmai plane",
+    "gaps": "Svarbiausios spragos",
+    "custody": "Užkirsti kelią klientų kriptoturto naudojimui savo sąskaita",
+    "custodyRef": "MiCA · 70 str. 1 d.",
+    "incidents": "Pranešti apie didelius su IRT susijusius incidentus",
+    "incidentsRef": "DORA · 19 str. 1 d.",
+    "records": "Tvarkyti duomenų tvarkymo veiklos įrašus",
+    "recordsRef": "GDPR · 30 str."
+  },
+  "chat": {
+    "you": "Jūs",
+    "question": "Kam reikia pranešti apie didelį IRT incidentą?",
+    "answer": "Apie didelius su IRT susijusius incidentus finansų sektoriaus subjektai praneša atitinkamai kompetentingai institucijai, nurodytai reglamento 46 straipsnyje.",
+    "ref": "DORA · 19 str. 1 d.",
+    "official": "Oficialus tekstas",
+    "note": "Pranešimų terminus nustato techniniai standartai (tikrintina).",
+    "placeholder": "Parašykite klausimą arba įkelkite dokumentą"
+  },
+  "citations": {
+    "title": "Nuorodų patikra",
+    "custody": {
+      "ref": "MiCA 70 str. 1 d.",
+      "claim": "Klientų kriptoturto apsauga"
+    },
+    "transfer": {
+      "ref": "MiCA 82a str.",
+      "claim": "Pervedimo paslaugos"
+    },
+    "vendors": {
+      "ref": "DORA 5 str. 2 d. g p.",
+      "claim": "Atsakomybė už IRT paslaugų teikėjus",
+      "note": "Nuostata skirta skaitmeninės veiklos atsparumo biudžetui."
+    }
+  },
+  "progress": {
+    "title": "Vyksta atitikties analizė",
+    "documents": "Dokumentai",
+    "citations": "Nuorodų patikra",
+    "applicability": "Taikymas",
+    "obligations": "Pareigos",
+    "gaps": "Atotrūkio vertinimas",
+    "plan": "Veiksmų planas ir santrauka",
+    "done": "baigta",
+    "running": "vyksta",
+    "waiting": "laukia",
+    "cost": "DI kaina iki šiol: {spent} · įvertis: iki {estimate}"
+  }
+}

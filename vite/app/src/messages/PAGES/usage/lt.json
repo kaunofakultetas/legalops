@@ -1,0 +1,73 @@
+{
+  "TITLE": "DI sąnaudos",
+  "subtitle": "Kiek DI modelių iškvietimų atlikta ir kiek jie kainavo: pokalbiai, analizės etapai, vektorizavimas, instrukcijų bandymai.",
+  "period": "Laikotarpis",
+  "days": "Paskutinės {days} d.",
+  "scope": "Kieno",
+  "mine": "Mano",
+  "everyone": "Visų naudotojų",
+  "usersLoadError": "Nepavyko įkelti naudotojų sąrašo",
+  "budgetTitle": "Šios dienos biudžetas",
+  "budgetMeter": "Išnaudota šiandien",
+  "budgetHint": "Biudžetas skaičiuojamas pagal UTC parą ir atsinaujina vidurnaktį UTC.",
+  "KPI": {
+    "cost": "Kaina",
+    "calls": "Iškvietimai",
+    "input": "Įvesties žetonai",
+    "output": "Išvesties žetonai"
+  },
+  "CHARTS": {
+    "cost": "Kaina per dieną (USD)",
+    "tokens": "Žetonai per dieną",
+    "input": "Įvestis",
+    "output": "Išvestis"
+  },
+  "SPLITS": {
+    "byKind": "Pagal paskirtį",
+    "byModel": "Pagal modelį",
+    "byUser": "Pagal naudotoją"
+  },
+  "COLUMNS": {
+    "kind": "Paskirtis",
+    "model": "Modelis",
+    "user": "Naudotojas",
+    "calls": "Iškvietimai",
+    "input": "Įvestis",
+    "output": "Išvestis",
+    "cost": "Kaina",
+    "time": "Laikas",
+    "purpose": "Tikslas",
+    "duration": "Trukmė",
+    "outcome": "Rezultatas",
+    "tools": "Įrankiai"
+  },
+  "CALLS": {
+    "title": "Iškvietimų žurnalas",
+    "kind": "Paskirtis",
+    "all": "Visos",
+    "loadMore": "Įkelti daugiau",
+    "loaded": "Rodoma {shown} iš {total}",
+    "empty": "Iškvietimų nėra",
+    "open": "Atidaryti {time} iškvietimą"
+  },
+  "CALL": {
+    "title": "DI iškvietimas",
+    "close": "Uždaryti",
+    "transcript": "Pokalbio ištrauka",
+    "userSaid": "Naudotojas",
+    "assistantSaid": "Asistentas",
+    "tools": "Įrankių iškvietimai",
+    "noTranscript": "Šiam iškvietimui pokalbio ištraukos nėra.",
+    "thread": "Atidaryti pokalbį",
+    "tokens": "Žetonai: {input} / {output} (samprotavimas {reasoning})",
+    "cached": "iš įvesties perskaityta iš podėlio {read}, į jį įrašyta {written}",
+    "TOOL": {
+      "name": "Įrankis",
+      "ms": "Trukmė (ms)",
+      "ok": "Pavyko",
+      "code": "Klaidos kodas"
+    }
+  },
+  "empty": "Šiuo laikotarpiu DI iškvietimų nebuvo",
+  "loadError": "Nepavyko įkelti sąnaudų"
+}

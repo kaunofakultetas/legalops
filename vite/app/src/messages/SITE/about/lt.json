@@ -1,0 +1,29 @@
+{
+  "TITLE": "Apie",
+  "head": {
+    "title": "Apie projektą",
+    "lede": "Atitikties asistentas sukurtas Vilniaus universiteto Kauno fakultete, kursui „Finansų teisė ir finansų įstaigų veiklos atitikties valdymas“."
+  },
+  "who": {
+    "title": "Kam jis skirtas",
+    "text": "Atitikties pareigūnams, teisininkams ir finansų technologijų įmonių vadovams, kuriems reikia žinoti, kurie reikalavimai taikomi jų įmonei ir kur jos dokumentai jų neatitinka. Taip pat studentams, kurie mokosi atitikties valdymo."
+  },
+  "access": {
+    "title": "Prieiga",
+    "text": "Paskyras kuria administratorius; savarankiškai registruotis negalima. Jei paskyrą turite, prisijunkite el. paštu ir slaptažodžiu."
+  },
+  "data": {
+    "title": "Jūsų duomenys",
+    "chats": "Pokalbiai asmeniniai: kiti naudotojai jūsų pokalbių atidaryti negali.",
+    "companies": "Įmonės, dokumentai ir ataskaitos matomi jums ir administratoriams.",
+    "log": "Kiekvienas asistento atsakymas įrašomas į DI iškvietimų žurnalą, kurį administratoriai gali skaityti. Įrašai saugomi iki 400 dienų.",
+    "gateway": "Žinutės ir įkelti dokumentai siunčiami universiteto DI tinklų sąsajai, per kurią veikia DI modeliai. Neįkelkite duomenų, kurių negalima jai perduoti."
+  },
+  "built": {
+    "title": "Kaip jis pastatytas",
+    "text": "Kiekvienas DI modelio iškvietimas įrašomas su jo kaina, o kiekvienas naudotojas turi dienos DI biudžetą. Į išorę sistema jungiasi tik prie leidžiamų adresų: DI tinklų sąsajos ir oficialių teisės aktų šaltinių."
+  },
+  "caution": {
+    "title": "Prieš pasikliaudami"
+  }
+}

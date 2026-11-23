@@ -1,0 +1,11 @@
+{
+  "TITLE": "Sign in",
+  "email": "Email",
+  "password": "Password",
+  "submit": "Sign in",
+  "subtitle": "Ask about the law, upload your company's documents and get a compliance report.",
+  "expired": "Your session has ended. Sign in again — you will return to where you were.",
+  "emailRequired": "Enter your email address",
+  "emailInvalid": "Enter a valid email address",
+  "passwordRequired": "Enter your password"
+}

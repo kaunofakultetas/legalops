@@ -1,0 +1,8 @@
+{
+  "TITLE": "Page not found",
+  "text": "There is no such page. The link may be out of date or the address mistyped.",
+  "FORBIDDEN_TITLE": "Access restricted",
+  "forbiddenText": "This page is for administrators only.",
+  "home": "Go home",
+  "dashboard": "Go to the overview"
+}

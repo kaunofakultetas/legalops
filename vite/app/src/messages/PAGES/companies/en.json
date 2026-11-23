@@ -1,0 +1,19 @@
+{
+  "TITLE": "Companies",
+  "subtitle": "The company profiles the compliance analysis runs on.",
+  "new": "New company",
+  "search": "Search by name or code",
+  "onlyMine": "Only mine",
+  "COLUMNS": { "name": "Name", "institutionType": "Institution type", "registrationCode": "Registration code", "country": "Country", "owner": "Owner", "updated": "Updated" },
+  "empty": "No companies yet",
+  "emptyText": "Create a company profile here, or describe the company in the chat — the assistant builds the profile itself.",
+  "emptySearch": "No companies match the search",
+  "toChat": "Describe it in the chat",
+  "loadError": "The companies could not be loaded",
+  "CREATE": {
+    "title": "New company", "name": "Name", "registrationCode": "Registration code", "institutionType": "Financial institution type",
+    "country": "Country", "countryHint": "Two-letter code, e.g. LT", "nameRequired": "Enter a name", "countryRequired": "Enter a country",
+    "submit": "Create", "note": "You can fill in the rest of the profile on the company page."
+  },
+  "TOASTS": { "created": "Company created" }
+}

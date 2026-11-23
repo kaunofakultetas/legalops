@@ -1,0 +1,90 @@
+{
+  "company": "Sample Ltd",
+  "finding": {
+    "ref": "Art. 70(1)",
+    "obligation": "Obligation",
+    "duty": "Crypto-asset service providers that hold crypto-assets belonging to clients […] shall make adequate arrangements to safeguard the ownership rights of clients […] and to prevent the use of clients' crypto-assets for their own account.",
+    "evidence": "Evidence",
+    "document": "Crypto-asset custody policy",
+    "place": "§ 4.2",
+    "before": "Clients' crypto-assets are held apart from the Company's own. ",
+    "quote": "The Company may use clients' crypto-assets for its own account with the client's prior written consent.",
+    "after": " Consents are recorded.",
+    "assessment": "Assessment",
+    "verdict": "The policy allows clients' crypto-assets to be used for the Company's own account with consent, while the regulation requires such use to be prevented.",
+    "open": "Open in the document"
+  },
+  "acts": {
+    "later": "Applies from 2027-07-10",
+    "confirm": "Application to be confirmed"
+  },
+  "statuses": {
+    "total": "{count} duties assessed"
+  },
+  "plan": {
+    "closes": "findings closed: {count}",
+    "custody": {
+      "title": "Update the crypto-asset custody policy",
+      "owner": "Management board"
+    },
+    "cdd": {
+      "title": "Provide the customer due diligence procedures",
+      "owner": "AML officer"
+    },
+    "refs": {
+      "title": "Correct the legal references in the policies",
+      "owner": "Compliance officer"
+    }
+  },
+  "report": {
+    "title": "Compliance report",
+    "acts": "Acts assessed",
+    "duties": "Duties assessed",
+    "actions": "Actions in the plan",
+    "gaps": "The gravest gaps",
+    "custody": "Prevent the use of clients' crypto-assets for own account",
+    "custodyRef": "MiCA · Art. 70(1)",
+    "incidents": "Report major ICT-related incidents",
+    "incidentsRef": "DORA · Art. 19(1)",
+    "records": "Keep records of processing activities",
+    "recordsRef": "GDPR · Art. 30"
+  },
+  "chat": {
+    "you": "You",
+    "question": "Who must be told about a major ICT incident?",
+    "answer": "Financial entities report major ICT-related incidents to the relevant competent authority referred to in Article 46 of the regulation.",
+    "ref": "DORA · Art. 19(1)",
+    "official": "Official text",
+    "note": "The time limits for the reports are set by technical standards (to verify).",
+    "placeholder": "Write a question or drop a document"
+  },
+  "citations": {
+    "title": "Reference check",
+    "custody": {
+      "ref": "MiCA Art. 70(1)",
+      "claim": "Safeguarding of clients' crypto-assets"
+    },
+    "transfer": {
+      "ref": "MiCA Art. 82a",
+      "claim": "Transfer services"
+    },
+    "vendors": {
+      "ref": "DORA Art. 5(2)(g)",
+      "claim": "Responsibility for ICT service providers",
+      "note": "The provision is about the digital operational resilience budget."
+    }
+  },
+  "progress": {
+    "title": "Compliance analysis in progress",
+    "documents": "Documents",
+    "citations": "Reference check",
+    "applicability": "Applicability",
+    "obligations": "Obligations",
+    "gaps": "Gap assessment",
+    "plan": "Action plan and summary",
+    "done": "done",
+    "running": "running",
+    "waiting": "waiting",
+    "cost": "AI cost so far: {spent} · estimate: up to {estimate}"
+  }
+}

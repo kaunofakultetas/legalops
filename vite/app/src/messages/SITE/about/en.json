@@ -1,0 +1,29 @@
+{
+  "TITLE": "About",
+  "head": {
+    "title": "About the project",
+    "lede": "The Compliance assistant was made at Vilnius University Kaunas Faculty, for the course “Financial law and compliance management of financial institutions”."
+  },
+  "who": {
+    "title": "Who it is for",
+    "text": "For compliance officers, lawyers and the people who run financial technology companies, who need to know which requirements apply to their company and where its documents fall short of them. And for students learning compliance management."
+  },
+  "access": {
+    "title": "Access",
+    "text": "Accounts are created by an administrator; there is no self-registration. If you have an account, sign in with your email and password."
+  },
+  "data": {
+    "title": "Your data",
+    "chats": "Conversations are personal: other users cannot open yours.",
+    "companies": "Companies, documents and reports are visible to you and to the administrators.",
+    "log": "Every answer of the assistant is recorded in the AI call log, which administrators can read. The records are kept for up to 400 days.",
+    "gateway": "Messages and uploaded documents are sent to the university's AI gateway, through which the AI models work. Do not upload data that may not be passed on to it."
+  },
+  "built": {
+    "title": "How it is built",
+    "text": "Every call to an AI model is recorded with its cost, and every user has a daily AI budget. The system connects outwards only to the addresses it is allowed: the AI gateway and the official sources of the acts."
+  },
+  "caution": {
+    "title": "Before you rely on it"
+  }
+}

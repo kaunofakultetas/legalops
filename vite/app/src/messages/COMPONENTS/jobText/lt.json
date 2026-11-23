@@ -1,0 +1,21 @@
+{
+  "SUBJECT": {
+    "report": "Ataskaita",
+    "corpus": "Teisės aktas",
+    "obligations": "Teisės akto pareigos",
+    "verification": "Teisės akto pareigų tikrinimas",
+    "document": "Įmonės dokumentas",
+    "schedule": "Planinė užduotis",
+    "smoke": "Bandymas",
+    "allActs": "Visi teisės aktai",
+    "allSources": "Visi šaltiniai",
+    "product": "Programos dokumentas"
+  },
+  "PROGRESS": {
+    "batches": "{done} iš {total} paketų",
+    "extracting": "išskiriamos pareigos: {title}",
+    "reading": "skaitomas dokumentas: {title}",
+    "obligations": "pareigos: {count}",
+    "percent": "{percent} %"
+  }
+}

@@ -1,0 +1,14 @@
+# The image runs its own npm ci and vite build — the dev
+# bind mount's node_modules and dist must not leak in
+app/node_modules
+app/dist
+
+# Test output (the vitest suite, app/tests, IS copied:
+# runTests.sh runs it inside the builder stage)
+app/coverage
+
+# Local secrets (Vite's *.local convention) and logs
+app/.env
+app/.env.local
+app/.env.*.local
+app/*.log

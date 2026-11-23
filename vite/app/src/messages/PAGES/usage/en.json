@@ -1,0 +1,73 @@
+{
+  "TITLE": "AI usage",
+  "subtitle": "How many AI model calls were made and what they cost: chat, analysis steps, embeddings, prompt tests.",
+  "period": "Period",
+  "days": "Last {days} days",
+  "scope": "Whose",
+  "mine": "Mine",
+  "everyone": "All users",
+  "usersLoadError": "The user list could not be loaded",
+  "budgetTitle": "Today's budget",
+  "budgetMeter": "Used today",
+  "budgetHint": "The budget follows the UTC day and resets at midnight UTC.",
+  "KPI": {
+    "cost": "Cost",
+    "calls": "Calls",
+    "input": "Input tokens",
+    "output": "Output tokens"
+  },
+  "CHARTS": {
+    "cost": "Cost per day (USD)",
+    "tokens": "Tokens per day",
+    "input": "Input",
+    "output": "Output"
+  },
+  "SPLITS": {
+    "byKind": "By purpose",
+    "byModel": "By model",
+    "byUser": "By user"
+  },
+  "COLUMNS": {
+    "kind": "Purpose",
+    "model": "Model",
+    "user": "User",
+    "calls": "Calls",
+    "input": "Input",
+    "output": "Output",
+    "cost": "Cost",
+    "time": "Time",
+    "purpose": "Task",
+    "duration": "Duration",
+    "outcome": "Outcome",
+    "tools": "Tools"
+  },
+  "CALLS": {
+    "title": "Call log",
+    "kind": "Purpose",
+    "all": "All",
+    "loadMore": "Load more",
+    "loaded": "Showing {shown} of {total}",
+    "empty": "No calls",
+    "open": "Open the call of {time}"
+  },
+  "CALL": {
+    "title": "AI call",
+    "close": "Close",
+    "transcript": "Chat excerpt",
+    "userSaid": "User",
+    "assistantSaid": "Assistant",
+    "tools": "Tool calls",
+    "noTranscript": "This call has no chat excerpt.",
+    "thread": "Open the chat",
+    "tokens": "Tokens: {input} / {output} (reasoning {reasoning})",
+    "cached": "of the input, {read} read from the cache and {written} written to it",
+    "TOOL": {
+      "name": "Tool",
+      "ms": "Duration (ms)",
+      "ok": "Succeeded",
+      "code": "Error code"
+    }
+  },
+  "empty": "No AI calls in this period",
+  "loadError": "The usage could not be loaded"
+}

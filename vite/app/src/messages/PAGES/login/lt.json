@@ -1,0 +1,11 @@
+{
+  "TITLE": "Prisijungimas",
+  "email": "El. paštas",
+  "password": "Slaptažodis",
+  "submit": "Prisijungti",
+  "subtitle": "Užduokite klausimą apie teisės aktus, įkelkite įmonės dokumentus ir gaukite atitikties ataskaitą.",
+  "expired": "Sesija baigėsi. Prisijunkite iš naujo — grįšite ten, kur buvote.",
+  "emailRequired": "Įveskite el. pašto adresą",
+  "emailInvalid": "Įveskite teisingą el. pašto adresą",
+  "passwordRequired": "Įveskite slaptažodį"
+}

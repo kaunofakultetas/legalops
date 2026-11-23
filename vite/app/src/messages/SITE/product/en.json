@@ -1,0 +1,68 @@
+{
+  "TITLE": "Product",
+  "head": {
+    "title": "From a conversation to an approved report",
+    "lede": "What happens between the first message and a report you can show the board, and what you see at every step."
+  },
+  "chat": {
+    "title": "It all starts in a conversation",
+    "text": "Describe the company in your own words: what it does, its clients, its services, the licences it holds. The assistant builds the company profile itself and fills in what it knows.",
+    "points": {
+      "a": "Drop documents straight into the conversation: PDF, DOCX, TXT, MD, HTML, CSV or JSON, up to 50 MB each.",
+      "b": "What it does not know it does not guess: that field of the profile stays “unknown”.",
+      "c": "A licence you name yourself is recorded as claimed, not verified."
+    },
+    "specimen": "A sample conversation: a question and an answer citing the article"
+  },
+  "analysis": {
+    "title": "An analysis whose cost you know beforehand",
+    "text": "Before it starts, the assistant works out the highest the analysis can cost, shows what is left of your daily AI budget and begins only when you agree. The analysis runs in the background — from a few minutes to a few tens.",
+    "points": {
+      "a": "You see every stage, its model and its cost.",
+      "b": "You can leave the page — the results are kept.",
+      "c": "The analysis can be stopped at any stage."
+    },
+    "specimen": "A sample analysis at work: the stages and the AI cost so far"
+  },
+  "finding": {
+    "title": "A finding with its evidence",
+    "text": "Every duty assessed becomes a finding: the duty in the act's own words, the assessment, a recommendation and the evidence with a quote. The quote is located in your document — click it and you are at that place.",
+    "points": {
+      "a": "Findings can be grouped by act or by area, filtered and searched.",
+      "b": "Severity says how much the duty matters, the status what could be established.",
+      "c": "When a quote could not be found word for word, it says so beneath it."
+    },
+    "specimen": "A sample finding: the duty, a passage of the document and the assessment"
+  },
+  "plan": {
+    "title": "A plan that closes every gap",
+    "text": "The action plan covers every duty not met or not evidenced. An action says what to prepare, who owns it, how much work it is and by when, and its related findings show what it closes.",
+    "points": {
+      "a": "Wrong references in the documents become corrective actions.",
+      "b": "Preparation for acts that apply later is listed apart.",
+      "c": "Acts not assessed become the action of finding the missing facts out."
+    },
+    "specimen": "A sample action plan: three actions with their owner and timeframe"
+  },
+  "citations": {
+    "title": "It checks your documents' own references too",
+    "text": "Policies often cite specific articles. The assistant compares every such reference with the edition of the act in force: whether the provision exists and whether it regulates what the document says it does.",
+    "points": {
+      "a": "Ranges and lists work as documents write them: “77–78”, “6–9, 26–29”.",
+      "b": "The same can be asked for in the conversation or done on the corpus page.",
+      "c": "What could not be checked is marked “could not judge”."
+    },
+    "specimen": "A sample reference check: one correct reference and two wrong ones"
+  },
+  "finish": {
+    "title": "A report that stays yours",
+    "review": {
+      "title": "The last word is yours",
+      "text": "You can replace any finding with your own assessment and a note: it is marked “Reviewed” and the change goes into the audit trail. An approved report shows who approved it and when."
+    },
+    "export": {
+      "title": "A PDF for the board, Excel for the work",
+      "text": "The PDF starts from the conclusions: the result at a glance, the summary and the action plan, then the material behind them and the method. In the Excel workbook every finding is a row of its own."
+    }
+  }
+}

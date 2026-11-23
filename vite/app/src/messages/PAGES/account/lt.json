@@ -1,0 +1,20 @@
+{
+  "TITLE": "Paskyra",
+  "profile": "Profilis",
+  "changePassword": "Keisti slaptažodį",
+  "currentPassword": "Dabartinis slaptažodis",
+  "newPassword": "Naujas slaptažodis",
+  "repeatPassword": "Pakartokite naują slaptažodį",
+  "passwordHint": "Nuo {min} simbolių iki {max} baitų (raidė, pvz., ą ar ž, užima du baitus).",
+  "tooShort": "Slaptažodis turi būti ne trumpesnis nei {min} simbolių",
+  "tooLong": "Slaptažodis per ilgas: leidžiama iki {max} baitų (raidė, pvz., ą ar ž, užima du baitus)",
+  "required": "Privalomas laukas",
+  "mismatch": "Slaptažodžiai nesutampa",
+  "changeNote": "Pakeitus slaptažodį, kitos jūsų sesijos bus nutrauktos.",
+  "save": "Išsaugoti",
+  "logoutAll": "Atsijungti visuose įrenginiuose",
+  "logoutAllHint": "Nutraukia visas sesijas, įskaitant šią.",
+  "logoutAllConfirm": "Atsijungti visuose įrenginiuose?",
+  "logoutAllConfirmText": "Visos jūsų sesijos — ir šioje naršyklėje — bus nutrauktos. Teks prisijungti iš naujo.",
+  "TOASTS": { "passwordChanged": "Slaptažodis pakeistas" }
+}

@@ -1,0 +1,70 @@
+{
+  "TITLE": "Users",
+  "subtitle": "Accounts are created by an administrator; there is no self-registration.",
+  "new": "New user",
+  "COLUMNS": {
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "status": "Status",
+    "budget": "Daily AI budget",
+    "lastLogin": "Last login",
+    "actions": "Actions"
+  },
+  "ROLES": {
+    "admin": "Administrator",
+    "user": "User"
+  },
+  "STATUS": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "FORM": {
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "password": "Password",
+    "active": "Account active",
+    "passwordHint": "At least {min} characters. Hand it over through a safe channel.",
+    "selfLocked": "You cannot change your own role and status."
+  },
+  "BUDGET": {
+    "label": "Daily AI budget",
+    "default": "Default",
+    "unlimited": "Unlimited",
+    "custom": "Custom",
+    "amount": "Amount per day (UTC), USD",
+    "hint": "How much AI model cost (in US dollars) the user may incur per day. The default is set by the installation."
+  },
+  "VALIDATION": {
+    "name": "Enter a name",
+    "email": "Enter a valid email address",
+    "password": "The password must be at least {min} characters long",
+    "budget": "Enter an amount above 0 (e.g. 2.50)"
+  },
+  "ACTIONS": {
+    "edit": "Edit",
+    "resetPassword": "Reset password",
+    "resetOwnPassword": "Change your own password on the Account page",
+    "deactivate": "Deactivate",
+    "delete": "Delete with all data",
+    "deleteHold": "Hold 2 seconds to delete with all data"
+  },
+  "MODALS": {
+    "create": "New user",
+    "edit": "Edit user",
+    "resetPassword": "Set a new password",
+    "resetHint": "All of this user's sessions will be ended.",
+    "deactivate": "Deactivate user {name}?",
+    "deactivateHint": "The account is disabled and every session is killed. The account is not deleted."
+  },
+  "loadError": "The users could not be loaded",
+  "TOASTS": {
+    "created": "User created",
+    "updated": "Saved",
+    "passwordReset": "Password reset",
+    "deactivated": "User deactivated",
+    "deleted": "User {name} deleted with all data (companies: {companies}, reports: {reports}, documents: {documents}, conversations: {threads})",
+    "holdToDelete": "Hold the button for 2 seconds to delete the user with all data"
+  }
+}

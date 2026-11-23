@@ -1,0 +1,9 @@
+{
+  "LABEL": "Pagrindinė navigacija",
+  "PIN": {"pin": "Prisegti šoninį meniu", "unpin": "Atsegti šoninį meniu"},
+  "MAIN": {"TITLE": "Pagrindinis", "chat": "Pokalbis", "dashboard": "Apžvalga"},
+  "COMPLIANCE": {"TITLE": "Atitiktis", "companies": "Įmonės", "reports": "Ataskaitos"},
+  "LAW": {"TITLE": "Teisė", "corpus": "Teisės aktų bazė", "obligations": "Pareigų peržiūra"},
+  "ADMIN": {"TITLE": "Administravimas", "prompts": "DI instrukcijos", "mcp": "MCP serveriai", "users": "Naudotojai", "audit": "Veiksmų žurnalas"},
+  "SYSTEM": {"TITLE": "Sistema", "usage": "DI sąnaudos", "jobs": "Užduotys", "account": "Paskyra"}
+}

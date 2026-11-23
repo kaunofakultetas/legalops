@@ -1,0 +1,29 @@
+{
+  "skip": "Pereiti prie turinio",
+  "home": "Atitikties asistentas — pradžia",
+  "nav": {
+    "label": "Svetainės puslapiai",
+    "product": "Produktas",
+    "method": "Metodika",
+    "sources": "Teisės aktai",
+    "documentation": "Dokumentacija",
+    "about": "Apie"
+  },
+  "menuOpen": "Atverti meniu",
+  "menuClose": "Uždaryti meniu",
+  "signIn": "Prisijungti",
+  "openConsole": "Atverti konsolę",
+  "localeShort": "EN",
+  "footer": {
+    "label": "Svetainės poraštė",
+    "about": "Atitikties asistentas nustato, kurie teisės aktai taikomi finansų įstaigai, palygina jų pareigas su įmonės dokumentais ir parengia atitikties spragų ataskaitą.",
+    "pages": "Puslapiai",
+    "console": "Konsolė",
+    "disclaimer": "Asistentas yra dirbtinio intelekto sistema. Jo išvados yra pagalbinės ir teisinės konsultacijos nepakeičia: kiekvieną nuorodą į teisės aktą patikrinkite pagal oficialų tekstą."
+  },
+  "closing": {
+    "title": "Pradėkite nuo pokalbio",
+    "text": "Aprašykite įmonę savais žodžiais ir įkelkite jos politikas — profilį asistentas sukurs pats. Paskyras kuria administratorius; savarankiškai registruotis negalima.",
+    "method": "Skaityti metodiką"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "TITLE": "Overview",
+  "welcome": "Welcome, {name}",
+  "KPI": {
+    "companies": "Companies",
+    "reportsDone": "Finished reports",
+    "reportsRunning": "Running analyses",
+    "reportsWaiting": "awaiting approval: {count}",
+    "acts": "Legal acts ready",
+    "actsSub": "of {total}",
+    "toReview": "Obligations to review",
+    "users": "Users"
+  },
+  "budget": "AI budget today",
+  "budgetMeter": "Used",
+  "RECENT": {
+    "reports": "Latest reports",
+    "companies": "Latest companies",
+    "jobs": "Latest jobs",
+    "all": "All",
+    "noReports": "No reports yet",
+    "noCompanies": "No companies yet",
+    "noJobs": "No jobs yet"
+  },
+  "CORPUS": {
+    "title": "Legal corpus",
+    "ready": "Ready: {count}",
+    "ingesting": "Processing: {count}",
+    "failed": "With errors: {count}",
+    "noText": "No text yet: {count}",
+    "disabled": "Switched off: {count}",
+    "problems": "Acts with errors",
+    "allGood": "Every act in use is ready.",
+    "open": "Open the corpus"
+  },
+  "JOBS": {
+    "queued": "Queued",
+    "running": "Running",
+    "failed": "Failed"
+  },
+  "loadError": "Could not load"
+}

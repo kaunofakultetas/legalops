@@ -1,0 +1,19 @@
+{
+  "alertClose": "Uždaryti",
+  "autocompleteClear": "Išvalyti",
+  "autocompleteClose": "Uždaryti",
+  "autocompleteLoading": "Įkeliama…",
+  "autocompleteNoOptions": "Pasirinkimų nėra",
+  "autocompleteOpen": "Atidaryti",
+  "breadcrumbsExpand": "Rodyti visą kelią",
+  "tablePaginationRowsPerPage": "Eilučių puslapyje:",
+  "tablePaginationDisplayed": "{from}–{to} iš {count}",
+  "tablePaginationMoreThan": "daugiau nei {to}",
+  "paginationFirst": "Pirmas puslapis",
+  "paginationLast": "Paskutinis puslapis",
+  "paginationNext": "Kitas puslapis",
+  "paginationPrevious": "Ankstesnis puslapis",
+  "paginationPage": "{page} puslapis",
+  "paginationGoTo": "Eiti į {page} puslapį",
+  "paginationNav": "Puslapiavimas"
+}

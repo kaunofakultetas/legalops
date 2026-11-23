@@ -1,0 +1,19 @@
+{
+  "alertClose": "Close",
+  "autocompleteClear": "Clear",
+  "autocompleteClose": "Close",
+  "autocompleteLoading": "Loading…",
+  "autocompleteNoOptions": "No options",
+  "autocompleteOpen": "Open",
+  "breadcrumbsExpand": "Show path",
+  "tablePaginationRowsPerPage": "Rows per page:",
+  "tablePaginationDisplayed": "{from}–{to} of {count}",
+  "tablePaginationMoreThan": "more than {to}",
+  "paginationFirst": "Go to first page",
+  "paginationLast": "Go to last page",
+  "paginationNext": "Go to next page",
+  "paginationPrevious": "Go to previous page",
+  "paginationPage": "page {page}",
+  "paginationGoTo": "Go to page {page}",
+  "paginationNav": "Pagination"
+}

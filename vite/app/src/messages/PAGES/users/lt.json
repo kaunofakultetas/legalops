@@ -1,0 +1,70 @@
+{
+  "TITLE": "Naudotojai",
+  "subtitle": "Paskyras kuria administratorius; savarankiškos registracijos nėra.",
+  "new": "Naujas naudotojas",
+  "COLUMNS": {
+    "name": "Vardas",
+    "email": "El. paštas",
+    "role": "Rolė",
+    "status": "Būsena",
+    "budget": "Dienos DI biudžetas",
+    "lastLogin": "Paskutinis prisijungimas",
+    "actions": "Veiksmai"
+  },
+  "ROLES": {
+    "admin": "Administratorius",
+    "user": "Naudotojas"
+  },
+  "STATUS": {
+    "active": "Aktyvus",
+    "inactive": "Neaktyvus"
+  },
+  "FORM": {
+    "name": "Vardas",
+    "email": "El. paštas",
+    "role": "Rolė",
+    "password": "Slaptažodis",
+    "active": "Aktyvi paskyra",
+    "passwordHint": "Ne trumpesnis nei {min} simbolių. Perduokite jį naudotojui saugiu kanalu.",
+    "selfLocked": "Savo rolės ir būsenos keisti negalite."
+  },
+  "BUDGET": {
+    "label": "Dienos DI biudžetas",
+    "default": "Numatytasis",
+    "unlimited": "Neribotas",
+    "custom": "Individualus",
+    "amount": "Suma per parą (UTC), USD",
+    "hint": "Kiek DI modelių sąnaudų (JAV doleriais) naudotojas gali patirti per parą. Numatytąjį biudžetą nustato diegimas."
+  },
+  "VALIDATION": {
+    "name": "Įveskite vardą",
+    "email": "Įveskite teisingą el. pašto adresą",
+    "password": "Slaptažodis turi būti ne trumpesnis nei {min} simbolių",
+    "budget": "Įveskite sumą, didesnę už 0 (pvz., 2.50)"
+  },
+  "ACTIONS": {
+    "edit": "Redaguoti",
+    "resetPassword": "Keisti slaptažodį",
+    "resetOwnPassword": "Savo slaptažodį keiskite paskyros puslapyje",
+    "deactivate": "Deaktyvuoti",
+    "delete": "Ištrinti su visais duomenimis",
+    "deleteHold": "Laikykite 2 sek., kad ištrintumėte su visais duomenimis"
+  },
+  "MODALS": {
+    "create": "Naujas naudotojas",
+    "edit": "Redaguoti naudotoją",
+    "resetPassword": "Nustatyti naują slaptažodį",
+    "resetHint": "Visos šio naudotojo sesijos bus nutrauktos.",
+    "deactivate": "Deaktyvuoti naudotoją {name}?",
+    "deactivateHint": "Paskyra bus išjungta ir visos jos sesijos nutrauktos. Paskyra neištrinama."
+  },
+  "loadError": "Nepavyko įkelti naudotojų",
+  "TOASTS": {
+    "created": "Naudotojas sukurtas",
+    "updated": "Išsaugota",
+    "passwordReset": "Slaptažodis pakeistas",
+    "deactivated": "Naudotojas deaktyvuotas",
+    "deleted": "Naudotojas {name} ištrintas su visais duomenimis (įmonės: {companies}, ataskaitos: {reports}, dokumentai: {documents}, pokalbiai: {threads})",
+    "holdToDelete": "Laikykite mygtuką nuspaustą 2 sek., kad ištrintumėte naudotoją su visais duomenimis"
+  }
+}

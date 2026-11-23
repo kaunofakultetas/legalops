@@ -1,0 +1,512 @@
+{
+  "jobStatus": {
+    "queued": "Laukia eilėje",
+    "running": "Vykdoma",
+    "done": "Baigta",
+    "failed": "Nepavyko",
+    "cancelled": "Atšaukta"
+  },
+  "stepStatus": {
+    "running": "Vykdoma",
+    "done": "Atlikta",
+    "failed": "Nepavyko",
+    "skipped": "Praleista"
+  },
+  "jobKind": {
+    "report": {
+      "analyze": "Atitikties analizė"
+    },
+    "corpus": {
+      "ingest": "Teisės akto įkėlimas",
+      "reembed": "Vektorių perskaičiavimas",
+      "refresh_all": "Visų šaltinių patikra",
+      "extract_obligations": "Pareigų išskyrimas",
+      "verify_obligations": "Pareigų tikrinimas"
+    },
+    "documents": {
+      "index": "Dokumento indeksavimas"
+    },
+    "ops": {
+      "maintenance": "Sistemos priežiūra",
+      "noop": "Bandomoji užduotis"
+    },
+    "programme": {
+      "generate": "Programos dokumento generavimas"
+    }
+  },
+  "stepName": {
+    "profile": "Įmonės profilis",
+    "documents": "Dokumentų inventorius",
+    "citations": "Teisės aktų nuorodų patikra",
+    "applicability": "Teisės aktų taikytinumas",
+    "obligations": "Pareigų atranka",
+    "gap_analysis": "Atitikties spragų analizė",
+    "internal": "Vidaus reikalavimų vertinimas",
+    "action_plan": "Veiksmų planas",
+    "summary": "Santrauka",
+    "verify": "Tikrinimas",
+    "fetch": "Atsisiuntimas iš šaltinio",
+    "extract": "Išskyrimas",
+    "parse": "Struktūros atpažinimas",
+    "chunk": "Skaidymas į fragmentus",
+    "embed": "Vektorizavimas",
+    "done": "Baigta",
+    "policy": "Politikos rašymas",
+    "document_gaps": "Trūkstamų dokumentų paieška",
+    "structure": "Struktūros nagrinėjimas",
+    "process_raci": "Procesas ir RACI matrica",
+    "criteria": "Rizikos kriterijai",
+    "scenarios": "Rizikos scenarijai",
+    "references": "Nuorodų patikra"
+  },
+  "reportStatus": {
+    "queued": "Laukia eilėje",
+    "running": "Vykdoma",
+    "scope_review": "Laukia apimties patvirtinimo",
+    "done": "Baigta",
+    "failed": "Nepavyko",
+    "cancelled": "Atšaukta"
+  },
+  "findingStatus": {
+    "met": "Atitinka",
+    "partial": "Iš dalies",
+    "missing": "Neatitinka",
+    "unknown": "Neįrodyta",
+    "not_applicable": "Netaikoma"
+  },
+  "severity": {
+    "critical": "Kritinė",
+    "high": "Aukšta",
+    "medium": "Vidutinė",
+    "low": "Žema"
+  },
+  "applicability": {
+    "applies": "Taikomas",
+    "not_applies": "Netaikomas",
+    "uncertain": "Tikslintinas"
+  },
+  "effort": {
+    "low": "Mažos",
+    "medium": "Vidutinės",
+    "high": "Didelės"
+  },
+  "timeframe": {
+    "immediate": "Nedelsiant",
+    "30_days": "Per 30 dienų",
+    "90_days": "Per 90 dienų",
+    "12_months": "Per 12 mėnesių"
+  },
+  "obligationStatus": {
+    "proposed": "Pasiūlyta",
+    "approved": "Patvirtinta",
+    "rejected": "Atmesta"
+  },
+  "verification": {
+    "supported": "Pagrįsta",
+    "partly": "Iš dalies",
+    "unsupported": "Nepagrįsta",
+    "unchecked": "Netikrinta"
+  },
+  "verificationIssue": {
+    "duty": "pareiga",
+    "addressee": "adresatas",
+    "condition": "sąlyga",
+    "deadline": "terminas",
+    "merged": "sujungtos pareigos"
+  },
+  "obligationSource": {
+    "legal": "Teisės aktas",
+    "internal": "Vidaus dokumentas",
+    "standard": "Standartas"
+  },
+  "category": {
+    "licensing": "Licencijavimas",
+    "registration": "Registracija",
+    "governance": "Vidaus valdymas",
+    "policy": "Politikos",
+    "procedure": "Procedūros",
+    "risk_management": "Rizikos valdymas",
+    "ict_security": "IRT saugumas",
+    "outsourcing": "Užsakomosios paslaugos",
+    "incident_reporting": "Pranešimai apie incidentus",
+    "reporting": "Atskaitomybė",
+    "disclosure": "Informacijos atskleidimas",
+    "record_keeping": "Duomenų ir dokumentų saugojimas",
+    "customer_protection": "Klientų apsauga",
+    "aml_kyc": "PPTFP ir klientų tapatybės nustatymas",
+    "capital": "Kapitalo reikalavimai",
+    "safeguarding": "Klientų lėšų apsauga",
+    "training": "Mokymai",
+    "data_protection": "Asmens duomenų apsauga",
+    "ai_governance": "DI valdysena",
+    "other": "Kita"
+  },
+  "institutionType": {
+    "bank": "Bankas",
+    "credit_union": "Kredito unija",
+    "payment_institution": "Mokėjimo įstaiga",
+    "emi": "Elektroninių pinigų įstaiga",
+    "casp": "Kriptoturto paslaugų teikėjas",
+    "crowdfunding": "Sutelktinio finansavimo paslaugų teikėjas",
+    "consumer_credit": "Vartojimo kredito davėjas",
+    "real_estate_credit": "Su nekilnojamuoju turtu susijusio kredito davėjas",
+    "currency_exchange": "Valiutos keityklos operatorius",
+    "investment_firm": "Finansų maklerio įmonė",
+    "insurance": "Draudimo įmonė",
+    "other_financial": "Kita finansų įstaiga",
+    "none": "Ne finansų įstaiga",
+    "unknown": "Nenustatyta",
+    "all": "Visos įstaigos"
+  },
+  "sizeCategory": {
+    "micro": "Labai maža",
+    "small": "Maža",
+    "medium": "Vidutinė",
+    "large": "Didelė",
+    "unknown": "Nenustatyta"
+  },
+  "credentialKind": {
+    "certificate": "Sertifikatas",
+    "license": "Licencija",
+    "permit": "Leidimas",
+    "registration": "Registracija"
+  },
+  "credentialStatus": {
+    "claimed": "Deklaruota",
+    "verified": "Patikrinta"
+  },
+  "standardStatus": {
+    "certified": "Sertifikuota",
+    "implementing": "Diegiama",
+    "planned": "Planuojama"
+  },
+  "documentKind": {
+    "policy": "Politika",
+    "procedure": "Procedūra",
+    "contract": "Sutartis",
+    "register": "Registras",
+    "other": "Kita"
+  },
+  "inventoryType": {
+    "policy": "Politika",
+    "procedure": "Procedūra",
+    "register": "Registras",
+    "contract": "Sutartis",
+    "plan": "Planas",
+    "report": "Ataskaita",
+    "profile": "Profilis",
+    "other": "Kita"
+  },
+  "extractionStatus": {
+    "pending": "Laukia",
+    "done": "Tekstas išgautas",
+    "empty": "Teksto nėra",
+    "failed": "Nepavyko"
+  },
+  "jurisdiction": {
+    "EU": "ES",
+    "LT": "Lietuva",
+    "INTL": "Tarptautinis"
+  },
+  "docType": {
+    "regulation": "Reglamentas",
+    "directive": "Direktyva",
+    "law": "Įstatymas",
+    "resolution": "Nutarimas",
+    "order": "Įsakymas",
+    "guideline": "Gairės",
+    "licensing": "Licencijavimo reikalavimai",
+    "standard": "Standartas",
+    "other": "Kita"
+  },
+  "sourceKind": {
+    "cellar": "EUR-Lex (CELEX)",
+    "etar": "e-TAR",
+    "eseimas": "e-seimas",
+    "lb": "Lietuvos banko svetainė",
+    "url": "Interneto adresas",
+    "upload": "Įkeltas failas"
+  },
+  "docStatus": {
+    "in_force": "Galioja",
+    "not_yet_applicable": "Dar netaikomas",
+    "repealed": "Netekęs galios"
+  },
+  "versionStatus": {
+    "pending": "Laukia",
+    "parsing": "Atpažįstama struktūra",
+    "embedding": "Vektorizuojama",
+    "ready": "Paruošta",
+    "failed": "Nepavyko"
+  },
+  "unitType": {
+    "part": "Dalis",
+    "title": "Antraštinė dalis",
+    "chapter": "Skyrius",
+    "section": "Skirsnis",
+    "subsection": "Poskirsnis",
+    "article": "Straipsnis",
+    "paragraph": "Straipsnio dalis",
+    "point": "Punktas",
+    "subpoint": "Papunktis",
+    "annex": "Priedas",
+    "recital": "Konstatuojamoji dalis",
+    "preamble": "Preambulė",
+    "text": "Tekstas",
+    "clause": "Standarto punktas"
+  },
+  "promptKind": {
+    "chat": "Pokalbis",
+    "pipeline": "Analizės etapas",
+    "corpus": "Teisės aktų bazė"
+  },
+  "promptSource": {
+    "default": "Numatytoji",
+    "user": "Administratoriaus"
+  },
+  "language": {
+    "lt": "Lietuvių",
+    "en": "Anglų"
+  },
+  "role": {
+    "admin": "Administratorius",
+    "user": "Naudotojas"
+  },
+  "callKind": {
+    "chat": "Pokalbis",
+    "job_step": "Analizės etapas",
+    "embed": "Vektorizavimas",
+    "prompt_test": "Instrukcijos bandymas"
+  },
+  "outcome": {
+    "ok": "Sėkminga",
+    "error": "Klaida",
+    "aborted": "Nutraukta",
+    "stopped": "Sustabdyta",
+    "interrupted": "Pertraukta",
+    "timeout": "Baigėsi laikas",
+    "budget": "Viršytas biudžetas",
+    "step-limit": "Pasiektas žingsnių limitas",
+    "empty": "Tuščias atsakymas",
+    "length": "Pasiektas ilgio limitas",
+    "content-filter": "Sustabdė turinio filtras"
+  },
+  "evidenceKind": {
+    "credential": "Leidimas / licencija",
+    "passage": "Dokumento ištrauka",
+    "document": "Dokumentas",
+    "profile": "Įmonės profilis"
+  },
+  "targetType": {
+    "user": "Naudotojas",
+    "company": "Įmonė",
+    "document": "Dokumentas",
+    "legal_document": "Teisės aktas",
+    "obligation": "Pareiga",
+    "report": "Ataskaita",
+    "finding": "Išvada",
+    "prompt": "DI instrukcija",
+    "job": "Užduotis",
+    "mcp_server": "MCP serveris",
+    "work_product": "Programos dokumentas",
+    "company_action": "Registro veiksmas"
+  },
+  "auditAction": {
+    "auth": {
+      "login": "Prisijungimas",
+      "login_failed": "Nesėkmingas prisijungimas",
+      "logout": "Atsijungimas",
+      "logout_all": "Atsijungimas visuose įrenginiuose",
+      "change_password": "Slaptažodžio keitimas"
+    },
+    "users": {
+      "create": "Naudotojo sukūrimas",
+      "update": "Naudotojo keitimas",
+      "reset_password": "Slaptažodžio nustatymas",
+      "deactivate": "Naudotojo deaktyvavimas",
+      "purge": "Naudotojo ištrynimas"
+    },
+    "companies": {
+      "create": "Įmonės sukūrimas",
+      "update": "Įmonės profilio keitimas",
+      "delete": "Įmonės ištrynimas",
+      "credential_add": "Leidimo įrašymas",
+      "credential_update": "Leidimo keitimas",
+      "credential_remove": "Leidimo pašalinimas",
+      "standard_add": "Standartas įrašytas",
+      "standard_update": "Standartas pakeistas",
+      "standard_remove": "Standartas pašalintas",
+      "role_create": "Rolės sukūrimas",
+      "role_update": "Rolės keitimas",
+      "role_delete": "Rolės ištrynimas"
+    },
+    "documents": {
+      "upload": "Dokumento įkėlimas",
+      "update": "Dokumento keitimas",
+      "delete": "Dokumento ištrynimas"
+    },
+    "corpus": {
+      "create": "Teisės akto pridėjimas",
+      "update": "Teisės akto keitimas",
+      "delete": "Teisės akto ištrynimas",
+      "refresh": "Teisės akto atnaujinimas",
+      "upload": "Naujos redakcijos įkėlimas",
+      "reembed": "Vektorių perskaičiavimas",
+      "refresh_all": "Visų šaltinių patikra"
+    },
+    "obligations": {
+      "create": "Pareigos sukūrimas",
+      "update": "Pareigos keitimas",
+      "delete": "Pareigos ištrynimas",
+      "extract": "Pareigų išskyrimas",
+      "review": "Pareigų peržiūra"
+    },
+    "reports": {
+      "create": "Analizės paleidimas",
+      "delete": "Ataskaitos ištrynimas",
+      "cancel": "Analizės atšaukimas",
+      "review_finding": "Išvados peržiūra",
+      "export": "Ataskaitos eksportas",
+      "approve": "Ataskaitos patvirtinimas",
+      "unapprove": "Ataskaitos patvirtinimo atšaukimas"
+    },
+    "prompts": {
+      "version_create": "Instrukcijos versijos sukūrimas",
+      "activate": "Instrukcijos aktyvavimas"
+    },
+    "jobs": {
+      "cancel": "Užduoties atšaukimas"
+    },
+    "mcp": {
+      "create": "MCP serverio pridėjimas",
+      "update": "MCP serverio keitimas",
+      "delete": "MCP serverio ištrynimas",
+      "test": "MCP serverio patikra"
+    },
+    "programme": {
+      "create": "Programos dokumento generavimas",
+      "edit": "Programos dokumento keitimas",
+      "approve": "Programos dokumento patvirtinimas",
+      "revise": "Naujos dokumento versijos kūrimas",
+      "cancel": "Dokumento generavimo atšaukimas",
+      "delete": "Dokumento versijos ištrynimas",
+      "export": "Programos dokumento eksportas"
+    },
+    "actions": {
+      "update": "Registro veiksmo keitimas",
+      "export": "Veiksmų registro eksportas"
+    }
+  },
+  "boolean": {
+    "true": "Taip",
+    "false": "Ne",
+    "null": "Nežinoma"
+  },
+  "citationStatus": {
+    "found": "Rasta",
+    "not_found": "Nerasta",
+    "act_not_in_corpus": "Akto nėra bazėje"
+  },
+  "headingMatch": {
+    "match": "Pavadinimas sutampa",
+    "mismatch": "Pavadinimas nesutampa",
+    "unknown": "Neaišku, ar sutampa"
+  },
+  "citationVerdict": {
+    "mismatch": "Ne ta nuostata",
+    "not_found": "Tokios nuostatos nėra",
+    "unknown": "Nepavyko įvertinti",
+    "act_not_in_corpus": "Akto nėra bazėje",
+    "match": "Teisinga"
+  },
+  "mcpTransport": {
+    "http": "HTTP (srautinis)",
+    "sse": "SSE"
+  },
+  "unitFilter": {
+    "structure": "Struktūra (skyriai, straipsniai, punktai)",
+    "all": "Visos nuostatos",
+    "article": "Tik straipsniai",
+    "recital": "Konstatuojamosios dalys",
+    "annex": "Priedai"
+  },
+  "productStatus": {
+    "none": "Dar neparengta",
+    "queued": "Laukia eilėje",
+    "running": "Generuojama",
+    "draft": "Projektas",
+    "approved": "Patvirtinta",
+    "failed": "Nepavyko",
+    "cancelled": "Atšaukta"
+  },
+  "productKind": {
+    "policy": "Atitikties politika",
+    "governance": "Valdymo struktūra, atitikties procesas ir RACI",
+    "risks": "Teisinės atitikties rizikos vertinimo kriterijai ir registras"
+  },
+  "actionState": {
+    "open": "Atviras",
+    "in_progress": "Vykdomas",
+    "late": "Vėluojantis",
+    "done": "Įvykdytas, laukia patikros",
+    "closed": "Uždarytas"
+  },
+  "riskBand": {
+    "negligible": "Nereikšminga",
+    "tolerable": "Toleruotina",
+    "medium": "Vidutinė",
+    "high": "Didelė",
+    "critical": "Kritinė"
+  },
+  "riskResponse": {
+    "accept": "Priimti",
+    "increase": "Didinti",
+    "mitigate": "Mažinti",
+    "transfer": "Perkelti / dalytis",
+    "avoid": "Vengti"
+  },
+  "riskCategory": {
+    "1": "Teisinės aplinkos nenuspėjamumas",
+    "2": "Taikytinų teisės aktų nesilaikymas",
+    "3": "Sutarties pažeidimas",
+    "4": "Trečiųjų asmenų teisių pažeidimas",
+    "5": "Neveikimas įgyvendinant teises",
+    "6": "Netinkamas pasirinkimas"
+  },
+  "riskSource": {
+    "1": "Reguliavimo ir teisėkūros institucijos",
+    "2": "Sutartiniai partneriai ir tiekėjai",
+    "3": "Klientai ir vartotojų bendruomenės",
+    "4": "Išoriniai piktybiniai veikėjai",
+    "5": "Organizacijos valdysena, personalas ir kultūra",
+    "6": "Vidiniai procesai, kontrolės sistemos ir IT architektūra"
+  },
+  "riskConsequence": {
+    "1": "Tiesioginės finansinės pasekmės",
+    "2": "Priežiūros ir licencinės pasekmės",
+    "3": "Reputacinės ir rinkos pasekmės",
+    "4": "Operacinės ir verslo tęstinumo pasekmės",
+    "5": "Organizacinio ir geografinio masto pasekmės"
+  },
+  "riskObjective": {
+    "1": "Teisinės atitikties ir licenciniai tikslai",
+    "2": "Strateginiai ir verslo plėtros tikslai",
+    "3": "Finansinio stabilumo, kapitalo ir likvidumo tikslai",
+    "4": "Operacinio atsparumo ir veiklos tęstinumo tikslai",
+    "5": "Reputaciniai, pasitikėjimo ir ESG tikslai"
+  },
+  "likelihoodLevel": {
+    "1": "Labai mažai tikėtina",
+    "2": "Mažai tikėtina",
+    "3": "Vidutiniškai tikėtina",
+    "4": "Tikėtina",
+    "5": "Beveik neabejotina"
+  },
+  "impactLevel": {
+    "1": "Nereikšmingas",
+    "2": "Mažas",
+    "3": "Vidutinis",
+    "4": "Didelis",
+    "5": "Katastrofinis"
+  }
+}

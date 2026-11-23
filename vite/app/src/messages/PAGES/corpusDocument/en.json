@@ -1,0 +1,153 @@
+{
+  "TITLE": "Legal act",
+  "back": "Legal corpus",
+  "loadError": "The legal act could not be loaded",
+  "disabled": "Disabled — not used in search and analysis",
+  "pagesNote": "No clause structure was found in this standard: it is indexed and cited by its pages.",
+  "source": "Official source",
+  "lastChecked": "Source checked {date}",
+  "lastError": "Last ingestion error",
+  "TABS": {
+    "label": "Legal act sections",
+    "structure": "Structure",
+    "versions": "Versions",
+    "obligations": "Obligations",
+    "info": "Details"
+  },
+  "ACTIONS": {
+    "refresh": "Refresh from the source",
+    "refreshForce": "Re-process (even if unchanged)",
+    "structure": "Read the structure another way",
+    "upload": "Upload a new version",
+    "extract": "Extract obligations",
+    "verify": "Check the obligations",
+    "verifyAgain": "Check the obligations again",
+    "reembed": "Re-embed",
+    "edit": "Edit the metadata",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete the legal act",
+    "more": "More legal act actions"
+  },
+  "CONFIRM": {
+    "extractTitle": "Extract the obligations of “{name}”?",
+    "extractText": "The AI model reads the current version and proposes obligations for review. Approved obligations are kept. This uses the AI model and costs money.",
+    "extractLanguage": "Language of the obligations",
+    "verifyTitle": "Check the obligations of “{name}”?",
+    "verifyAgainTitle": "Check the obligations of “{name}” again?",
+    "verifyText": "A second model compares every obligation with the provisions it rests on. It approves nothing — start your review with the doubted ones.",
+    "verifyScope": "Only the obligations not checked yet are checked. This uses the AI model and costs money.",
+    "verifyAgainScope": "Every obligation of this act has been checked — all of them are checked again. This uses the AI model and costs money.",
+    "reembedTitle": "Re-embed “{name}”?",
+    "reembedText": "The act's chunks are embedded again — only needed after the embedding model changed. This costs money.",
+    "deleteTitle": "Delete the legal act “{name}”?",
+    "deleteText": "Every version, provision, chunk and file is deleted. Reports already produced do not change. To stop using the act only for a while, disable it instead.",
+    "run": "Run"
+  },
+  "METHOD": {
+    "title": "How should the structure of “{name}” be read?",
+    "text": "The standard is processed again from the same file. Reviewed requirements stay; proposals whose clauses are no longer there are removed, and the requirements are then extracted anew.",
+    "label": "Way of reading the structure",
+    "current": "Read now by: {parser}",
+    "auto": "Automatically",
+    "autoHint": "Numbered clauses and lettered annexes by rules. Where the rules find no structure, the AI model marks the headings. By pages when neither works.",
+    "rules": "Clause rules only",
+    "rulesHint": "No AI model. A document without numbered clauses is indexed by its pages.",
+    "ai": "AI model",
+    "aiHint": "The AI model marks the headings of the whole text — for a framework with identifiers of its own (AC-2, GV.OC-01) or without numbering. This uses the AI model and costs money.",
+    "pages": "By pages",
+    "pagesHint": "Each page is a unit, cited by its number. No AI model.",
+    "run": "Re-process"
+  },
+  "UPLOAD": {
+    "title": "New version",
+    "text": "Upload the text of the new version (PDF, DOCX, HTML or TXT). A file identical to the current version is refused.",
+    "submit": "Upload",
+    "progress": "Uploading… {percent} %"
+  },
+  "JOB": {
+    "running": "Running: {kind}",
+    "failed": "Failed: {kind}",
+    "open": "All jobs"
+  },
+  "STRUCTURE": {
+    "filter": "Show",
+    "search": "Search the text",
+    "list": "The act's provisions",
+    "loadMore": "Show more ({shown} of {total})",
+    "empty": "No provisions",
+    "notIngested": "The act is not ingested yet — its structure appears after ingestion.",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "select": "Pick a provision to read its text."
+  },
+  "UNIT": {
+    "title": "Provision",
+    "close": "Close",
+    "copy": "Copy the citation",
+    "copied": "Citation copied",
+    "official": "Official text",
+    "notCurrent": "This provision is from an earlier version (v{version}).",
+    "version": "Version v{version}"
+  },
+  "VERSIONS": {
+    "COLUMNS": {
+      "version": "Version",
+      "status": "Status",
+      "label": "Label",
+      "effective": "In force from",
+      "units": "Provisions",
+      "articles": "Articles or clauses",
+      "chunks": "Chunks",
+      "chars": "Characters",
+      "parser": "Parser",
+      "embed": "Embedding model",
+      "created": "Uploaded",
+      "obligations": "Obligations extracted"
+    },
+    "PARSERS": {
+      "standard": "Clause rules",
+      "standard-refined": "Rules and AI",
+      "standard-ai": "AI model",
+      "standard-pages": "Pages"
+    },
+    "current": "current",
+    "empty": "No versions yet"
+  },
+  "INFO": {
+    "slug": "System identifier",
+    "title": "Official title",
+    "titleEn": "English title",
+    "shortTitle": "Short title",
+    "jurisdiction": "Jurisdiction",
+    "docType": "Type",
+    "status": "Status",
+    "sourceKind": "Source",
+    "externalId": "External identifier",
+    "sourceUrl": "Source address",
+    "language": "Text language",
+    "domains": "Domains",
+    "appliesTo": "Typically applies to",
+    "applicabilityNotes": "Applicability notes",
+    "scopeReading": "Whom it covers, as read from its text",
+    "scopeSilent": "Its scope provisions do not say whom it covers",
+    "sanctionsReading": "Sanctions, as read from its text",
+    "sanctionTiers": "Sanction tiers: {count}",
+    "modelNote": "The model's note: {note}",
+    "notRead": "Not read yet",
+    "createdAt": "Added",
+    "updatedAt": "Updated",
+    "lastCheckedAt": "Source checked"
+  },
+  "EDIT": {
+    "title": "Legal act metadata",
+    "save": "Save"
+  },
+  "TOASTS": {
+    "saved": "Saved",
+    "deleted": "Legal act deleted",
+    "uploaded": "New version uploaded — processing queued",
+    "enabled": "Legal act enabled",
+    "disabled": "Legal act disabled"
+  }
+}

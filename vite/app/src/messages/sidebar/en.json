@@ -1,0 +1,9 @@
+{
+  "LABEL": "Main navigation",
+  "PIN": {"pin": "Pin the sidebar", "unpin": "Unpin the sidebar"},
+  "MAIN": {"TITLE": "Main", "chat": "Chat", "dashboard": "Overview"},
+  "COMPLIANCE": {"TITLE": "Compliance", "companies": "Companies", "reports": "Reports"},
+  "LAW": {"TITLE": "Law", "corpus": "Legal corpus", "obligations": "Obligation review"},
+  "ADMIN": {"TITLE": "Administration", "prompts": "AI prompts", "mcp": "MCP servers", "users": "Users", "audit": "Audit log"},
+  "SYSTEM": {"TITLE": "System", "usage": "AI usage", "jobs": "Jobs", "account": "Account"}
+}

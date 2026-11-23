@@ -1,0 +1,29 @@
+{
+  "skip": "Skip to the content",
+  "home": "Compliance assistant — home",
+  "nav": {
+    "label": "Site pages",
+    "product": "Product",
+    "method": "Method",
+    "sources": "Legal acts",
+    "documentation": "Documentation",
+    "about": "About"
+  },
+  "menuOpen": "Open the menu",
+  "menuClose": "Close the menu",
+  "signIn": "Sign in",
+  "openConsole": "Open the console",
+  "localeShort": "LT",
+  "footer": {
+    "label": "Site footer",
+    "about": "The Compliance assistant works out which acts apply to a financial institution, checks their duties against the company's documents and writes a compliance gap report.",
+    "pages": "Pages",
+    "console": "Console",
+    "disclaimer": "The assistant is an artificial intelligence system. Its findings are an aid and no substitute for legal advice: check every reference to an act against the official text."
+  },
+  "closing": {
+    "title": "Start with a conversation",
+    "text": "Describe the company in your own words and drop in its policies — the assistant builds the profile itself. Accounts are created by an administrator; there is no self-registration.",
+    "method": "Read the method"
+  }
+}

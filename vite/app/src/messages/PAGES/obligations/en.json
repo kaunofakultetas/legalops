@@ -1,0 +1,97 @@
+{
+  "TITLE": "Obligation review",
+  "subtitle": "Obligations the AI extracted from legal acts. Approved ones feed the analysis and survive re-extraction; rejected ones never reach a report.",
+  "act": "Legal act",
+  "allActs": "All legal acts",
+  "status": "Status",
+  "category": "Domain",
+  "severity": "Severity",
+  "all": "All",
+  "search": "Search the obligations",
+  "check": "Check",
+  "CHECK": {
+    "doubt": "Doubted",
+    "unsupported": "Unsupported",
+    "partly": "Partly",
+    "supported": "Supported",
+    "unchecked": "Not checked"
+  },
+  "reviewOrder": "Doubted first",
+  "checkCounts": "Doubted: {doubted} · not checked: {unchecked}",
+  "checkIssue": "What is off: {issue}.",
+  "COLUMNS": {
+    "title": "Obligation",
+    "act": "Legal act",
+    "citations": "Provision",
+    "category": "Domain",
+    "severity": "Severity",
+    "appliesTo": "Applies to",
+    "status": "Status",
+    "updated": "Updated",
+    "actions": "Actions"
+  },
+  "ACTIONS": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "BULK": {
+    "selected": "Selected: {count}",
+    "approve": "Approve selected",
+    "reject": "Reject selected",
+    "propose": "Set back to proposed",
+    "progress": "Updating {done} of {total}…",
+    "done": "Obligations updated: {count}",
+    "partial": "Updated {done} of {total}; failed: {failed}"
+  },
+  "shown": "Showing {shown} of {total}",
+  "truncated": "The first {loaded} of {total} obligations are loaded — narrow the filters.",
+  "empty": "No obligations",
+  "emptyText": "Obligations appear once an administrator runs the extraction on a legal act's page.",
+  "extracting": "The obligations are being extracted right now",
+  "extractionQueued": "The extraction of the obligations is waiting in the queue",
+  "extractingText": "The list appears by itself once the extraction has finished.",
+  "emptyFiltered": "No obligations match the filters",
+  "loadError": "The obligations could not be loaded",
+  "DIALOG": {
+    "title": "Obligation",
+    "citations": "Legal basis",
+    "model": "Extracted by: {model}",
+    "reviewed": "Reviewed {date}",
+    "CHECK": {
+      "title": "Check result",
+      "issue": "What is off: {issue}",
+      "checkedBy": "Checked {date} · {model}",
+      "checkedAt": "Checked {date}",
+      "unchecked": "The second model has not checked this obligation yet — or its title or text was changed after the check.",
+      "editHint": "Changing the title or the text clears this result: the obligation has to be checked again."
+    },
+    "FIELDS": {
+      "title": "Title",
+      "titleEn": "English title",
+      "text": "Obligation text",
+      "textEn": "English text",
+      "addressee": "Addressee",
+      "conditions": "Conditions of application",
+      "evidence": "Expected evidence",
+      "deadline": "Deadline / frequency",
+      "notes": "Notes",
+      "category": "Domain",
+      "severity": "Severity",
+      "appliesTo": "Institution types",
+      "status": "Status"
+    },
+    "required": "Required",
+    "save": "Save",
+    "deleteTitle": "Delete the obligation?",
+    "deleteText": "The obligation is deleted. A re-extraction may propose it again — rejecting it is usually better."
+  },
+  "TOASTS": {
+    "saved": "Obligation saved",
+    "approved": "Obligation approved",
+    "rejected": "Obligation rejected",
+    "proposed": "Obligation set back to proposed",
+    "deleted": "Obligation deleted"
+  }
+}

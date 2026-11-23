@@ -1,0 +1,68 @@
+{
+  "TITLE": "Produktas",
+  "head": {
+    "title": "Nuo pokalbio iki patvirtintos ataskaitos",
+    "lede": "Kas nutinka nuo pirmos žinutės iki ataskaitos, kurią galite parodyti vadovybei, ir ką matote kiekviename žingsnyje."
+  },
+  "chat": {
+    "title": "Viskas prasideda pokalbyje",
+    "text": "Aprašykite įmonę savais žodžiais: veiklą, klientus, paslaugas, turimas licencijas. Asistentas pats sukuria įmonės profilį ir užpildo, ką žino.",
+    "points": {
+      "a": "Dokumentus tiesiog nutempkite į pokalbį: PDF, DOCX, TXT, MD, HTML, CSV ar JSON, iki 50 MB.",
+      "b": "Ko nežino, nespėlioja: toks profilio laukas lieka „nežinoma“.",
+      "c": "Licenciją, kurią nurodote patys, įrašo kaip deklaruotą, nepatikrintą."
+    },
+    "specimen": "Pokalbio pavyzdys: klausimas ir atsakymas su nuoroda į straipsnį"
+  },
+  "analysis": {
+    "title": "Analizė, kurios kainą žinote iš anksto",
+    "text": "Prieš pradėdamas asistentas apskaičiuoja didžiausią galimą analizės kainą, parodo likusį jūsų dienos DI biudžetą ir pradeda tik jums sutikus. Analizė vyksta fone — nuo kelių iki keliasdešimties minučių.",
+    "points": {
+      "a": "Matote kiekvieną etapą, jo modelį ir kainą.",
+      "b": "Puslapį galite palikti — rezultatai išsisaugos.",
+      "c": "Analizę galima sustabdyti bet kuriame etape."
+    },
+    "specimen": "Vykstančios analizės pavyzdys: etapai ir DI kaina iki šiol"
+  },
+  "finding": {
+    "title": "Išvada su įrodymu",
+    "text": "Kiekviena įvertinta pareiga tampa išvada: pareiga teisės akto žodžiais, vertinimas, rekomendacija ir įrodymas su citata. Citata surandama jūsų dokumente — paspaudę ją, atsidursite toje vietoje.",
+    "points": {
+      "a": "Išvadas galima grupuoti pagal teisės aktą ar sritį, filtruoti ir ieškoti jose.",
+      "b": "Reikšmingumas rodo pareigos svarbą, būsena — ką pavyko nustatyti.",
+      "c": "Jei citatos pažodžiui rasti nepavyko, tai parašyta po ja."
+    },
+    "specimen": "Išvados pavyzdys: pareiga, dokumento ištrauka ir vertinimas"
+  },
+  "plan": {
+    "title": "Planas, kuris uždaro kiekvieną spragą",
+    "text": "Veiksmų planas apima kiekvieną neįvykdytą ar neįrodytą pareigą. Veiksmas nurodo, ką parengti, kas atsakingas, kiek tai darbo ir iki kada, o susijusios išvados parodo, ką jis uždaro.",
+    "points": {
+      "a": "Klaidingos dokumentų nuorodos tampa taisomaisiais veiksmais.",
+      "b": "Pasirengimas vėliau taikomiems aktams pateikiamas atskirai.",
+      "c": "Nevertinti aktai tampa veiksmu išsiaiškinti trūkstamus faktus."
+    },
+    "specimen": "Veiksmų plano pavyzdys: trys veiksmai su atsakingu asmeniu ir terminu"
+  },
+  "citations": {
+    "title": "Patikrina ir jūsų dokumentų nuorodas",
+    "text": "Politikos dažnai nurodo konkrečius straipsnius. Asistentas kiekvieną tokią nuorodą palygina su galiojančia akto redakcija: ar tokia nuostata yra ir ar ji reglamentuoja tai, ką teigia dokumentas.",
+    "points": {
+      "a": "Tinka intervalai ir sąrašai, kaip juos rašo dokumentai: „77–78“, „6–9, 26–29“.",
+      "b": "Tą patį galima paprašyti pokalbyje arba atlikti teisės aktų bazėje.",
+      "c": "Ko patikrinti nepavyko, pažymima „nepavyko įvertinti“."
+    },
+    "specimen": "Nuorodų patikros pavyzdys: viena teisinga nuoroda ir dvi klaidingos"
+  },
+  "finish": {
+    "title": "Ataskaita, kuri lieka jūsų",
+    "review": {
+      "title": "Paskutinis žodis — jūsų",
+      "text": "Kiekvieną išvadą galite pakeisti savo vertinimu su pastaba: ji pažymima „Peržiūrėta“, o pakeitimas įrašomas į veiksmų žurnalą. Patvirtinta ataskaita rodo, kas ir kada ją patvirtino."
+    },
+    "export": {
+      "title": "PDF vadovybei, Excel darbui",
+      "text": "PDF pradedamas nuo išvadų: rezultatas trumpai, santrauka ir veiksmų planas, po jų — medžiaga, kuria išvados pagrįstos, ir metodika. Excel darbaknygėje kiekviena išvada yra atskira eilutė."
+    }
+  }
+}

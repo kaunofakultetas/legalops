@@ -1,0 +1,21 @@
+{
+  "SUBJECT": {
+    "report": "Report",
+    "corpus": "Legal act",
+    "obligations": "Obligations of an act",
+    "verification": "Obligation check of an act",
+    "document": "Company document",
+    "schedule": "Scheduled job",
+    "smoke": "Test",
+    "allActs": "All legal acts",
+    "allSources": "All sources",
+    "product": "Programme document"
+  },
+  "PROGRESS": {
+    "batches": "{done} of {total} batches",
+    "extracting": "extracting obligations: {title}",
+    "reading": "reading the document: {title}",
+    "obligations": "obligations: {count}",
+    "percent": "{percent}%"
+  }
+}

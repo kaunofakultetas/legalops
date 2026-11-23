@@ -1,0 +1,48 @@
+{
+  "TITLE": "Documentation",
+  "head": {
+    "title": "The system's documentation",
+    "lede": "One book on what each part of the Compliance assistant does, why it is built that way and how the parts fit together. It is written for a reader who knows compliance work and does not want to read the code."
+  },
+  "open": {
+    "title": "The whole book in one file",
+    "text": "More than 500 pages with figures and tables, in Lithuanian and in English. The button opens the edition in the language you are reading now; for the other one, switch the language at the top of the page.",
+    "action": "Open the documentation (PDF)",
+    "file": "A PDF file in English, about 7 MB."
+  },
+  "parts": {
+    "title": "How it is arranged",
+    "glance": {
+      "name": "The system at a glance",
+      "text": "What the system is for, the services it runs as, and the data it keeps."
+    },
+    "ai": {
+      "name": "Artificial intelligence in the system",
+      "text": "The longest part. It follows the data from the law to the report: how a model is reached and what a call costs, how prompts are kept and changed, how the legal texts become a searchable corpus and a register of obligations, what is read out of a company's documents, how the compliance report is made and lives on, and how the chat assistant works. It ends with what keeps all of this trustworthy: the checks, the evaluation, the people who decide, and the cost."
+    },
+    "running": {
+      "name": "Using and running the system",
+      "text": "The console page by page, the API, security, deployment and operations, the tests, and how the system answers the course it was built for."
+    },
+    "reference": {
+      "name": "Reference",
+      "text": "Every prompt, every chat tool, every act of the catalogue, the settings and a glossary."
+    }
+  },
+  "acting": {
+    "title": "Who is acting",
+    "text": "A system that uses language models is only as trustworthy as the line it draws between what a model wrote, what the code verified and what a person decided. The book marks that line the same way on every page.",
+    "model": {
+      "name": "A model is asked",
+      "text": "A yellow panel describes a call to a language model: what it is given, what it is told and what it must answer."
+    },
+    "code": {
+      "name": "Code checks or computes",
+      "text": "A blue panel describes what is done without a model: a quotation located in its document, a provision looked up in the corpus, a score computed. Nothing in it depends on what a model happened to say."
+    },
+    "person": {
+      "name": "A person decides",
+      "text": "A framed panel marks a decision the system never takes itself: approving the scope of a report, approving an obligation, signing a report off."
+    }
+  }
+}

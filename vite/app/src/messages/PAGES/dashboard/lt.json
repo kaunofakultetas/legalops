@@ -1,0 +1,42 @@
+{
+  "TITLE": "Apžvalga",
+  "welcome": "Sveiki, {name}",
+  "KPI": {
+    "companies": "Įmonės",
+    "reportsDone": "Baigtos ataskaitos",
+    "reportsRunning": "Vykdomos analizės",
+    "reportsWaiting": "laukia patvirtinimo: {count}",
+    "acts": "Paruošti teisės aktai",
+    "actsSub": "iš {total}",
+    "toReview": "Pareigos peržiūrai",
+    "users": "Naudotojai"
+  },
+  "budget": "DI biudžetas šiandien",
+  "budgetMeter": "Išnaudota",
+  "RECENT": {
+    "reports": "Naujausios ataskaitos",
+    "companies": "Naujausios įmonės",
+    "jobs": "Paskutinės užduotys",
+    "all": "Visos",
+    "noReports": "Ataskaitų dar nėra",
+    "noCompanies": "Įmonių dar nėra",
+    "noJobs": "Užduočių dar nėra"
+  },
+  "CORPUS": {
+    "title": "Teisės aktų bazė",
+    "ready": "Paruošta: {count}",
+    "ingesting": "Apdorojama: {count}",
+    "failed": "Su klaidomis: {count}",
+    "noText": "Be teksto: {count}",
+    "disabled": "Išjungta: {count}",
+    "problems": "Aktai su klaidomis",
+    "allGood": "Visi naudojami teisės aktai paruošti.",
+    "open": "Atidaryti bazę"
+  },
+  "JOBS": {
+    "queued": "Laukia",
+    "running": "Vykdoma",
+    "failed": "Nepavyko"
+  },
+  "loadError": "Nepavyko įkelti"
+}

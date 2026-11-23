@@ -1,0 +1,11 @@
+{
+  "TITLE": "Something went wrong",
+  "text": "The page could not be shown. Try reloading it — if the error keeps coming back, tell your administrator.",
+  "chunkTitle": "The app was updated",
+  "chunkText": "A new version of the app was deployed. Reload the page to load it.",
+  "notFoundTitle": "Page not found",
+  "notFoundText": "There is no such page.",
+  "reload": "Reload the page",
+  "home": "Go home",
+  "details": "Technical details"
+}

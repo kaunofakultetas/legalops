@@ -1,0 +1,512 @@
+{
+  "jobStatus": {
+    "queued": "Queued",
+    "running": "Running",
+    "done": "Done",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "stepStatus": {
+    "running": "Running",
+    "done": "Done",
+    "failed": "Failed",
+    "skipped": "Skipped"
+  },
+  "jobKind": {
+    "report": {
+      "analyze": "Compliance analysis"
+    },
+    "corpus": {
+      "ingest": "Legal act ingestion",
+      "reembed": "Re-embedding",
+      "refresh_all": "Source check (all acts)",
+      "extract_obligations": "Obligation extraction",
+      "verify_obligations": "Obligation check"
+    },
+    "documents": {
+      "index": "Document indexing"
+    },
+    "ops": {
+      "maintenance": "Maintenance",
+      "noop": "Test job"
+    },
+    "programme": {
+      "generate": "Programme document generation"
+    }
+  },
+  "stepName": {
+    "profile": "Company profile",
+    "documents": "Document inventory",
+    "citations": "Citation audit",
+    "applicability": "Applicability of acts",
+    "obligations": "Obligation selection",
+    "gap_analysis": "Gap analysis",
+    "internal": "Assessing the company's own requirements",
+    "action_plan": "Action plan",
+    "summary": "Summary",
+    "verify": "Checking",
+    "fetch": "Fetch from source",
+    "extract": "Extraction",
+    "parse": "Structure parsing",
+    "chunk": "Chunking",
+    "embed": "Embedding",
+    "done": "Done",
+    "policy": "Writing the policy",
+    "document_gaps": "Finding missing documents",
+    "structure": "Reading the structure",
+    "process_raci": "Process and RACI",
+    "criteria": "Risk criteria",
+    "scenarios": "Risk scenarios",
+    "references": "Checking the references"
+  },
+  "reportStatus": {
+    "queued": "Queued",
+    "running": "Running",
+    "scope_review": "Awaiting scope approval",
+    "done": "Finished",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "findingStatus": {
+    "met": "Met",
+    "partial": "Partial",
+    "missing": "Not met",
+    "unknown": "Not evidenced",
+    "not_applicable": "Not applicable"
+  },
+  "severity": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low"
+  },
+  "applicability": {
+    "applies": "Applies",
+    "not_applies": "Does not apply",
+    "uncertain": "To be confirmed"
+  },
+  "effort": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High"
+  },
+  "timeframe": {
+    "immediate": "Immediately",
+    "30_days": "Within 30 days",
+    "90_days": "Within 90 days",
+    "12_months": "Within 12 months"
+  },
+  "obligationStatus": {
+    "proposed": "Proposed",
+    "approved": "Approved",
+    "rejected": "Rejected"
+  },
+  "verification": {
+    "supported": "Supported",
+    "partly": "Partly",
+    "unsupported": "Unsupported",
+    "unchecked": "Not checked"
+  },
+  "verificationIssue": {
+    "duty": "duty",
+    "addressee": "addressee",
+    "condition": "condition",
+    "deadline": "deadline",
+    "merged": "merged duties"
+  },
+  "obligationSource": {
+    "legal": "Legal act",
+    "internal": "Internal document",
+    "standard": "Standard"
+  },
+  "category": {
+    "licensing": "Licensing",
+    "registration": "Registration",
+    "governance": "Governance",
+    "policy": "Policies",
+    "procedure": "Procedures",
+    "risk_management": "Risk management",
+    "ict_security": "ICT security",
+    "outsourcing": "Outsourcing",
+    "incident_reporting": "Incident reporting",
+    "reporting": "Reporting",
+    "disclosure": "Disclosure",
+    "record_keeping": "Record keeping",
+    "customer_protection": "Customer protection",
+    "aml_kyc": "AML/CTF and KYC",
+    "capital": "Capital requirements",
+    "safeguarding": "Safeguarding of client funds",
+    "training": "Training",
+    "data_protection": "Data protection",
+    "ai_governance": "AI governance",
+    "other": "Other"
+  },
+  "institutionType": {
+    "bank": "Bank",
+    "credit_union": "Credit union",
+    "payment_institution": "Payment institution",
+    "emi": "Electronic money institution",
+    "casp": "Crypto-asset service provider",
+    "crowdfunding": "Crowdfunding service provider",
+    "consumer_credit": "Consumer credit provider",
+    "real_estate_credit": "Real-estate credit provider",
+    "currency_exchange": "Currency exchange operator",
+    "investment_firm": "Investment firm",
+    "insurance": "Insurance undertaking",
+    "other_financial": "Other financial institution",
+    "none": "Not a financial institution",
+    "unknown": "Not determined",
+    "all": "All institutions"
+  },
+  "sizeCategory": {
+    "micro": "Micro",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "unknown": "Not determined"
+  },
+  "credentialKind": {
+    "certificate": "Certificate",
+    "license": "Licence",
+    "permit": "Permit",
+    "registration": "Registration"
+  },
+  "credentialStatus": {
+    "claimed": "Claimed",
+    "verified": "Verified"
+  },
+  "standardStatus": {
+    "certified": "Certified",
+    "implementing": "Implementing",
+    "planned": "Planned"
+  },
+  "documentKind": {
+    "policy": "Policy",
+    "procedure": "Procedure",
+    "contract": "Contract",
+    "register": "Register",
+    "other": "Other"
+  },
+  "inventoryType": {
+    "policy": "Policy",
+    "procedure": "Procedure",
+    "register": "Register",
+    "contract": "Contract",
+    "plan": "Plan",
+    "report": "Report",
+    "profile": "Profile",
+    "other": "Other"
+  },
+  "extractionStatus": {
+    "pending": "Pending",
+    "done": "Text extracted",
+    "empty": "No text",
+    "failed": "Failed"
+  },
+  "jurisdiction": {
+    "EU": "EU",
+    "LT": "Lithuania",
+    "INTL": "International"
+  },
+  "docType": {
+    "regulation": "Regulation",
+    "directive": "Directive",
+    "law": "Law",
+    "resolution": "Resolution",
+    "order": "Order",
+    "guideline": "Guidelines",
+    "licensing": "Licensing requirements",
+    "standard": "Standard",
+    "other": "Other"
+  },
+  "sourceKind": {
+    "cellar": "EUR-Lex (CELEX)",
+    "etar": "e-TAR",
+    "eseimas": "e-seimas",
+    "lb": "Bank of Lithuania website",
+    "url": "Web address",
+    "upload": "Uploaded file"
+  },
+  "docStatus": {
+    "in_force": "In force",
+    "not_yet_applicable": "Not yet applicable",
+    "repealed": "Repealed"
+  },
+  "versionStatus": {
+    "pending": "Pending",
+    "parsing": "Parsing",
+    "embedding": "Embedding",
+    "ready": "Ready",
+    "failed": "Failed"
+  },
+  "unitType": {
+    "part": "Part",
+    "title": "Title",
+    "chapter": "Chapter",
+    "section": "Section",
+    "subsection": "Subsection",
+    "article": "Article",
+    "paragraph": "Paragraph",
+    "point": "Point",
+    "subpoint": "Sub-point",
+    "annex": "Annex",
+    "recital": "Recital",
+    "preamble": "Preamble",
+    "text": "Text",
+    "clause": "Clause"
+  },
+  "promptKind": {
+    "chat": "Chat",
+    "pipeline": "Analysis step",
+    "corpus": "Legal corpus"
+  },
+  "promptSource": {
+    "default": "Shipped default",
+    "user": "Administrator"
+  },
+  "language": {
+    "lt": "Lithuanian",
+    "en": "English"
+  },
+  "role": {
+    "admin": "Administrator",
+    "user": "User"
+  },
+  "callKind": {
+    "chat": "Chat",
+    "job_step": "Analysis step",
+    "embed": "Embedding",
+    "prompt_test": "Prompt test"
+  },
+  "outcome": {
+    "ok": "Succeeded",
+    "error": "Error",
+    "aborted": "Aborted",
+    "stopped": "Stopped",
+    "interrupted": "Interrupted",
+    "timeout": "Timed out",
+    "budget": "Budget exceeded",
+    "step-limit": "Step limit reached",
+    "empty": "Empty answer",
+    "length": "Length limit reached",
+    "content-filter": "Stopped by the content filter"
+  },
+  "evidenceKind": {
+    "credential": "Licence / credential",
+    "passage": "Document passage",
+    "document": "Document",
+    "profile": "Company profile"
+  },
+  "targetType": {
+    "user": "User",
+    "company": "Company",
+    "document": "Document",
+    "legal_document": "Legal act",
+    "obligation": "Obligation",
+    "report": "Report",
+    "finding": "Finding",
+    "prompt": "AI prompt",
+    "job": "Job",
+    "mcp_server": "MCP server",
+    "work_product": "Programme document",
+    "company_action": "Register action"
+  },
+  "auditAction": {
+    "auth": {
+      "login": "Sign-in",
+      "login_failed": "Failed sign-in",
+      "logout": "Sign-out",
+      "logout_all": "Sign-out everywhere",
+      "change_password": "Password change"
+    },
+    "users": {
+      "create": "User created",
+      "update": "User changed",
+      "reset_password": "Password set",
+      "deactivate": "User deactivated",
+      "purge": "User deleted"
+    },
+    "companies": {
+      "create": "Company created",
+      "update": "Company profile changed",
+      "delete": "Company deleted",
+      "credential_add": "Credential recorded",
+      "credential_update": "Credential changed",
+      "credential_remove": "Credential removed",
+      "standard_add": "Standard recorded",
+      "standard_update": "Standard changed",
+      "standard_remove": "Standard removed",
+      "role_create": "Role created",
+      "role_update": "Role changed",
+      "role_delete": "Role deleted"
+    },
+    "documents": {
+      "upload": "Document uploaded",
+      "update": "Document changed",
+      "delete": "Document deleted"
+    },
+    "corpus": {
+      "create": "Legal act added",
+      "update": "Legal act changed",
+      "delete": "Legal act deleted",
+      "refresh": "Legal act refreshed",
+      "upload": "New version uploaded",
+      "reembed": "Re-embedding",
+      "refresh_all": "Source check (all acts)"
+    },
+    "obligations": {
+      "create": "Obligation created",
+      "update": "Obligation changed",
+      "delete": "Obligation deleted",
+      "extract": "Obligation extraction",
+      "review": "Obligations reviewed"
+    },
+    "reports": {
+      "create": "Analysis started",
+      "delete": "Report deleted",
+      "cancel": "Analysis cancelled",
+      "review_finding": "Finding reviewed",
+      "export": "Report exported",
+      "approve": "Report approved",
+      "unapprove": "Report approval withdrawn"
+    },
+    "prompts": {
+      "version_create": "Prompt version created",
+      "activate": "Prompt activated"
+    },
+    "jobs": {
+      "cancel": "Job cancelled"
+    },
+    "mcp": {
+      "create": "MCP server added",
+      "update": "MCP server changed",
+      "delete": "MCP server deleted",
+      "test": "MCP server tested"
+    },
+    "programme": {
+      "create": "Programme document generation started",
+      "edit": "Programme document edited",
+      "approve": "Programme document approved",
+      "revise": "New document version created",
+      "cancel": "Document generation cancelled",
+      "delete": "Document version deleted",
+      "export": "Programme document exported"
+    },
+    "actions": {
+      "update": "Register action changed",
+      "export": "Action register exported"
+    }
+  },
+  "boolean": {
+    "true": "Yes",
+    "false": "No",
+    "null": "Unknown"
+  },
+  "citationStatus": {
+    "found": "Found",
+    "not_found": "Not found",
+    "act_not_in_corpus": "Act not in the corpus"
+  },
+  "headingMatch": {
+    "match": "Heading matches",
+    "mismatch": "Heading differs",
+    "unknown": "Match unclear"
+  },
+  "citationVerdict": {
+    "mismatch": "Wrong provision",
+    "not_found": "No such provision",
+    "unknown": "Could not judge",
+    "act_not_in_corpus": "Act not in the corpus",
+    "match": "Correct"
+  },
+  "mcpTransport": {
+    "http": "HTTP (streamable)",
+    "sse": "SSE"
+  },
+  "unitFilter": {
+    "structure": "Structure (chapters, articles, clauses)",
+    "all": "All provisions",
+    "article": "Articles only",
+    "recital": "Recitals",
+    "annex": "Annexes"
+  },
+  "productStatus": {
+    "none": "Not generated yet",
+    "queued": "Queued",
+    "running": "Generating",
+    "draft": "Draft",
+    "approved": "Approved",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "productKind": {
+    "policy": "Compliance policy",
+    "governance": "Structure, compliance process and RACI",
+    "risks": "Legal compliance risk criteria and register"
+  },
+  "actionState": {
+    "open": "Open",
+    "in_progress": "In progress",
+    "late": "Late",
+    "done": "Done, awaiting re-test",
+    "closed": "Closed"
+  },
+  "riskBand": {
+    "negligible": "Negligible",
+    "tolerable": "Tolerable",
+    "medium": "Medium",
+    "high": "High",
+    "critical": "Critical"
+  },
+  "riskResponse": {
+    "accept": "Accept",
+    "increase": "Increase",
+    "mitigate": "Mitigate",
+    "transfer": "Transfer / share",
+    "avoid": "Avoid"
+  },
+  "riskCategory": {
+    "1": "Unpredictability of the legal environment",
+    "2": "Non-compliance with applicable laws",
+    "3": "Breach of contract",
+    "4": "Infringement of rights",
+    "5": "Omission in exercising rights",
+    "6": "Improper choice"
+  },
+  "riskSource": {
+    "1": "Regulators and legislators",
+    "2": "Contractual partners and suppliers",
+    "3": "Clients and consumer communities",
+    "4": "External malicious actors",
+    "5": "Governance, staff and culture",
+    "6": "Internal processes, control systems and IT architecture"
+  },
+  "riskConsequence": {
+    "1": "Direct financial",
+    "2": "Supervisory and licence",
+    "3": "Reputational and market",
+    "4": "Operational and business continuity",
+    "5": "Organisational and geographic scale"
+  },
+  "riskObjective": {
+    "1": "Legal compliance and licence",
+    "2": "Strategy and business development",
+    "3": "Financial stability, capital and liquidity",
+    "4": "Operational resilience and continuity",
+    "5": "Reputation, trust and ESG"
+  },
+  "likelihoodLevel": {
+    "1": "Very unlikely",
+    "2": "Unlikely",
+    "3": "Possible",
+    "4": "Likely",
+    "5": "Almost certain"
+  },
+  "impactLevel": {
+    "1": "Insignificant",
+    "2": "Minor",
+    "3": "Moderate",
+    "4": "Major",
+    "5": "Catastrophic"
+  }
+}

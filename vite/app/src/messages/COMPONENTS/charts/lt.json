@@ -1,0 +1,13 @@
+{
+  "showTable": "Rodyti lentelę",
+  "showChart": "Rodyti grafiką",
+  "total": "Iš viso",
+  "date": "Data",
+  "legend": "{label} — legenda",
+  "table": "{label} — lentelė",
+  "of": "{value} iš {limit}",
+  "unlimited": "Neribota",
+  "atLimit": "Limitas pasiektas",
+  "overLimit": "Limitas viršytas",
+  "nearLimit": "Artėjama prie limito"
+}

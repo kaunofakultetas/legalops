@@ -1,0 +1,153 @@
+{
+  "TITLE": "Teisės aktas",
+  "back": "Teisės aktų bazė",
+  "loadError": "Nepavyko įkelti teisės akto",
+  "disabled": "Išjungtas — nenaudojamas paieškoje ir analizėje",
+  "pagesNote": "Šiame standarte punktų struktūros nerasta: jis indeksuojamas ir cituojamas puslapiais.",
+  "source": "Oficialus šaltinis",
+  "lastChecked": "Šaltinis tikrintas {date}",
+  "lastError": "Paskutinio įkėlimo klaida",
+  "TABS": {
+    "label": "Teisės akto skiltys",
+    "structure": "Struktūra",
+    "versions": "Redakcijos",
+    "obligations": "Pareigos",
+    "info": "Informacija"
+  },
+  "ACTIONS": {
+    "refresh": "Atnaujinti iš šaltinio",
+    "refreshForce": "Apdoroti iš naujo (net jei nepasikeitė)",
+    "structure": "Skaityti struktūrą kitaip",
+    "upload": "Įkelti naują redakciją",
+    "extract": "Išskirti pareigas",
+    "verify": "Patikrinti pareigas",
+    "verifyAgain": "Tikrinti pareigas iš naujo",
+    "reembed": "Perskaičiuoti vektorius",
+    "edit": "Redaguoti metaduomenis",
+    "enable": "Įjungti",
+    "disable": "Išjungti",
+    "delete": "Ištrinti teisės aktą",
+    "more": "Daugiau veiksmų su teisės aktu"
+  },
+  "CONFIRM": {
+    "extractTitle": "Išskirti „{name}“ pareigas?",
+    "extractText": "DI modelis perskaitys dabartinę redakciją ir pasiūlys pareigas peržiūrai. Jau patvirtintos pareigos išliks. Tai naudoja DI modelį ir kainuoja.",
+    "extractLanguage": "Pareigų kalba",
+    "verifyTitle": "Patikrinti „{name}“ pareigas?",
+    "verifyAgainTitle": "Tikrinti „{name}“ pareigas iš naujo?",
+    "verifyText": "Antras modelis palygina kiekvieną pareigą su nuostatomis, kuriomis ji remiasi. Jis nieko netvirtina — peržiūrą pradėkite nuo abejotinų.",
+    "verifyScope": "Bus tikrinamos tik dar netikrintos pareigos. Tai naudoja DI modelį ir kainuoja.",
+    "verifyAgainScope": "Visos šio akto pareigos jau patikrintos — jos visos bus tikrinamos iš naujo. Tai naudoja DI modelį ir kainuoja.",
+    "reembedTitle": "Perskaičiuoti „{name}“ vektorius?",
+    "reembedText": "Akto fragmentai bus vektorizuoti iš naujo — to reikia tik pakeitus vektorizavimo modelį. Tai kainuoja.",
+    "deleteTitle": "Ištrinti teisės aktą „{name}“?",
+    "deleteText": "Bus ištrintos visos redakcijos, nuostatos, fragmentai ir failai. Jau parengtos ataskaitos nepasikeis. Jei aktą norite tik laikinai nenaudoti — išjunkite jį.",
+    "run": "Paleisti"
+  },
+  "METHOD": {
+    "title": "Kaip skaityti „{name}“ struktūrą?",
+    "text": "Standartas apdorojamas iš naujo iš to paties failo. Peržiūrėti reikalavimai lieka; pasiūlymai, kurių punktų nebelieka, pašalinami, o reikalavimai tada išskiriami iš naujo.",
+    "label": "Struktūros skaitymo būdas",
+    "current": "Dabar perskaityta: {parser}",
+    "auto": "Automatiškai",
+    "autoHint": "Numeruoti punktai ir raidėmis žymimi priedai skaitomi pagal taisykles. Kur taisyklės struktūros neranda, antraštes pažymi DI modelis. Jei nepavyksta nė vienu būdu – puslapiais.",
+    "rules": "Tik punktų taisyklės",
+    "rulesHint": "DI modelis nenaudojamas. Dokumentas be numeruotų punktų indeksuojamas puslapiais.",
+    "ai": "DI modelis",
+    "aiHint": "DI modelis pažymi viso teksto antraštes – tinka sistemoms su savais identifikatoriais (AC-2, GV.OC-01) ar be numeracijos. Tai naudoja DI modelį ir kainuoja.",
+    "pages": "Puslapiais",
+    "pagesHint": "Kiekvienas puslapis yra atskiras vienetas, cituojamas jo numeriu. DI modelis nenaudojamas.",
+    "run": "Apdoroti iš naujo"
+  },
+  "UPLOAD": {
+    "title": "Nauja redakcija",
+    "text": "Įkelkite naujos redakcijos tekstą (PDF, DOCX, HTML ar TXT). Tapatus dabartinei redakcijai failas bus atmestas.",
+    "submit": "Įkelti",
+    "progress": "Įkeliama… {percent} %"
+  },
+  "JOB": {
+    "running": "Vykdoma: {kind}",
+    "failed": "Nepavyko: {kind}",
+    "open": "Visos užduotys"
+  },
+  "STRUCTURE": {
+    "filter": "Rodyti",
+    "search": "Ieškoti tekste",
+    "list": "Akto nuostatos",
+    "loadMore": "Rodyti daugiau ({shown} iš {total})",
+    "empty": "Nuostatų nėra",
+    "notIngested": "Teisės aktas dar neįkeltas — struktūra atsiras po įkėlimo.",
+    "expand": "Išskleisti",
+    "collapse": "Suskleisti",
+    "select": "Pasirinkite nuostatą, kad pamatytumėte jos tekstą."
+  },
+  "UNIT": {
+    "title": "Nuostata",
+    "close": "Uždaryti",
+    "copy": "Kopijuoti citatą",
+    "copied": "Citata nukopijuota",
+    "official": "Oficialus tekstas",
+    "notCurrent": "Ši nuostata — iš ankstesnės redakcijos (v{version}).",
+    "version": "Redakcija v{version}"
+  },
+  "VERSIONS": {
+    "COLUMNS": {
+      "version": "Redakcija",
+      "status": "Būsena",
+      "label": "Žymė",
+      "effective": "Galioja nuo",
+      "units": "Nuostatų",
+      "articles": "Straipsnių ar punktų",
+      "chunks": "Fragmentų",
+      "chars": "Simbolių",
+      "parser": "Analizatorius",
+      "embed": "Vektorizavimo modelis",
+      "created": "Įkelta",
+      "obligations": "Pareigos išskirtos"
+    },
+    "PARSERS": {
+      "standard": "Punktų taisyklės",
+      "standard-refined": "Taisyklės ir DI",
+      "standard-ai": "DI modelis",
+      "standard-pages": "Puslapiai"
+    },
+    "current": "dabartinė",
+    "empty": "Redakcijų dar nėra"
+  },
+  "INFO": {
+    "slug": "Identifikatorius sistemoje",
+    "title": "Oficialus pavadinimas",
+    "titleEn": "Pavadinimas anglų kalba",
+    "shortTitle": "Trumpas pavadinimas",
+    "jurisdiction": "Jurisdikcija",
+    "docType": "Rūšis",
+    "status": "Galiojimas",
+    "sourceKind": "Šaltinis",
+    "externalId": "Išorinis identifikatorius",
+    "sourceUrl": "Šaltinio adresas",
+    "language": "Teksto kalba",
+    "domains": "Sritys",
+    "appliesTo": "Kam paprastai taikomas",
+    "applicabilityNotes": "Taikymo pastabos",
+    "scopeReading": "Kam taikomas pagal akto tekstą",
+    "scopeSilent": "Akto taikymo srities nuostatos nenurodo, kam jis taikomas",
+    "sanctionsReading": "Sankcijos pagal akto tekstą",
+    "sanctionTiers": "Sankcijų pakopų: {count}",
+    "modelNote": "Modelio pastaba: {note}",
+    "notRead": "Dar neskaityta",
+    "createdAt": "Pridėtas",
+    "updatedAt": "Atnaujintas",
+    "lastCheckedAt": "Šaltinis tikrintas"
+  },
+  "EDIT": {
+    "title": "Teisės akto metaduomenys",
+    "save": "Išsaugoti"
+  },
+  "TOASTS": {
+    "saved": "Išsaugota",
+    "deleted": "Teisės aktas ištrintas",
+    "uploaded": "Nauja redakcija įkelta — apdorojimas įtrauktas į eilę",
+    "enabled": "Teisės aktas įjungtas",
+    "disabled": "Teisės aktas išjungtas"
+  }
+}

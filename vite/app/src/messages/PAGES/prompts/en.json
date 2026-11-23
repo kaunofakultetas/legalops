@@ -1,0 +1,48 @@
+{
+  "TITLE": "AI prompts",
+  "subtitle": "The versioned instructions the chat assistant and every analysis step follow.",
+  "COLUMNS": {
+    "name": "Prompt",
+    "slug": "Identifier",
+    "kind": "Purpose",
+    "active": "Active version",
+    "model": "Model",
+    "updated": "Updated"
+  },
+  "pending": "New default v{version} waiting",
+  "noActive": "Not activated",
+  "empty": "No prompts",
+  "loadError": "The prompts could not be loaded",
+  "NAMES": {
+    "chat": {
+      "assistant": "Chat assistant"
+    },
+    "corpus": {
+      "check_citations": "Citation check",
+      "extract_obligations": "Obligation extraction"
+    },
+    "report": {
+      "action_plan": "Action plan",
+      "applicability": "Applicability of legal acts",
+      "gap_analysis": "Gap analysis",
+      "inventory": "Document evidence inventory",
+      "summary": "Executive summary"
+    }
+  },
+  "DESCRIPTIONS": {
+    "chat": {
+      "assistant": "The system prompt of the conversational assistant — the main screen of the platform. It keeps the company's records itself, unasked — the profile, the documents, the credentials, the standards and the role profiles, from what the user says and uploads (course tasks 1 and 2) —, reads and audits the company's documents against the legal corpus (verifying citations) and runs and explains the automated gap analysis. Placeholders are filled per turn by the assistant container (llm/prompt.js); company and role data arrive as fenced, sanitised DATA blocks."
+    },
+    "corpus": {
+      "check_citations": "Judges whether each claimed citation (an act, an article and what the claimant says it is about) matches the provision that the corpus actually holds under that number. Used by the assistant's checkCitations tool, the citation checker on the corpus page and every report's citation audit of the company's documents — it catches documents (and models) that cite the wrong article.",
+      "extract_obligations": "Reads a batch of provisions of one legal act and extracts the concrete obligations it imposes on regulated entities, each cited to its provisions. Runs once per act version; the results are reviewed by an admin and reused by every report."
+    },
+    "report": {
+      "action_plan": "Turns the open findings (missing, partial, unknown) and the citation audit's problems (references in the company's documents to a wrong or non-existent provision) into a prioritised action plan with owners, effort and timeframes.",
+      "applicability": "Decides for each candidate act whether it applies to the company, from the company profile and the act's scope provisions.",
+      "gap_analysis": "Judges each applicable obligation against the company's evidence — profile, credentials, document inventories and the nearest document passages — and writes the finding with severity, analysis, recommendation and cited evidence.",
+      "inventory": "Reads one internal document of the company and records what it proves: its type and scope, the controls and procedures it establishes (with verbatim quotes), roles, registers, approval, review cycle, the laws it cites, each reference to a specific legal provision with what the document claims it covers (checked by the report's citation audit) and the weaknesses an auditor would flag. Cached per document text, prompt version and inventory shape.",
+      "summary": "Writes the report title and the executive summary for the management board from the applicability verdicts, the most severe findings, the action plan and the citation audit's counts."
+    }
+  }
+}

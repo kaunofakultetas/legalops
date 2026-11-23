@@ -1,0 +1,48 @@
+{
+  "TITLE": "DI instrukcijos",
+  "subtitle": "Versijuojamos instrukcijos, kuriomis vadovaujasi pokalbio asistentas ir kiekvienas analizės etapas.",
+  "COLUMNS": {
+    "name": "Instrukcija",
+    "slug": "Identifikatorius",
+    "kind": "Paskirtis",
+    "active": "Aktyvi versija",
+    "model": "Modelis",
+    "updated": "Atnaujinta"
+  },
+  "pending": "Laukia nauja numatytoji v{version}",
+  "noActive": "Neaktyvuota",
+  "empty": "Instrukcijų nėra",
+  "loadError": "Nepavyko įkelti instrukcijų",
+  "NAMES": {
+    "chat": {
+      "assistant": "Pokalbių asistentas"
+    },
+    "corpus": {
+      "check_citations": "Nuorodų tikrinimas",
+      "extract_obligations": "Pareigų išskyrimas"
+    },
+    "report": {
+      "action_plan": "Veiksmų planas",
+      "applicability": "Teisės aktų taikytinumas",
+      "gap_analysis": "Atitikties spragų analizė",
+      "inventory": "Dokumentų įrodymų inventorius",
+      "summary": "Vadovybės santrauka"
+    }
+  },
+  "DESCRIPTIONS": {
+    "chat": {
+      "assistant": "Pokalbių asistento sistemos instrukcija — pagrindinis platformos ekranas. Asistentas pats, neprašytas, tvarko įmonės duomenis — profilį, dokumentus, leidimus, standartus ir vaidmenų profilius — pagal tai, ką naudotojas pasako ir įkelia (1 ir 2 kurso užduotys), skaito ir tikrina įmonės dokumentus pagal teisės aktų bazę (tikrindamas nuorodas), paleidžia ir paaiškina automatinę atitikties spragų analizę. Vietos žymes kiekvienam pokalbio žingsniui užpildo asistento konteineris (llm/prompt.js); įmonės ir vaidmenų duomenys pateikiami atskirtais, išvalytais DATA blokais."
+    },
+    "corpus": {
+      "check_citations": "Vertina, ar kiekviena nurodyta nuoroda (teisės aktas, straipsnis ir tai, ką apie jį teigiama) atitinka nuostatą, kurią teisės aktų bazė iš tiesų saugo tuo numeriu. Ją naudoja asistento įrankis checkCitations, nuorodų tikrinimas teisės aktų bazės puslapyje ir kiekvienos ataskaitos įmonės dokumentų nuorodų patikra — taip aptinkami dokumentai (ir modeliai), cituojantys ne tą straipsnį.",
+      "extract_obligations": "Perskaito vieno teisės akto nuostatų paketą ir išskiria konkrečias prižiūrimiems subjektams nustatytas pareigas, kiekvieną susiedama su jos nuostatomis. Vykdoma vieną kartą kiekvienai akto versijai; rezultatus peržiūri administratorius, jie naudojami visose ataskaitose."
+    },
+    "report": {
+      "action_plan": "Atviras išvadas (neatitinka, iš dalies, neįrodyta) ir nuorodų patikros problemas (įmonės dokumentų nuorodas į ne tą ar neegzistuojančią nuostatą) paverčia prioritetizuotu veiksmų planu su atsakingais asmenimis, pastangomis ir terminais.",
+      "applicability": "Kiekvienam kandidatiniam teisės aktui nusprendžia, ar jis taikomas įmonei, remdamasi įmonės profiliu ir akto taikymo srities nuostatomis.",
+      "gap_analysis": "Kiekvieną taikomą pareigą vertina pagal įmonės įrodymus — profilį, leidimus, dokumentų inventorius ir artimiausias dokumentų ištraukas — ir parašo išvadą su reikšmingumu, analize, rekomendacija ir cituojamais įrodymais.",
+      "inventory": "Perskaito vieną įmonės vidaus dokumentą ir užfiksuoja, ką jis įrodo: dokumento tipą ir taikymo sritį, nustatomas kontrolės priemones ir procedūras (su tiksliomis citatomis), vaidmenis, registrus, patvirtinimą, peržiūros ciklą, cituojamus teisės aktus, kiekvieną nuorodą į konkrečią teisės akto nuostatą su tuo, ką apie ją teigia dokumentas (tai tikrina ataskaitos nuorodų patikra), ir silpnąsias vietas, kurias pažymėtų auditorius. Rezultatas saugomas pagal dokumento tekstą, instrukcijos versiją ir inventoriaus formą.",
+      "summary": "Iš taikytinumo sprendimų, reikšmingiausių išvadų, veiksmų plano ir nuorodų patikros skaičių parašo ataskaitos pavadinimą ir santrauką įmonės valdybai."
+    }
+  }
+}

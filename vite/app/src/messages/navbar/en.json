@@ -1,0 +1,12 @@
+{
+  "title": "Compliance assistant",
+  "home": "Compliance assistant — home",
+  "site": "Compliance assistant — about the product",
+  "account": "Account",
+  "logout": "Log out",
+  "lithuanian": "Lietuvių",
+  "english": "English",
+  "switchToEnglish": "Switch the interface to English",
+  "switchToLithuanian": "Perjungti sąsają į lietuvių kalbą",
+  "accountMenu": "Account menu: {name}"
+}

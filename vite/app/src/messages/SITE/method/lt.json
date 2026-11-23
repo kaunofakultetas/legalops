@@ -1,0 +1,40 @@
+{
+  "TITLE": "Metodika",
+  "head": {
+    "title": "Kaip asistentas prieina prie išvados",
+    "lede": "Ataskaita verta tiek, kiek ja galima pasitikėti. Čia — kas vyksta analizės metu, ką reiškia kiekviena būsena ir kur baigiasi tai, ką asistentas gali pasakyti."
+  },
+  "steps": {
+    "title": "Šeši analizės žingsniai",
+    "documents": { "name": "Dokumentai", "text": "Kiekvienas įmonės dokumentas perskaitomas vieną kartą: ką jis nustato ir kokias konkrečias teisės aktų nuostatas nurodo." },
+    "citations": { "name": "Nuorodų patikra", "text": "Kiekviena dokumento nuoroda patikrinama pagal teisės aktų bazę: ar tokia nuostata yra galiojančioje redakcijoje ir ar ji reglamentuoja tai, ką teigia dokumentas." },
+    "applicability": { "name": "Taikymas", "text": "Iš katalogo atrenkami aktai, galintys būti taikomi įmonės tipui. Perskaičius jų taikymo sritį nusprendžiama: taikomas, netaikomas ar neaišku — su pagrindimu ir, jei aktas pradedamas taikyti vėliau, su data." },
+    "obligations": { "name": "Pareigos", "text": "Iš vertinamų aktų paimamos konkrečios pareigos. Jos išskiriamos vieną kartą kiekvienai akto redakcijai, ir jas peržiūri administratorius." },
+    "gaps": { "name": "Atotrūkio vertinimas", "text": "Kiekviena pareiga vertinama perskaičius įmonės profilį, licencijas ir visus dokumentus ištisai, ne atskiras ištraukas. Todėl matyti, ar klausimą apskritai reglamentuoja kuris nors dokumentas." },
+    "plan": { "name": "Veiksmų planas ir santrauka", "text": "Kiekvieną neįvykdytą ar neįrodytą pareigą uždaro vienas plano veiksmas. Santrauka vadovybei nurodo svarbiausias rizikas ir tai, ko įvertinti nepavyko." }
+  },
+  "acts": {
+    "title": "Ne kiekvienas aktas vertinamas vienodai",
+    "lede": "Ką ataskaita daro su teisės aktu, priklauso nuo to, ar ir kaip jis taikomas įmonei.",
+    "applies": "Taikomas aktas vertinamas pareiga po pareigos.",
+    "later": "Vėliau taikomas aktas vertinamas kaip pasirengimas, o jo išvados skaičiuojamos atskirai nuo šiandienos rezultato.",
+    "unknown": "Aktas, kurio taikymas priklauso nuo nežinomų faktų, nevertinamas: ataskaita pateikia klausimus, į kuriuos reikia atsakyti.",
+    "indirect": "Direktyvos ir institucijų veiklą nustatantys aktai atskirai nevertinami: įmonę jie veikia per nacionalinę teisę ir institucijų sprendimus.",
+    "specimen": "Trys teisės aktai ir ką ataskaita su kiekvienu daro"
+  },
+  "statuses": {
+    "title": "Penkios būsenos",
+    "met": "Įmonės dokumentai nustato visus pareigos elementus.",
+    "partial": "Dokumentai pareigą aprašo, bet trūksta konkretaus elemento — atsakingo asmens, termino, dažnumo ar turinio. Jis įvardijamas.",
+    "missing": "Šiai sričiai skirtas dokumentas apie pareigą nieko nenustato arba jai prieštarauja.",
+    "unknown": "Iš pateiktos medžiagos spręsti negalima: reikalingas dokumentas neįkeltas arba pareiga priklauso nuo fakto apie įmonę, kurio niekas nenurodo.",
+    "not_applicable": "Pareiga skirta kitam asmeniui arba priklauso nuo veiklos, kurios įmonė nevykdo ir neketina vykdyti.",
+    "severity": "Reikšmingumas — atskiras dalykas: tai pačios pareigos svarba, visose ataskaitose ta pati. Kiek įmonė nuo pareigos nutolusi, rodo būsena."
+  },
+  "people": {
+    "title": "Kas lieka žmogui",
+    "review": { "name": "Peržiūra", "text": "Kiekvieną išvadą galima pakeisti savo vertinimu su pastaba. Pakeitimas matomas ataskaitoje ir eksportuose." },
+    "approval": { "name": "Patvirtinimas", "text": "Ataskaitą tvirtina žmogus. Bet koks vėlesnis išvados pakeitimas patvirtinimą panaikina." },
+    "provenance": { "name": "Kilmė", "text": "Ataskaita įrašo, kurios instrukcijų versijos, modeliai ir teisės aktų redakcijos naudotos ir kiek kainavo DI." }
+  }
+}

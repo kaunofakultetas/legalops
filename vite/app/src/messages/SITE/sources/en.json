@@ -1,0 +1,22 @@
+{
+  "TITLE": "Legal acts",
+  "head": {
+    "title": "The acts the assistant reads",
+    "lede": "The assistant answers and assesses not from memory but from the texts of the acts, taken from their official sources. Here is which acts are in the corpus, and where they come from."
+  },
+  "kept": {
+    "title": "How the texts are kept",
+    "structure": { "name": "Down to the point", "text": "Each act is split along its own structure: chapters, articles, paragraphs, points. A reference shows the exact place." },
+    "weekly": { "name": "Every week", "text": "The acts are checked weekly. When an edition changes the new one is loaded, and a report warns that its acts have been updated." },
+    "linked": { "name": "With the link", "text": "Every provision carries a link to the official text on EUR-Lex or e-TAR." }
+  },
+  "list": {
+    "title": "What is in the corpus",
+    "eu": { "name": "EU regulations and directives", "source": "From the EU Publications Office: the newest consolidated version in force, in Lithuanian." },
+    "lt": { "name": "Laws of the Republic of Lithuania", "source": "From e-TAR: the edition valid today." },
+    "supervisors": { "name": "Acts of the supervisors", "source": "Resolutions and guidelines of the Board of the Bank of Lithuania, an order of the Financial Crime Investigation Service." },
+    "licensing": { "name": "Licensing procedure", "text": "The licensing procedure per institution type, taken from the Bank of Lithuania's website: for banks, credit unions, payment and electronic money institutions, crypto-asset service providers and token issuers, crowdfunding service providers, consumer and immovable-property credit providers, operators of peer-to-peer lending platforms and of currency exchange offices, and financial brokerage firms." },
+    "standards": { "name": "Standards", "text": "An administrator can also upload standards (ISO/IEC, EN, LST). A company says which it follows, and a report assesses their requirements the way it assesses the duties of an act." },
+    "asOf": "The list is the corpus as of November 2026. In the console you see the edition of each act in force and the date it was last checked."
+  }
+}

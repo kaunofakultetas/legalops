@@ -1,0 +1,100 @@
+{
+  "TITLE": "AI prompt",
+  "back": "AI prompts",
+  "loadError": "The prompt could not be loaded",
+  "active": "Active v{version} · {model}",
+  "noActive": "No active version",
+  "PENDING": {
+    "title": "New default version v{version} waiting",
+    "text": "The deployment shipped a new default version of this prompt, but it is not active because an administrator's version is in use.",
+    "compare": "Compare",
+    "activate": "Activate v{version}"
+  },
+  "EDITOR": {
+    "title": "Editor",
+    "base": "Based on",
+    "baseVersion": "v{version}{active}",
+    "activeMark": " (active)",
+    "load": "Load into the editor",
+    "placeholders": "Variables",
+    "placeholdersHint": "Click to insert at the cursor. The analysis replaces them with real values.",
+    "unknownPlaceholders": "Unknown variables (left as they are): {names}",
+    "text": "Prompt text",
+    "model": "Model",
+    "modelHint": "E.g. gateway:azure/gpt-5.5",
+    "modelInvalid": "The model id does not match the format (provider:model)",
+    "modelPrice": "input {input} / output {output} per 1M tokens",
+    "modelsError": "The model list could not be loaded — you can still type the model id",
+    "temperature": "Temperature",
+    "temperatureHint": "0–2; empty — the model's default",
+    "temperatureInvalid": "Enter a number from 0 to 2",
+    "maxTokens": "Maximum answer length (tokens)",
+    "maxTokensHint": "1–128,000; empty — the default",
+    "maxTokensInvalid": "Enter a whole number from 1 to 128,000",
+    "note": "Change note",
+    "noteHint": "What changed and why (other administrators see it)",
+    "activate": "Activate right away",
+    "save": "Save as a new version",
+    "saved": "Saved v{version}",
+    "savedActive": "Saved and activated v{version}",
+    "textRequired": "Enter the prompt text",
+    "tooLong": "Too long (at most {max} characters)",
+    "unchanged": "No changes"
+  },
+  "TABS": {
+    "label": "Prompt tools",
+    "versions": "Versions",
+    "diff": "Compare",
+    "test": "Test"
+  },
+  "VERSIONS": {
+    "active": "active",
+    "createdAt": "Created {date}",
+    "settings": "temp. {temperature} · max {maxTokens}",
+    "activate": "Activate",
+    "edit": "Edit from this one",
+    "compare": "Compare with the active one",
+    "activateTitle": "Activate v{version}?",
+    "activateText": "From now on the chat or the analysis step uses this version. The previous one stays in the history.",
+    "activated": "Activated v{version}"
+  },
+  "DIFF": {
+    "left": "Left",
+    "right": "Right",
+    "draft": "Draft (in the editor)",
+    "version": "v{version}",
+    "summary": "+{added} / −{removed} lines",
+    "same": "The texts are identical",
+    "settings": "Settings",
+    "added": "added",
+    "removed": "removed",
+    "changed": "{field}: {from} → {to}"
+  },
+  "TEST": {
+    "source": "What to test",
+    "draft": "The editor's draft",
+    "version": "Saved v{version}",
+    "input": "Input data",
+    "inputHint": "What the model receives as data (e.g. a company description or a document excerpt).",
+    "variables": "Variables",
+    "todayHint": "Empty — today's date",
+    "run": "Run the test",
+    "cost": "The test calls the AI model — the cost counts against your daily budget.",
+    "inputRequired": "Enter the input data",
+    "output": "Answer",
+    "object": "Structured answer (JSON)",
+    "usage": "Tokens: input {input}, output {output}, reasoning {reasoning}",
+    "costLine": "Cost: {cost} · duration {duration} · finish reason: {finish}",
+    "rendered": "Final instructions (with variables)",
+    "model": "Model: {model}"
+  },
+  "REPLACE": {
+    "title": "Discard your changes?",
+    "text": "Loading v{version} replaces the draft — your unsaved changes will be lost.",
+    "confirm": "Discard and load v{version}",
+    "cancel": "Keep editing"
+  },
+  "TOASTS": {
+    "loaded": "Version v{version} loaded into the editor"
+  }
+}

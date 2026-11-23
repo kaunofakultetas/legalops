@@ -1,0 +1,40 @@
+{
+  "TITLE": "Method",
+  "head": {
+    "title": "How the assistant reaches a finding",
+    "lede": "A report is worth as much as it can be trusted. Here is what happens during an analysis, what each status means, and where what the assistant can tell ends."
+  },
+  "steps": {
+    "title": "The six steps of an analysis",
+    "documents": { "name": "Documents", "text": "Every document of the company is read once: what it sets out and which specific provisions of the law it cites." },
+    "citations": { "name": "Reference check", "text": "Every reference a document makes is checked against the corpus: whether the provision exists in the edition in force and whether it regulates what the document says." },
+    "applicability": { "name": "Applicability", "text": "The acts that may apply to the company's type are picked from the catalogue. Their scope provisions are read and a decision made: applies, does not apply or unclear — with the reasons and, when an act starts to apply later, the date." },
+    "obligations": { "name": "Obligations", "text": "The specific duties are taken from the acts being assessed. They are extracted once per edition of an act and reviewed by an administrator." },
+    "gaps": { "name": "Gap assessment", "text": "Each duty is assessed with the company profile, its licences and all its documents read in full, not as separate passages. That shows whether any document governs the matter at all." },
+    "plan": { "name": "Action plan and summary", "text": "Every duty not met or not evidenced is closed by one action of the plan. The summary for the board names the main risks and what could not be assessed." }
+  },
+  "acts": {
+    "title": "Not every act is treated alike",
+    "lede": "What a report does with an act depends on whether and how it applies to the company.",
+    "applies": "An act that applies is assessed duty by duty.",
+    "later": "An act that applies later is assessed as preparation, and its findings are counted apart from today's result.",
+    "unknown": "An act whose application depends on unknown facts is not assessed: the report lists the questions to answer.",
+    "indirect": "Directives and acts that organise an authority are not assessed separately: they reach the company through national law and the authority's decisions.",
+    "specimen": "Three acts and what a report does with each"
+  },
+  "statuses": {
+    "title": "The five statuses",
+    "met": "The company's documents set out every element of the duty.",
+    "partial": "The documents describe the duty but a specific element is missing — the owner, the deadline, the frequency or the content. It is named.",
+    "missing": "The document dedicated to the area says nothing about the duty, or contradicts it.",
+    "unknown": "The material provided cannot settle it: the document needed was not uploaded, or the duty turns on a fact about the company that nothing states.",
+    "not_applicable": "The duty is addressed to someone else, or depends on an activity the company does not carry out and does not intend to.",
+    "severity": "Severity is a separate matter: it is the weight of the duty itself, the same in every report. How far the company is from the duty is what the status shows."
+  },
+  "people": {
+    "title": "What stays with a person",
+    "review": { "name": "Review", "text": "Any finding can be replaced with your own assessment and a note. The change shows in the report and in the exports." },
+    "approval": { "name": "Approval", "text": "A person approves the report. Any later change to a finding withdraws the approval." },
+    "provenance": { "name": "Provenance", "text": "The report records which prompt versions, models and editions of the acts were used, and what the AI cost." }
+  }
+}

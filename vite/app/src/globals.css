@@ -1,0 +1,262 @@
+/* -----------------------------------------------------------
+   [*] Global styles — Tailwind setup + theme bridge
+
+   MUI owns the palette (src/theme.js) and emits every value
+   as a --mui-* CSS variable. @theme inline exposes those as
+   semantic Tailwind utilities so both styling systems share
+   one source of truth:
+
+     text-primary / bg-primary / border-primary   ink blue
+     bg-primary-dark                              its hover shade
+     bg-primary-light/12                          the current place
+                                                  (the mark's blue)
+     from-primary-dark … to-primary-light         the brand gradient
+     bg-canvas                                    the desk
+     bg-surface                                   a sheet
+     text-content                                 ink-black text
+     text-muted                                   graphite text
+     border-edge                                  hairlines
+     border-field                                 an input's outline
+     bg-marker / border-marker / ring-marker      the brand yellow:
+                                                  the highlighter,
+                                                  and "here"
+
+   The type follows the theme: font-sans is Source Sans 3,
+   font-serif Source Serif 4 (titles and quoted sources), and
+   text-sm / text-xs grow to the theme's 15 / 13 px — Source
+   Sans runs small, and the utilities must agree with MUI's
+   own sizes. shadow-float is the one shadow, for what floats
+   above the page.
+
+   Also here: the `marked` utility — quoted evidence drawn as
+   a highlighter stroke, line by line — and `marked-wait` /
+   `marked-draw`, which hold that stroke back and then draw it
+   once (the public site's first specimen), the public
+   site's other movements (the scroll reveals, the hero's
+   opening, the drifting tiles), the text selection in
+   the same yellow, the markdown (prose) colours and quotes,
+   and reduced motion, which stops every transition and
+   decorative animation (spinners keep turning: they say the
+   app is working).
+----------------------------------------------------------- */
+
+@layer theme, base, mui, components, utilities;
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme inline {
+  --color-primary: var(--mui-palette-primary-main);
+  --color-primary-dark: var(--mui-palette-primary-dark);
+  --color-primary-light: var(--mui-palette-primary-light);
+  --color-canvas: var(--mui-palette-background-default);
+  --color-surface: var(--mui-palette-background-paper);
+  --color-content: var(--mui-palette-text-primary);
+  --color-muted: var(--mui-palette-text-secondary);
+  --color-edge: var(--mui-palette-divider);
+  --color-marker: var(--mui-palette-marker-main);
+}
+
+@theme {
+  --font-sans: "Source Sans 3 Variable", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Source Serif 4 Variable", "Source Serif 4", Georgia, "Times New Roman", serif;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --shadow-float: 0 2px 6px rgba(22, 30, 43, 0.08), 0 12px 32px rgba(22, 30, 43, 0.14);
+
+  /* theme.js COLORS.field — MUI's palette has no slot for it */
+  --color-field: #8C96A5;
+}
+
+
+/* Quoted evidence: a highlighter band inside the line box,
+   repeated on every line the quote wraps to */
+/* The chat's column — messages, composer, notes: one width, so
+   they share their edges. A reading measure on a laptop, wider
+   on the screens that have the room, where an answer's tables
+   need it more than its prose minds it. */
+@utility chat-column {
+  max-width: 46rem;
+  @media (min-width: 96rem) { max-width: 58rem; }
+  @media (min-width: 120rem) { max-width: 70rem; }
+}
+
+@utility marked {
+  background-image: linear-gradient(transparent 0.12em, var(--color-marker) 0.12em,
+                                    var(--color-marker) calc(100% - 0.1em), transparent calc(100% - 0.1em));
+  box-decoration-break: clone;
+  padding-inline: 0.12em;
+  border-radius: 2px;
+  color: inherit;
+}
+
+
+/* The public site draws the marker across the evidence of its
+   first specimen, once, when the specimen comes into view —
+   every line of the quote at the same time. Until then the
+   passage waits unmarked (marked-wait); under reduced motion
+   it is simply marked. */
+@utility marked-wait {
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+}
+
+@utility marked-draw {
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: marker-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.25s forwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+@keyframes marker-draw {
+  to { background-size: 100% 100%; }
+}
+
+
+/* The tiles out of focus behind the hero's object drift up and
+   down, each at its own pace (--time) and from its own moment
+   (--delay); under reduced motion they stand still. */
+@utility ghost-drift {
+  animation: ghost-drift var(--time, 14s) ease-in-out var(--delay, 0s) infinite alternate;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes ghost-drift {
+  from { translate: 0 -12px; rotate: -3deg; }
+  to { translate: 0 14px; rotate: 3deg; }
+}
+
+
+/* The public site moves as it is read. A band
+   marked `reveal` holds its parts back ([data-rv], each with
+   the way it arrives) until the band has come into view
+   (is-seen), then lets them take their places one after
+   another — --i is a part's turn, ninety milliseconds each.
+   The ways: rise, from the left or the right, tilting up from
+   the page, popping out, growing from its left end (a bar),
+   and out from behind a sheet towards a corner (tl, tr, bl,
+   br — the mark's tiles). Every page of the site reveals its
+   bands this way. Under reduced motion nothing is
+   held back. In the components layer, so a utility on the
+   same element still has the last word. */
+@layer components {
+  .reveal [data-rv] {
+    opacity: 0;
+    transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: calc(var(--i, 0) * 90ms);
+  }
+  .reveal [data-rv="rise"] { transform: translateY(1.75rem); }
+  .reveal [data-rv="left"] { transform: translateX(-3.5rem); }
+  .reveal [data-rv="right"] { transform: translateX(3.5rem); }
+  .reveal [data-rv="tilt"] { transform: perspective(75rem) rotateX(14deg) translateY(3rem); transform-origin: 50% 100%; }
+  .reveal [data-rv="pop"] { transform: scale(0.88); }
+  .reveal [data-rv="grow"] { opacity: 1; transform: scaleX(0); transform-origin: 0 50%; }
+  .reveal [data-rv="tl"] { transform: translate(2.75rem, 2.75rem) scale(0.8); }
+  .reveal [data-rv="tr"] { transform: translate(-2.75rem, 2.75rem) scale(0.8); }
+  .reveal [data-rv="bl"] { transform: translate(2.75rem, -2.75rem) scale(0.8); }
+  .reveal [data-rv="br"] { transform: translate(-2.75rem, -2.75rem) scale(0.8); }
+  .reveal.is-seen [data-rv] { opacity: 1; transform: none; }
+
+  /* "think" is the one part that comes and goes: the
+     assistant's three dots, shown for a moment in its turn
+     before the answer arrives. Outside a band that reveals it
+     is not there at all. */
+  [data-rv="think"] { display: none; }
+  .reveal [data-rv="think"] { display: flex; opacity: 0; transform: none; transition: none; }
+  .reveal.is-seen [data-rv="think"] { opacity: 0; animation: think 1s ease calc(var(--i, 0) * 90ms) both; }
+  [data-rv="think"] > span { animation: bounce-dot 1.2s ease-in-out infinite; }
+  [data-rv="think"] > span:nth-child(2) { animation-delay: 0.15s; }
+  [data-rv="think"] > span:nth-child(3) { animation-delay: 0.3s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal [data-rv] { opacity: 1; transform: none; transition: none; }
+    .reveal [data-rv="think"] { display: none; }
+  }
+}
+
+@keyframes think {
+  0% { opacity: 0; }
+  14%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+
+/* The hero's words arrive as the page opens, one after another
+   (--i again), while the object beside them comes together. */
+@utility hero-rise {
+  animation: hero-rise 1s cubic-bezier(0.22, 1, 0.36, 1) calc(0.15s + var(--i, 0) * 0.12s) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(1.5rem); }
+  to { opacity: 1; transform: none; }
+}
+
+
+@layer base {
+  ::selection {
+    background-color: var(--color-marker);
+    color: var(--color-content);
+  }
+
+  mark {
+    background: none;
+    color: inherit;
+  }
+}
+
+
+/* Markdown (Markdown.jsx): the theme's inks, and a quote set
+   like the sources it usually is — in the serif, upright,
+   without the plugin's added quotation marks */
+.prose {
+  --tw-prose-body: var(--color-content);
+  --tw-prose-headings: var(--color-content);
+  --tw-prose-bold: var(--color-content);
+  --tw-prose-links: var(--color-primary);
+  --tw-prose-counters: var(--color-muted);
+  --tw-prose-bullets: var(--color-muted);
+  --tw-prose-quotes: var(--color-content);
+  --tw-prose-quote-borders: var(--color-edge);
+  --tw-prose-hr: var(--color-edge);
+  --tw-prose-th-borders: var(--color-edge);
+  --tw-prose-td-borders: var(--color-edge);
+  --tw-prose-code: var(--color-content);
+}
+
+.prose :where(blockquote):not(:where([class~="not-prose"] *)) {
+  font-family: var(--font-serif);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.prose :where(blockquote p:first-of-type):not(:where([class~="not-prose"] *))::before,
+.prose :where(blockquote p:last-of-type):not(:where([class~="not-prose"] *))::after {
+  content: none;
+}
+
+
+/* The chat thread: the "thinking" indicator bounces */
+@keyframes bounce-dot {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+}
+
+
+/* The thinking dots stop on their own (motion-reduce: in
+   Messages.jsx) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

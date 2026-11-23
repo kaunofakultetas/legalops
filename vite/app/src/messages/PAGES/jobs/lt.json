@@ -1,0 +1,77 @@
+{
+  "TITLE": "Užduotys",
+  "subtitle": "Foninės užduotys: teisės aktų įkėlimas, dokumentų indeksavimas, atitikties analizės.",
+  "COLUMNS": {
+    "kind": "Rūšis",
+    "subject": "Objektas",
+    "status": "Būsena",
+    "progress": "Eiga",
+    "created": "Sukurta",
+    "finished": "Baigta",
+    "actions": "Veiksmai"
+  },
+  "FILTER": {
+    "all": "Visos",
+    "status": "Būsena",
+    "kind": "Rūšis"
+  },
+  "ACTIONS": {
+    "cancel": "Atšaukti užduotį",
+    "details": "Užduoties informacija"
+  },
+  "DETAILS": {
+    "title": "Užduotis",
+    "steps": "Žingsniai",
+    "result": "Rezultatas",
+    "noSteps": "Žingsnių dar nėra",
+    "model": "Modelis",
+    "models": "Modeliai",
+    "prompt": "Instrukcija",
+    "calls": "Iškvietimai",
+    "tokens": "Žetonai",
+    "tokensValue": "{input} įvesties / {output} išvesties",
+    "tokensIn": "Įvesties žetonai",
+    "tokensOut": "Išvesties žetonai",
+    "cost": "Kaina",
+    "total": "DI sąnaudos",
+    "close": "Uždaryti",
+    "attempts": "Bandymai",
+    "cancelRequested": "Paprašyta atšaukti — užduotis sustos artimiausiame etape.",
+    "created": "Sukurta",
+    "started": "Pradėta",
+    "finished": "Baigta",
+    "duration": "Trukmė"
+  },
+  "RESULT": {
+    "reportId": "Ataskaita",
+    "findings": "Išvados",
+    "actions": "Veiksmai plane",
+    "version": "Redakcija",
+    "unchanged": "Nepakito nuo ankstesnės redakcijos",
+    "units": "Nuostatos",
+    "articles": "Straipsniai",
+    "chunks": "Fragmentai",
+    "documents": "Teisės aktai",
+    "queued": "Užduočių įtraukta į eilę",
+    "obligations": "Pareigos",
+    "skipped": "Praleista",
+    "sessions": "Pašalinta pasibaigusių sesijų",
+    "jobs": "Pašalinta senų užduočių",
+    "llmCalls": "Pašalinta senų DI iškvietimų įrašų",
+    "orphanFiles": "Pašalinta nebenaudojamų failų",
+    "rateLimitWindows": "Pašalinta pasibaigusių užklausų ribojimo langų",
+    "unusedUploads": "Pašalinta nepanaudotų įkeltų failų",
+    "steps": "Žingsniai",
+    "waitingForBudget": "Laukia dienos DI biudžeto",
+    "resumesAt": "Tęsiama nuo (UTC)"
+  },
+  "QUEUE": {
+    "refresh": "Sąrašas atsinaujina kas {seconds} s."
+  },
+  "empty": "Užduočių nėra",
+  "emptyFiltered": "Pagal pasirinktus filtrus užduočių nėra",
+  "loadError": "Nepavyko įkelti užduočių",
+  "TOASTS": {
+    "cancelled": "Atšaukimas užregistruotas"
+  }
+}

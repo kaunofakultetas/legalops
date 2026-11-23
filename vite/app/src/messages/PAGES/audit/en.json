@@ -1,0 +1,44 @@
+{
+  "TITLE": "Audit log",
+  "subtitle": "Who changed what and when: sign-ins, users, companies, legal acts, obligations, reports, AI prompts.",
+  "action": "Action",
+  "allActions": "All actions",
+  "allOf": "All: {group}",
+  "user": "User",
+  "allUsers": "All users",
+  "before": "Until (inclusive)",
+  "clear": "Clear the filters",
+  "COLUMNS": {
+    "time": "Time",
+    "user": "User",
+    "action": "Action",
+    "target": "Target",
+    "details": "Details",
+    "ip": "IP address"
+  },
+  "GROUPS": {
+    "auth": "Sign-in",
+    "users": "Users",
+    "companies": "Companies",
+    "documents": "Documents",
+    "corpus": "Legal acts",
+    "obligations": "Obligations",
+    "reports": "Reports",
+    "prompts": "AI prompts",
+    "mcp": "MCP servers",
+    "jobs": "Jobs"
+  },
+  "system": "System",
+  "loadMore": "Load older entries",
+  "loaded": "Entries loaded: {count}",
+  "empty": "No entries",
+  "loadError": "The audit log could not be loaded",
+  "loadMoreError": "The older entries could not be loaded",
+  "DETAILS": {
+    "title": "Audit entry",
+    "close": "Close",
+    "details": "Details",
+    "code": "Action code",
+    "open": "Open the entry of {time}"
+  }
+}

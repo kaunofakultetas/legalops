@@ -1,0 +1,78 @@
+# -----------------------------------------------------------
+#  [*] vite/Caddyfile — the built SPA inside legalops-vite
+#
+#  Serves /app/dist (the vite build) behind the endpoint: one
+#  page, index.html, whose script starts the console under
+#  /console and the public site everywhere else
+#  (app/src/main.jsx). Routes and cache rules:
+#
+#    /assets/*      hashed file names → immutable for a year;
+#                   a missing asset is a real 404 (a stale tab
+#                   asking for last deploy's chunk must fail
+#                   loudly, not get index.html as JavaScript)
+#    /<name>.<ext>  root files the build copied from public/
+#                   (favicon.svg / favicon.ico, robots.txt …)
+#                   → served if present, else 404, cached 1 h
+#    everything     the client-side routes of both → index.html,
+#    else           whatever the address looks like (a
+#                   prompt's page ends in a name with a dot,
+#                   which is no file)
+#
+#  index.html is never cached (Cache-Control: no-cache
+#  revalidates on every load, so a deploy is picked up at
+#  once).
+#
+#  Errors carry Cache-Control: no-store, so a 404 is never
+#  remembered past the deploy that fixes it.
+# -----------------------------------------------------------
+
+{
+    admin off
+    persist_config off
+    auto_https off
+
+    # Static files only — stop well inside compose's 10 s
+    grace_period 5s
+}
+
+
+
+:80 {
+    root * /app/dist
+    header -Server
+
+
+    # Hashed build output — immutable when it exists
+    handle /assets/* {
+        @exists file
+        header @exists Cache-Control "public, max-age=31536000, immutable"
+        file_server
+    }
+
+
+    # Root-level files from public/ (favicon, robots.txt) —
+    # whatever the build shipped; index.html is a route below
+    @rootfile {
+        path_regexp ^/[^/]+\.[A-Za-z0-9]+$
+        not path /index.html
+    }
+    handle @rootfile {
+        @exists file
+        header @exists Cache-Control "public, max-age=3600"
+        file_server
+    }
+
+
+    # The client-side routes — index.html, always revalidated
+    handle {
+        header Cache-Control "no-cache"
+        try_files {path} /index.html
+        file_server
+    }
+
+
+    handle_errors {
+        header Cache-Control "no-store"
+        respond "{err.status_code} {err.status_text}"
+    }
+}

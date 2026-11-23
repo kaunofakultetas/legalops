@@ -1,0 +1,100 @@
+{
+  "TITLE": "DI instrukcija",
+  "back": "DI instrukcijos",
+  "loadError": "Nepavyko įkelti instrukcijos",
+  "active": "Aktyvi v{version} · {model}",
+  "noActive": "Nėra aktyvios versijos",
+  "PENDING": {
+    "title": "Laukia nauja numatytoji versija v{version}",
+    "text": "Diegimas pateikė naują numatytąją instrukcijos versiją, bet ji neaktyvuota, nes dabar naudojama administratoriaus parašyta versija.",
+    "compare": "Palyginti",
+    "activate": "Aktyvuoti v{version}"
+  },
+  "EDITOR": {
+    "title": "Redaktorius",
+    "base": "Pagrindas",
+    "baseVersion": "v{version}{active}",
+    "activeMark": " (aktyvi)",
+    "load": "Įkelti į redaktorių",
+    "placeholders": "Kintamieji",
+    "placeholdersHint": "Spustelėkite, kad įterptumėte ties žymekliu. Analizės metu jie pakeičiami tikromis reikšmėmis.",
+    "unknownPlaceholders": "Nežinomi kintamieji (liks nepakeisti): {names}",
+    "text": "Instrukcijos tekstas",
+    "model": "Modelis",
+    "modelHint": "Pvz., gateway:azure/gpt-5.5",
+    "modelInvalid": "Modelio identifikatorius neatitinka formato (tiekėjas:modelis)",
+    "modelPrice": "įvestis {input} / išvestis {output} už 1 mln. žetonų",
+    "modelsError": "Nepavyko įkelti modelių sąrašo — modelio identifikatorių galite įvesti ir patys",
+    "temperature": "Temperatūra",
+    "temperatureHint": "0–2; tuščia — modelio numatytoji",
+    "temperatureInvalid": "Įveskite skaičių nuo 0 iki 2",
+    "maxTokens": "Didžiausias atsakymo ilgis (žetonais)",
+    "maxTokensHint": "1–128 000; tuščia — numatytasis",
+    "maxTokensInvalid": "Įveskite sveikąjį skaičių nuo 1 iki 128 000",
+    "note": "Pakeitimo pastaba",
+    "noteHint": "Kas pakeista ir kodėl (matys kiti administratoriai)",
+    "activate": "Iš karto aktyvuoti",
+    "save": "Išsaugoti kaip naują versiją",
+    "saved": "Išsaugota v{version}",
+    "savedActive": "Išsaugota ir aktyvuota v{version}",
+    "textRequired": "Įveskite instrukcijos tekstą",
+    "tooLong": "Per ilgas tekstas (daugiausia {max} simbolių)",
+    "unchanged": "Pakeitimų nėra"
+  },
+  "TABS": {
+    "label": "Instrukcijos įrankiai",
+    "versions": "Versijos",
+    "diff": "Palyginimas",
+    "test": "Bandymas"
+  },
+  "VERSIONS": {
+    "active": "aktyvi",
+    "createdAt": "Sukurta {date}",
+    "settings": "temp. {temperature} · maks. {maxTokens}",
+    "activate": "Aktyvuoti",
+    "edit": "Redaguoti nuo šios",
+    "compare": "Palyginti su aktyvia",
+    "activateTitle": "Aktyvuoti v{version}?",
+    "activateText": "Nuo šiol pokalbis ar analizės etapas naudos šią versiją. Ankstesnė versija išliks istorijoje.",
+    "activated": "Aktyvuota v{version}"
+  },
+  "DIFF": {
+    "left": "Kairė",
+    "right": "Dešinė",
+    "draft": "Juodraštis (redaktoriuje)",
+    "version": "v{version}",
+    "summary": "+{added} / −{removed} eilučių",
+    "same": "Tekstai sutampa",
+    "settings": "Nustatymai",
+    "added": "pridėta",
+    "removed": "pašalinta",
+    "changed": "{field}: {from} → {to}"
+  },
+  "TEST": {
+    "source": "Kas bandoma",
+    "draft": "Juodraštis iš redaktoriaus",
+    "version": "Išsaugota v{version}",
+    "input": "Įvesties duomenys",
+    "inputHint": "Tai, ką modelis gaus kaip duomenis (pvz., įmonės aprašymas ar dokumento ištrauka).",
+    "variables": "Kintamieji",
+    "todayHint": "Tuščia — šiandienos data",
+    "run": "Paleisti bandymą",
+    "cost": "Bandymas kviečia DI modelį — sąnaudos skaičiuojamos į jūsų dienos biudžetą.",
+    "inputRequired": "Įveskite įvesties duomenis",
+    "output": "Atsakymas",
+    "object": "Struktūrinis atsakymas (JSON)",
+    "usage": "Žetonai: įvestis {input}, išvestis {output}, samprotavimas {reasoning}",
+    "costLine": "Kaina: {cost} · trukmė {duration} · pabaigos priežastis: {finish}",
+    "rendered": "Galutinės instrukcijos (su kintamaisiais)",
+    "model": "Modelis: {model}"
+  },
+  "REPLACE": {
+    "title": "Atmesti pakeitimus?",
+    "text": "Įkėlus v{version}, juodraštis bus pakeistas — neišsaugoti pakeitimai bus prarasti.",
+    "confirm": "Atmesti ir įkelti v{version}",
+    "cancel": "Tęsti redagavimą"
+  },
+  "TOASTS": {
+    "loaded": "Versija v{version} įkelta į redaktorių"
+  }
+}

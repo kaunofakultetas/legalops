@@ -1,0 +1,97 @@
+{
+  "TITLE": "Pareigų peržiūra",
+  "subtitle": "DI iš teisės aktų išskirtos pareigos. Patvirtintos pareigos naudojamos analizėje ir išlieka pakartotinai išskiriant; atmestos — niekada nepatenka į ataskaitas.",
+  "act": "Teisės aktas",
+  "allActs": "Visi teisės aktai",
+  "status": "Būsena",
+  "category": "Sritis",
+  "severity": "Reikšmingumas",
+  "all": "Visos",
+  "search": "Ieškoti pareigose",
+  "check": "Tikrinimas",
+  "CHECK": {
+    "doubt": "Abejotinos",
+    "unsupported": "Nepagrįstos",
+    "partly": "Iš dalies",
+    "supported": "Pagrįstos",
+    "unchecked": "Netikrintos"
+  },
+  "reviewOrder": "Abejotinos pirmiausia",
+  "checkCounts": "Abejotinų: {doubted} · netikrintų: {unchecked}",
+  "checkIssue": "Kas ne taip: {issue}.",
+  "COLUMNS": {
+    "title": "Pareiga",
+    "act": "Teisės aktas",
+    "citations": "Nuostata",
+    "category": "Sritis",
+    "severity": "Reikšmingumas",
+    "appliesTo": "Kam taikoma",
+    "status": "Būsena",
+    "updated": "Atnaujinta",
+    "actions": "Veiksmai"
+  },
+  "ACTIONS": {
+    "approve": "Patvirtinti",
+    "reject": "Atmesti",
+    "edit": "Redaguoti",
+    "delete": "Ištrinti"
+  },
+  "BULK": {
+    "selected": "Pažymėta: {count}",
+    "approve": "Patvirtinti pažymėtas",
+    "reject": "Atmesti pažymėtas",
+    "propose": "Grąžinti į pasiūlytas",
+    "progress": "Atnaujinama {done} iš {total}…",
+    "done": "Atnaujinta pareigų: {count}",
+    "partial": "Atnaujinta {done} iš {total}; nepavyko: {failed}"
+  },
+  "shown": "Rodoma {shown} iš {total}",
+  "truncated": "Įkeltos pirmos {loaded} iš {total} pareigų — patikslinkite filtrus.",
+  "empty": "Pareigų nėra",
+  "emptyText": "Pareigos atsiranda, kai administratorius paleidžia pareigų išskyrimą teisės akto puslapyje.",
+  "extracting": "Pareigos šiuo metu išskiriamos",
+  "extractionQueued": "Pareigų išskyrimas laukia eilėje",
+  "extractingText": "Sąrašas atsiras savaime, kai išskyrimas bus baigtas.",
+  "emptyFiltered": "Pagal filtrus pareigų nėra",
+  "loadError": "Nepavyko įkelti pareigų",
+  "DIALOG": {
+    "title": "Pareiga",
+    "citations": "Teisinis pagrindas",
+    "model": "Išskyrė: {model}",
+    "reviewed": "Peržiūrėta {date}",
+    "CHECK": {
+      "title": "Tikrinimo išvada",
+      "issue": "Kas ne taip: {issue}",
+      "checkedBy": "Patikrinta {date} · {model}",
+      "checkedAt": "Patikrinta {date}",
+      "unchecked": "Antras modelis šios pareigos dar netikrino — arba po tikrinimo buvo pakeistas jos pavadinimas ar tekstas.",
+      "editHint": "Pakeitus pavadinimą ar tekstą, ši išvada panaikinama: pareigą reikės patikrinti iš naujo."
+    },
+    "FIELDS": {
+      "title": "Pavadinimas",
+      "titleEn": "Pavadinimas anglų kalba",
+      "text": "Pareigos tekstas",
+      "textEn": "Tekstas anglų kalba",
+      "addressee": "Kam taikoma (adresatas)",
+      "conditions": "Taikymo sąlygos",
+      "evidence": "Laukiami įrodymai",
+      "deadline": "Terminas / periodiškumas",
+      "notes": "Pastabos",
+      "category": "Sritis",
+      "severity": "Reikšmingumas",
+      "appliesTo": "Įstaigų tipai",
+      "status": "Būsena"
+    },
+    "required": "Privalomas laukas",
+    "save": "Išsaugoti",
+    "deleteTitle": "Ištrinti pareigą?",
+    "deleteText": "Pareiga bus ištrinta. Pakartotinai išskiriant ji gali būti pasiūlyta vėl — geriau ją atmesti."
+  },
+  "TOASTS": {
+    "saved": "Pareiga išsaugota",
+    "approved": "Pareiga patvirtinta",
+    "rejected": "Pareiga atmesta",
+    "proposed": "Pareiga grąžinta į pasiūlytas",
+    "deleted": "Pareiga ištrinta"
+  }
+}

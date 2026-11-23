@@ -1,0 +1,77 @@
+{
+  "TITLE": "Compliance gap analysis for financial institutions",
+  "hero": {
+    "title": "Compliance is a mosaic. We show which pieces are missing.",
+    "lede": "The Compliance assistant for financial institutions works out which Lithuanian and EU acts apply to you, checks each of their duties against your policies and writes a report with an action plan.",
+    "fact": "More than 50 acts from their official sources: the EU Publications Office, e-TAR and the Bank of Lithuania.",
+    "method": "How it assesses"
+  },
+  "proof": {
+    "title": "A missing piece, up close",
+    "lede": "Every gap is a specific place in your document. A finding joins the act's duty to the passage of your document that decides it, and marks that passage.",
+    "specimen": "A sample finding: the regulation's duty, a passage of the company's document and the assessment"
+  },
+  "does": {
+    "title": "What the assistant does",
+    "applies": {
+      "title": "Works out which acts apply to you",
+      "text": "It reads each act's scope and decides from the company profile: the act applies, will apply later, or its application still has to be confirmed. Every decision comes with its reasons."
+    },
+    "compares": {
+      "title": "Checks every duty against your documents",
+      "text": "It reads every uploaded document in full and gives each duty one of five statuses. A finding carries a quote you can open in the document."
+    },
+    "plans": {
+      "title": "Draws up the action plan",
+      "text": "Every open gap is closed by one action: who owns it, how much work it is and by when. Overlapping actions are merged into one."
+    }
+  },
+  "report": {
+    "title": "A report you can check",
+    "lede": "Every finding shows the duty, the assessment and the evidence. Click a quote and the document opens at that place. You can replace a finding with your own assessment, then approve the finished report and export it: a PDF for the board, Excel for the work.",
+    "link": "The whole way from a conversation to a report",
+    "specimen": "A sample report: the findings counted by status and the gravest gaps"
+  },
+  "chat": {
+    "title": "Ask about the law — the answer names the article",
+    "lede": "The assistant searches the official texts of the acts and puts the article beside its answer, with a link to the official text. What it has not read in the corpus it marks “(to verify)” — so you can tell checked text from the model's own knowledge.",
+    "points": {
+      "language": "It answers in the language you ask in.",
+      "documents": "It reads the documents dropped into the conversation and checks their references to the law.",
+      "reports": "It knows your company's reports: ask which gaps are critical."
+    },
+    "specimen": "A sample conversation: a question about DORA and an answer citing the article"
+  },
+  "sources": {
+    "title": "The texts come from their official sources",
+    "lede": "The acts are taken from their official sources, split down to article, paragraph and point, and refreshed every week. Every reference leads to the official text.",
+    "cellar": {
+      "name": "EU Publications Office",
+      "text": "EU regulations and directives: the newest consolidated version in force, in Lithuanian."
+    },
+    "etar": {
+      "name": "e-TAR",
+      "text": "Lithuanian laws and secondary legislation: the edition valid today."
+    },
+    "lb": {
+      "name": "Bank of Lithuania",
+      "text": "The compliance-function guidelines and the licensing procedure per institution type."
+    },
+    "link": "All legal acts"
+  },
+  "limits": {
+    "title": "What the assistant does not do",
+    "lawyer": {
+      "title": "It does not replace a lawyer",
+      "text": "It is an artificial intelligence system and its findings are an aid. A person can review and change every finding, and a person approves the report."
+    },
+    "practice": {
+      "title": "It does not assess practice",
+      "text": "The analysis assesses what your documents set out. Whether a procedure is followed in practice is yours to check — the report says what to look at."
+    },
+    "guess": {
+      "title": "It does not guess",
+      "text": "What the material provided cannot show is marked “not evidenced”. Acts whose application depends on unknown facts are not assessed until the questions are answered."
+    }
+  }
+}

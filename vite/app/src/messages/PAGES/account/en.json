@@ -1,0 +1,20 @@
+{
+  "TITLE": "Account",
+  "profile": "Profile",
+  "changePassword": "Change password",
+  "currentPassword": "Current password",
+  "newPassword": "New password",
+  "repeatPassword": "Repeat the new password",
+  "passwordHint": "At least {min} characters and at most {max} bytes (a letter like ą or ž takes two).",
+  "tooShort": "The password must be at least {min} characters long",
+  "tooLong": "The password is too long: at most {max} bytes (a letter like ą or ž takes two)",
+  "required": "Required",
+  "mismatch": "Passwords do not match",
+  "changeNote": "Changing the password ends your other sessions.",
+  "save": "Save",
+  "logoutAll": "Log out everywhere",
+  "logoutAllHint": "Kills every session, including this one.",
+  "logoutAllConfirm": "Log out on every device?",
+  "logoutAllConfirmText": "All your sessions — this browser included — will be ended. You will have to sign in again.",
+  "TOASTS": { "passwordChanged": "Password changed" }
+}

@@ -1,0 +1,77 @@
+{
+  "TITLE": "Jobs",
+  "subtitle": "Background jobs: legal act ingestion, document indexing, compliance analyses.",
+  "COLUMNS": {
+    "kind": "Kind",
+    "subject": "Subject",
+    "status": "Status",
+    "progress": "Progress",
+    "created": "Created",
+    "finished": "Finished",
+    "actions": "Actions"
+  },
+  "FILTER": {
+    "all": "All",
+    "status": "Status",
+    "kind": "Kind"
+  },
+  "ACTIONS": {
+    "cancel": "Cancel the job",
+    "details": "Job details"
+  },
+  "DETAILS": {
+    "title": "Job",
+    "steps": "Steps",
+    "result": "Result",
+    "noSteps": "No steps yet",
+    "model": "Model",
+    "models": "Models",
+    "prompt": "Prompt",
+    "calls": "Calls",
+    "tokens": "Tokens",
+    "tokensValue": "{input} in / {output} out",
+    "tokensIn": "Input tokens",
+    "tokensOut": "Output tokens",
+    "cost": "Cost",
+    "total": "AI usage",
+    "close": "Close",
+    "attempts": "Attempts",
+    "cancelRequested": "Cancellation requested — the job stops at its next step.",
+    "created": "Created",
+    "started": "Started",
+    "finished": "Finished",
+    "duration": "Duration"
+  },
+  "RESULT": {
+    "reportId": "Report",
+    "findings": "Findings",
+    "actions": "Actions in the plan",
+    "version": "Version",
+    "unchanged": "Unchanged since the last version",
+    "units": "Provisions",
+    "articles": "Articles",
+    "chunks": "Chunks",
+    "documents": "Legal acts",
+    "queued": "Jobs queued",
+    "obligations": "Obligations",
+    "skipped": "Skipped",
+    "sessions": "Expired sessions removed",
+    "jobs": "Old jobs removed",
+    "llmCalls": "Old AI call records removed",
+    "orphanFiles": "Orphaned files removed",
+    "rateLimitWindows": "Expired rate-limit windows removed",
+    "unusedUploads": "Unused uploads removed",
+    "steps": "Steps",
+    "waitingForBudget": "Waiting for the daily AI budget",
+    "resumesAt": "Resumes at (UTC)"
+  },
+  "QUEUE": {
+    "refresh": "The list refreshes every {seconds} seconds."
+  },
+  "empty": "No jobs",
+  "emptyFiltered": "No jobs match the filters",
+  "loadError": "The jobs could not be loaded",
+  "TOASTS": {
+    "cancelled": "Cancellation requested"
+  }
+}

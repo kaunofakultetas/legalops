@@ -1,0 +1,22 @@
+{
+  "TITLE": "Teisės aktai",
+  "head": {
+    "title": "Teisės aktai, kuriuos skaito asistentas",
+    "lede": "Asistentas atsako ir vertina ne iš atminties, o iš teisės aktų tekstų, paimtų iš oficialių šaltinių. Čia — kokie aktai yra bazėje ir iš kur jie."
+  },
+  "kept": {
+    "title": "Kaip tekstai laikomi",
+    "structure": { "name": "Iki punkto", "text": "Kiekvienas aktas išskaidomas pagal jo paties struktūrą: skyriai, straipsniai, dalys, punktai. Nuoroda rodo tikslią vietą." },
+    "weekly": { "name": "Kas savaitę", "text": "Aktai tikrinami kas savaitę. Pasikeitus redakcijai įkeliama nauja, o ataskaita perspėja, kad jos teisės aktai atnaujinti." },
+    "linked": { "name": "Su nuoroda", "text": "Prie kiekvienos nuostatos yra nuoroda į oficialų tekstą EUR-Lex arba e-TAR." }
+  },
+  "list": {
+    "title": "Kas yra bazėje",
+    "eu": { "name": "ES reglamentai ir direktyvos", "source": "Iš ES leidinių biuro: naujausia galiojanti konsoliduota redakcija lietuvių kalba." },
+    "lt": { "name": "Lietuvos Respublikos įstatymai", "source": "Iš e-TAR: šiandien galiojanti redakcija." },
+    "supervisors": { "name": "Priežiūros institucijų aktai", "source": "Lietuvos banko valdybos nutarimai ir gairės, Finansinių nusikaltimų tyrimo tarnybos įsakymas." },
+    "licensing": { "name": "Licencijavimo tvarka", "text": "Iš Lietuvos banko svetainės paimta licencijavimo tvarka pagal įstaigos tipą: bankams, kredito unijoms, mokėjimo ir elektroninių pinigų įstaigoms, kriptoturto paslaugų teikėjams ir žetonų emitentams, sutelktinio finansavimo paslaugų teikėjams, vartojimo ir su nekilnojamuoju turtu susijusio kredito davėjams, tarpusavio skolinimo platformų ir valiutos keityklų operatoriams, finansų maklerio įmonėms." },
+    "standards": { "name": "Standartai", "text": "Administratorius gali įkelti ir standartus (ISO/IEC, EN, LST). Įmonė nurodo, kuriuos taiko, ir ataskaita vertina jų reikalavimus taip pat, kaip teisės aktų pareigas." },
+    "asOf": "Sąrašas atitinka bazę 2026 m. lapkritį. Konsolėje matysite galiojančią kiekvieno akto redakciją ir paskutinės patikros datą."
+  }
+}

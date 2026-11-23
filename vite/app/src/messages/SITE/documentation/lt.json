@@ -1,0 +1,48 @@
+{
+  "TITLE": "Dokumentacija",
+  "head": {
+    "title": "Sistemos dokumentacija",
+    "lede": "Viena knyga apie tai, ką daro kiekviena Atitikties asistento dalis, kodėl ji sukurta būtent taip ir kaip dalys dera tarpusavyje. Ji skirta skaitytojui, kuris išmano atitikties darbą ir nenori skaityti kodo."
+  },
+  "open": {
+    "title": "Visa knyga viename faile",
+    "text": "Daugiau kaip 500 puslapių su paveikslais ir lentelėmis, lietuvių ir anglų kalbomis. Mygtukas atveria leidimą ta kalba, kuria skaitote dabar; kitą rasite perjungę kalbą puslapio viršuje.",
+    "action": "Atverti dokumentaciją (PDF)",
+    "file": "PDF failas lietuvių kalba, apie 7 MB."
+  },
+  "parts": {
+    "title": "Kaip ji sudaryta",
+    "glance": {
+      "name": "Sistemos apžvalga",
+      "text": "Kam sistema skirta, kokios paslaugos ją sudaro ir kokius duomenis ji saugo."
+    },
+    "ai": {
+      "name": "Dirbtinis intelektas sistemoje",
+      "text": "Ilgiausia dalis. Ji seka duomenis nuo teisės iki ataskaitos: kaip pasiekiamas modelis ir kiek kainuoja iškvietimas, kaip saugomos ir keičiamos instrukcijos, kaip teisės aktų tekstai tampa teisės aktų baze ir pareigų registru, kas išskaitoma iš įmonės dokumentų, kaip rengiama atitikties ataskaita ir kas su ja vyksta toliau, kaip veikia pokalbių asistentas. Dalis baigiama tuo, kas visa tai daro patikima: patikromis, vertinimu, sprendžiančiais žmonėmis ir kaina."
+    },
+    "running": {
+      "name": "Sistemos naudojimas ir eksploatavimas",
+      "text": "Konsolė puslapis po puslapio, API, sauga, diegimas ir eksploatavimas, testai ir tai, kaip sistema atliepia kursą, kuriam ji sukurta."
+    },
+    "reference": {
+      "name": "Žinynas",
+      "text": "Visos instrukcijos, visi pokalbio įrankiai, visi katalogo teisės aktai, parametrai ir terminų žodynėlis."
+    }
+  },
+  "acting": {
+    "title": "Kas ką daro",
+    "text": "Kalbos modelius naudojančia sistema galima pasitikėti tik tiek, kiek aiški jos brėžiama riba tarp to, ką parašė modelis, ką patikrino kodas ir ką nusprendė žmogus. Knyga šią ribą visur žymi vienodai.",
+    "model": {
+      "name": "Klausiama modelio",
+      "text": "Geltonas skydelis aprašo kalbos modelio iškvietimą: kas modeliui pateikiama, kas jam nurodoma ir ką jis turi atsakyti."
+    },
+    "code": {
+      "name": "Tikrina arba skaičiuoja kodas",
+      "text": "Mėlynas skydelis aprašo tai, kas atliekama be modelio: citata surandama jos dokumente, nuostata randama teisės aktų bazėje, apskaičiuojamas balas. Niekas jame nepriklauso nuo to, ką modelis tąkart atsakė."
+    },
+    "person": {
+      "name": "Sprendžia žmogus",
+      "text": "Rėmeliu apvestas skydelis žymi sprendimą, kurio sistema niekada nepriima pati: ataskaitos apimties patvirtinimą, pareigos patvirtinimą, ataskaitos patvirtinimą."
+    }
+  }
+}

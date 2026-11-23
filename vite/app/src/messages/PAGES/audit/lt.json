@@ -1,0 +1,44 @@
+{
+  "TITLE": "Veiksmų žurnalas",
+  "subtitle": "Kas, kada ir ką pakeitė: prisijungimai, naudotojai, įmonės, teisės aktai, pareigos, ataskaitos, DI instrukcijos.",
+  "action": "Veiksmas",
+  "allActions": "Visi veiksmai",
+  "allOf": "Visi: {group}",
+  "user": "Naudotojas",
+  "allUsers": "Visi naudotojai",
+  "before": "Iki (imtinai)",
+  "clear": "Išvalyti filtrus",
+  "COLUMNS": {
+    "time": "Laikas",
+    "user": "Naudotojas",
+    "action": "Veiksmas",
+    "target": "Objektas",
+    "details": "Detalės",
+    "ip": "IP adresas"
+  },
+  "GROUPS": {
+    "auth": "Prisijungimas",
+    "users": "Naudotojai",
+    "companies": "Įmonės",
+    "documents": "Dokumentai",
+    "corpus": "Teisės aktai",
+    "obligations": "Pareigos",
+    "reports": "Ataskaitos",
+    "prompts": "DI instrukcijos",
+    "mcp": "MCP serveriai",
+    "jobs": "Užduotys"
+  },
+  "system": "Sistema",
+  "loadMore": "Įkelti senesnius",
+  "loaded": "Įkelta įrašų: {count}",
+  "empty": "Įrašų nėra",
+  "loadError": "Nepavyko įkelti žurnalo",
+  "loadMoreError": "Nepavyko įkelti senesnių įrašų",
+  "DETAILS": {
+    "title": "Žurnalo įrašas",
+    "close": "Uždaryti",
+    "details": "Detalės",
+    "code": "Veiksmo kodas",
+    "open": "Atidaryti {time} įrašą"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Atitikties asistentas",
+  "home": "Atitikties asistentas — pradžia",
+  "site": "Atitikties asistentas — apie produktą",
+  "account": "Paskyra",
+  "logout": "Atsijungti",
+  "lithuanian": "Lietuvių",
+  "english": "English",
+  "switchToEnglish": "Switch the interface to English",
+  "switchToLithuanian": "Perjungti sąsają į lietuvių kalbą",
+  "accountMenu": "Paskyros meniu: {name}"
+}

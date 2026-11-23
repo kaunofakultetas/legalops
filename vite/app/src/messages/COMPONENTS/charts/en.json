@@ -1,0 +1,13 @@
+{
+  "showTable": "Show table",
+  "showChart": "Show chart",
+  "total": "Total",
+  "date": "Date",
+  "legend": "{label} — legend",
+  "table": "{label} — table",
+  "of": "{value} of {limit}",
+  "unlimited": "Unlimited",
+  "atLimit": "Limit reached",
+  "overLimit": "Limit exceeded",
+  "nearLimit": "Close to the limit"
+}

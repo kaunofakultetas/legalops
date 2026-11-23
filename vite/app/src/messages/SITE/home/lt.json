@@ -1,0 +1,77 @@
+{
+  "TITLE": "Atitikties spragų analizė finansų įstaigoms",
+  "hero": {
+    "title": "Atitiktis yra mozaika. Parodome, kurių detalių trūksta.",
+    "lede": "Atitikties asistentas finansų įstaigoms nustato, kurie Lietuvos ir ES teisės aktai jums taikomi, kiekvieną jų pareigą palygina su jūsų politikomis ir parengia ataskaitą su veiksmų planu.",
+    "fact": "Daugiau kaip 50 teisės aktų iš oficialių šaltinių: ES leidinių biuro, e-TAR ir Lietuvos banko.",
+    "method": "Kaip vertinama"
+  },
+  "proof": {
+    "title": "Trūkstama detalė iš arti",
+    "lede": "Kiekviena spraga yra konkreti vieta jūsų dokumente. Išvada sujungia teisės akto pareigą su jūsų dokumento ištrauka, kuri lemia vertinimą, ir tą ištrauką pažymi.",
+    "specimen": "Išvados pavyzdys: reglamento pareiga, įmonės dokumento ištrauka ir vertinimas"
+  },
+  "does": {
+    "title": "Ką asistentas padaro",
+    "applies": {
+      "title": "Nustato, kurie aktai jums taikomi",
+      "text": "Perskaito aktų taikymo sritį ir pagal įmonės profilį nusprendžia: aktas taikomas, bus taikomas vėliau arba taikymą dar reikia patvirtinti. Kiekvienas sprendimas — su pagrindimu."
+    },
+    "compares": {
+      "title": "Kiekvieną pareigą palygina su jūsų dokumentais",
+      "text": "Perskaito visus įkeltus dokumentus ištisai ir kiekvienai pareigai priskiria vieną iš penkių būsenų. Prie išvados — citata, kurią galima atverti dokumente."
+    },
+    "plans": {
+      "title": "Sudaro veiksmų planą",
+      "text": "Kiekvieną atvirą spragą uždaro vienas veiksmas: kas atsakingas, kiek darbo ir iki kada. Persidengiantys veiksmai sujungiami į vieną."
+    }
+  },
+  "report": {
+    "title": "Ataskaita, kurią galima patikrinti",
+    "lede": "Kiekviena išvada parodo pareigą, vertinimą ir įrodymą. Paspaudus citatą, dokumentas atsiveria toje vietoje. Išvadą galite pakeisti savo vertinimu, o baigtą ataskaitą — patvirtinti ir eksportuoti: PDF vadovybei, Excel darbui.",
+    "link": "Visas kelias nuo pokalbio iki ataskaitos",
+    "specimen": "Ataskaitos pavyzdys: išvadų skaičiai pagal būseną ir svarbiausios spragos"
+  },
+  "chat": {
+    "title": "Klauskite apie teisę — atsakyme bus straipsnis",
+    "lede": "Asistentas ieško oficialiuose teisės aktų tekstuose ir prie atsakymo nurodo straipsnį su nuoroda į oficialų tekstą. Ko bazėje neperskaitė, pažymi „(tikrintina)“ — taip atskirsite patikrintą tekstą nuo modelio žinių.",
+    "points": {
+      "language": "Atsako ta kalba, kuria klausiate.",
+      "documents": "Skaito į pokalbį įkeltus dokumentus ir tikrina jų nuorodas į teisės aktus.",
+      "reports": "Žino jūsų įmonės ataskaitas: klauskite, kokios spragos kritinės."
+    },
+    "specimen": "Pokalbio pavyzdys: klausimas apie DORA ir atsakymas su nuoroda į straipsnį"
+  },
+  "sources": {
+    "title": "Tekstai — iš oficialių šaltinių",
+    "lede": "Aktai paimami iš jų oficialių šaltinių, išskaidomi iki straipsnio, dalies ir punkto ir kas savaitę atnaujinami. Kiekviena nuoroda veda į oficialų tekstą.",
+    "cellar": {
+      "name": "ES leidinių biuras",
+      "text": "ES reglamentai ir direktyvos: naujausia galiojanti konsoliduota redakcija lietuvių kalba."
+    },
+    "etar": {
+      "name": "e-TAR",
+      "text": "Lietuvos įstatymai ir poįstatyminiai aktai: šiandien galiojanti redakcija."
+    },
+    "lb": {
+      "name": "Lietuvos bankas",
+      "text": "Atitikties funkcijos gairės ir licencijavimo tvarka pagal įstaigos tipą."
+    },
+    "link": "Visi teisės aktai"
+  },
+  "limits": {
+    "title": "Ko asistentas nedaro",
+    "lawyer": {
+      "title": "Nepakeičia teisininko",
+      "text": "Tai dirbtinio intelekto sistema, jos išvados pagalbinės. Kiekvieną išvadą gali peržiūrėti ir pakeisti žmogus, o ataskaitą tvirtina žmogus."
+    },
+    "practice": {
+      "title": "Nevertina praktikos",
+      "text": "Analizė vertina, ką nustato jūsų dokumentai. Ar tvarka taikoma praktikoje, patikrinkite patys — ataskaita nurodo, ką."
+    },
+    "guess": {
+      "title": "Nespėlioja",
+      "text": "Ko iš pateiktos medžiagos nustatyti negalima, pažymima „neįrodyta“. Aktai, kurių taikymas priklauso nuo nežinomų faktų, nevertinami, kol į klausimus neatsakyta."
+    }
+  }
+}

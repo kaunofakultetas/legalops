@@ -1,0 +1,19 @@
+{
+  "TITLE": "Įmonės",
+  "subtitle": "Įmonių profiliai, pagal kuriuos atliekama atitikties analizė.",
+  "new": "Nauja įmonė",
+  "search": "Ieškoti pagal pavadinimą ar kodą",
+  "onlyMine": "Tik mano",
+  "COLUMNS": { "name": "Pavadinimas", "institutionType": "Įstaigos tipas", "registrationCode": "Įmonės kodas", "country": "Šalis", "owner": "Savininkas", "updated": "Atnaujinta" },
+  "empty": "Įmonių dar nėra",
+  "emptyText": "Sukurkite įmonės profilį čia arba aprašykite įmonę pokalbyje — asistentas profilį sukurs pats.",
+  "emptySearch": "Pagal paiešką įmonių nerasta",
+  "toChat": "Aprašyti pokalbyje",
+  "loadError": "Nepavyko įkelti įmonių",
+  "CREATE": {
+    "title": "Nauja įmonė", "name": "Pavadinimas", "registrationCode": "Įmonės kodas", "institutionType": "Finansų įstaigos tipas",
+    "country": "Šalis", "countryHint": "Dviejų raidžių kodas, pvz., LT", "nameRequired": "Įveskite pavadinimą", "countryRequired": "Įveskite šalį",
+    "submit": "Sukurti", "note": "Kitus profilio duomenis galėsite užpildyti įmonės puslapyje."
+  },
+  "TOASTS": { "created": "Įmonė sukurta" }
+}
