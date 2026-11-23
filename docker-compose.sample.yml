@@ -30,7 +30,7 @@ services:
     networks:
       external: {}
       isolated:
-        ipv4_address: 172.28.10.30
+        ipv4_address: 172.18.123.30
     restart: unless-stopped
   # ------------------------------------------------------------
   # ------------------------------------------------------------
@@ -88,7 +88,7 @@ services:
       # Django Configuration
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DATABASE_URL: postgres://legalops:legalops@legalops-postgres:5432/legalops
-      
+
       # AI Model Settings
       ASSISTANT_INTERNAL_SECRET: ${ASSISTANT_INTERNAL_SECRET}
       AI_EMBED_MODEL: azure/text-embedding-3-large
@@ -111,10 +111,10 @@ services:
       - ./_DATA/django:/data
       # - ./django:/app                                                                # Dev
     extra_hosts:
-      - "publications.europa.eu:172.28.10.30"
-      - "www.e-tar.lt:172.28.10.30"
-      - "www.lb.lt:172.28.10.30"
-      - "ai.knf.vu.lt:172.28.10.30"
+      - "publications.europa.eu:172.18.123.30"
+      - "www.e-tar.lt:172.18.123.30"
+      - "www.lb.lt:172.18.123.30"
+      - "ai.knf.vu.lt:172.18.123.30"
     networks:
       - isolated
     restart: unless-stopped
@@ -164,7 +164,7 @@ services:
     # volumes:                                                                         # Dev
     #   - ./assistant/app:/app                                                         # Dev
     extra_hosts:
-      - "ai.knf.vu.lt:172.28.10.30"
+      - "ai.knf.vu.lt:172.18.123.30"
     networks:
       - isolated
       # - external                                                                     # Dev
@@ -290,4 +290,4 @@ networks:
     internal: true
     ipam:
       config:
-        - subnet: 172.28.10.0/24
+        - subnet: 172.18.123.0/24
