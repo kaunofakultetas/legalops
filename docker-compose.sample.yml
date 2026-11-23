@@ -1,0 +1,293 @@
+services:
+
+  # ------------------------------------------------------------
+  #                Incoming and outgoing endpoints
+  # ------------------------------------------------------------
+  legalops-endpoint:
+    container_name: legalops-endpoint
+    image: caddy:2.11-alpine
+    user: 1000:1000
+    read_only: true
+    environment:
+      DBGATE_AUTH_HEADER: ${DBGATE_AUTH_HEADER}
+    volumes:
+      - ./endpoint/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "80:80"
+    networks:
+      - external
+      - isolated
+    restart: unless-stopped
+
+
+  legalops-exit:
+    container_name: legalops-exit
+    image: vuknf/caddy-l4:2.11
+    user: 1000:1000
+    read_only: true
+    volumes:
+      - ./exit/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      external: {}
+      isolated:
+        ipv4_address: 172.28.10.30
+    restart: unless-stopped
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+
+
+
+
+
+
+
+  # ------------------------------------------------------------
+  #                  LegalOps assistant stack
+  # ------------------------------------------------------------
+  legalops-vite:
+    container_name: legalops-vite
+
+    # Docker hub
+    image: vuknf/legalops-vite:latest
+
+    # # Self-built
+    # image: legalops-vite
+    # build:
+    #   context: ./vite
+    #   # dockerfile: Dockerfile                                                         # Prod
+    #   dockerfile: Dockerfile.dev                                                     # Dev
+
+    user: 1000:1000
+    read_only: true
+    # tmpfs:                                                                           # Dev
+    #   - /root/.npm:uid=1000,gid=1000                                                 # Dev
+    #   - /home/node/.npm:uid=1000,gid=1000                                            # Dev
+    # volumes:                                                                         # Dev
+    #   - ./vite/app:/app                                                              # Dev
+    networks:
+      - isolated
+      # - external                                                                     # Dev
+    restart: unless-stopped
+
+
+
+  legalops-django:
+    container_name: legalops-django
+
+    # Docker hub
+    image: vuknf/legalops-django:latest
+
+    # # Self-built
+    # image: legalops-django
+    # build: ./django
+
+    user: 1000:1000
+    read_only: true
+    environment:
+      # Django Configuration
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DATABASE_URL: postgres://legalops:legalops@legalops-postgres:5432/legalops
+      
+      # AI Model Settings
+      ASSISTANT_INTERNAL_SECRET: ${ASSISTANT_INTERNAL_SECRET}
+      AI_EMBED_MODEL: azure/text-embedding-3-large
+      LLM_DAILY_BUDGET_USD: ${LLM_DAILY_BUDGET_USD:-10.0}
+
+      LOGIN_RATE_PER_IP: ${LOGIN_RATE_PER_IP:-60}
+      UPLOAD_QUOTA_FILES: ${UPLOAD_QUOTA_FILES:-1000}
+      UPLOAD_QUOTA_BYTES: ${UPLOAD_QUOTA_BYTES:-2147483648}
+
+      # fontconfig (WeasyPrint) caches here — the root is read-only
+      XDG_CACHE_HOME: /tmp/.cache
+
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-8}
+      # DJANGO_RUNSERVER: "True"                                                       # Dev
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,size=512m
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./_DATA/django:/data
+      # - ./django:/app                                                                # Dev
+    extra_hosts:
+      - "publications.europa.eu:172.28.10.30"
+      - "www.e-tar.lt:172.28.10.30"
+      - "www.lb.lt:172.28.10.30"
+      - "ai.knf.vu.lt:172.28.10.30"
+    networks:
+      - isolated
+    restart: unless-stopped
+
+
+
+  legalops-worker:
+    container_name: legalops-worker
+    image: docker:27-cli
+    user: root
+    read_only: true
+    command: ["docker", "exec", "legalops-django", "python3", "manage.py", "run_worker"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: none
+    restart: unless-stopped
+
+
+
+  legalops-assistant:
+    container_name: legalops-assistant
+
+    # Docker hub
+    image: vuknf/legalops-django:latest
+
+    # # Self-built
+    # image: legalops-assistant
+    # build:
+    #   context: ./assistant
+    #   # dockerfile: Dockerfile                                                         # Prod
+    #   dockerfile: Dockerfile.dev                                                     # Dev
+
+    user: 1000:1000
+    read_only: true
+    environment:
+      DJANGO_URL: http://legalops-django:8000
+      ASSISTANT_INTERNAL_SECRET: ${ASSISTANT_INTERNAL_SECRET}
+      AI_GATEWAY_URL: ${AI_GATEWAY_URL:-https://ai.knf.vu.lt/v1}
+      AI_GATEWAY_KEY: ${AI_GATEWAY_KEY}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-azure/gpt-5.5}
+      AI_EMBED_MODEL: ${AI_EMBED_MODEL:-azure/text-embedding-3-large}
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,size=64m                                              # Prod
+    #   - /home/node/.npm                                                              # Dev
+    #   - /root/.npm                                                                   # Dev
+    #   - /tmp                                                                         # Dev
+    # volumes:                                                                         # Dev
+    #   - ./assistant/app:/app                                                         # Dev
+    extra_hosts:
+      - "ai.knf.vu.lt:172.28.10.30"
+    networks:
+      - isolated
+      # - external                                                                     # Dev
+    restart: unless-stopped
+
+
+
+  legalops-postgres:
+    container_name: legalops-postgres
+
+    # Self-built
+    image: legalops-postgres
+    build: ./postgres
+
+    user: 1000:1000
+    read_only: true
+    environment:
+      POSTGRES_DB: legalops
+      POSTGRES_USER: legalops
+      POSTGRES_PASSWORD: legalops
+      PGDATA: /var/lib/postgresql/data
+    command: >
+      postgres
+      -c max_connections=100
+      -c shared_buffers=256MB
+      -c work_mem=16MB
+      -c effective_cache_size=512MB
+      -c maintenance_work_mem=128MB
+      -c random_page_cost=1.1
+      -c checkpoint_completion_target=0.9
+      -c log_min_duration_statement=2000
+    tmpfs:
+      - /var/run/postgresql:uid=1000,gid=1000
+      - /tmp:uid=1000,gid=1000
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+      # Fresh DB Bootstrap
+      - ./postgres/bootstrap.sql.gz:/docker-entrypoint-initdb.d/bootstrap.sql.gz:ro
+
+      - ./_DATA/postgres:/var/lib/postgresql/data
+    networks:
+      - isolated
+    restart: unless-stopped
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+
+
+
+
+
+
+
+  # ------------------------------------------------------------
+  #              Additional administration services 
+  # ------------------------------------------------------------
+  legalops-dbgate:
+    container_name: legalops-dbgate
+    image: dbgate/dbgate:7.3.6-alpine
+    user: root
+    read_only: true
+    environment:
+      WEB_ROOT: /dbgate
+
+      BASIC_AUTH: 1
+      LOGIN: dbgate
+      PASSWORD: ${DBGATE_PASSWORD}
+
+      CONNECTIONS: con1
+
+      LABEL_con1: Duomenų Bazė
+      SERVER_con1: legalops-postgres
+      USER_con1: legalops
+      PASSWORD_con1: legalops
+      PORT_con1: 5432
+      ENGINE_con1: postgres@dbgate-plugin-postgres
+
+    networks:
+      - isolated
+    restart: unless-stopped
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+  # ------------------------------------------------------------
+  #                       Documentation
+  # ------------------------------------------------------------
+  legalops-docs:
+    container_name: legalops-docs
+    image: caddy:2.11-alpine
+    user: 1000:1000
+    read_only: true
+    command: ["caddy", "file-server", "--browse", "--root", "/srv", "--listen", ":80"]
+    volumes:
+      - ./docs/output:/srv/docs:ro
+    networks:
+      - isolated
+    restart: unless-stopped
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+  # ------------------------------------------------------------
+
+
+
+
+
+
+
+networks:
+  external:
+    external: true
+  isolated:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24

@@ -1,0 +1,23 @@
+/_*
+.env
+/docker-compose.yml
+/.claude
+
+
+
+#### Common ignored files ###
+# Byte-compiled / optimized python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+
+# Node dependencies and builds
+node_modules/
+dist/
+
+
+
+# Test output
+coverage/
