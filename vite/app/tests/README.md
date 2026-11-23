@@ -63,6 +63,8 @@ The host has no node, so always run inside a container. Do not run the suite ins
 
 What the suite learned the hard way:
 
+- **Waits.** `findBy*` and `waitFor` try again every 50 ms and at every DOM change, and Testing Library prints the whole page into the error of each failed try. On a slow machine those prints ran back to back and left React no time to render a navigation, which it does in slices between other work; a search that had to reach the address first was still not rendered after 5 s. `support/setup.js` leaves the print to the try that gives up (and to a find outside a wait), so a failure still shows the page.
+- **Long forms.** `user.type` renders the page at every keystroke: about a quarter of a second each for a dialog over a grid on a slow machine. A test that types a whole form passes its own timeout as the last argument of `it`.
 - **Fake timers.** `vi.useFakeTimers()` with no options fakes every timer API, `requestAnimationFrame` and `performance` included. Pass an explicit `toFake` list, usually the timeouts, the intervals and `Date`. A test that fakes `setTimeout` and still waits for the page needs `shouldAdvanceTime: true`: React Query delivers every update through `setTimeout(…, 0)`.
 - **Menus and dialogs.** An open MUI menu or dialog hides the rest of the page from role queries (`aria-hidden`). Read what is behind it with `{ hidden: true }` (see `components/navbar.test.jsx`).
 - **No layout.** jsdom measures nothing. The scroll tests stub `scrollHeight` and `clientHeight` and set `scrollTop` themselves.

@@ -4,6 +4,10 @@
 //  Runs before every test file (vite.config.js → test.setupFiles):
 //
 //    - jest-dom matchers (toBeInTheDocument, toBeDisabled, …)
+//    - waits sized for a full page: findBy* / waitFor give up
+//      after 5 s, and a try that will be made again throws its
+//      bare message — only the try that gives up, and a find
+//      outside a wait, print the page into their error
 //    - the browser APIs jsdom lacks that MUI, the DataGrid,
 //      react-hot-toast, assistant-ui and the app's own
 //      components touch: ResizeObserver, IntersectionObserver,
@@ -44,7 +48,7 @@
 import '@testing-library/jest-dom/vitest';
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer';
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
-import { cleanup, configure } from '@testing-library/react';
+import { cleanup, configure, getConfig } from '@testing-library/react';
 import toast from 'react-hot-toast';
 import { forgetNavigationMemory } from '@/utils/navigationMemory';
 import { server, stopRecordingRequests, unhandledRequests } from './backend/server';
@@ -150,8 +154,33 @@ function matchMediaStub(query) {
 // findBy*/waitFor give up after 1 s by default — too little for a
 // full page (session check + chrome + a DataGrid) on a loaded
 // machine; nothing in the suite is meant to be timing-sensitive
-// at that scale
-configure({ asyncUtilTimeout: 5000 });
+// at that scale.
+//
+// While one waits it tries again every 50 ms and at every DOM
+// change, and Testing Library prints the whole page into the
+// error of every failed try. On a slow machine that print made
+// a try longer than the pause between two: the tries ran back
+// to back, and React — which renders a navigation in short
+// slices between other work — got next to no time. A search
+// that had to reach the address before the page could answer
+// it was still not rendered when the wait gave up. So a try
+// that will be made again throws the bare message. The library
+// marks those tries itself (its role query skips its own costly
+// hints by the same flag — an internal one: without it every
+// error prints the page, as before). The error of the try that
+// gives up is built anew by waitFor outside that flag, so it,
+// like a find outside a wait, still prints the page.
+const printedElementError = getConfig().getElementError;
+
+configure({
+  asyncUtilTimeout: 5000,
+  getElementError: (message, container) => {
+    if (!getConfig()._disableExpensiveErrorDiagnostics) return printedElementError(message, container);
+    const error = new Error(message);
+    error.name = 'TestingLibraryElementError';
+    return error;
+  },
+});
 
 beforeAll(() => {
   globalThis.ResizeObserver ??= ResizeObserverStub;

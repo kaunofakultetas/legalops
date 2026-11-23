@@ -314,7 +314,7 @@ describe('CompanyCredentials — adding', () => {
     // The page's company is fetched again and lists it
     expect(await within(screen.getByRole('grid')).findByText('Mokėjimo įstaigos licencija')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Licences and credentials (3)' })).toBeInTheDocument();
-  });
+  }, 60000);
 
 
   it('the blanks travel as null (issuer, number, dates, evidence), the texts as empty strings, the status as claimed', async () => {

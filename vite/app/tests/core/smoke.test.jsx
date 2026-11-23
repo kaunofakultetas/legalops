@@ -10,6 +10,9 @@
 //  double does not know is recorded (and fails any test that
 //  did not declare it), a render crash shows its own message
 //  and React's report of it is the console guard's to judge.
+//  And the waits stay cheap: a find that will be tried again
+//  throws its bare message, and only the one that gives up —
+//  like a find outside a wait — prints the page (setup.js).
 // -----------------------------------------------------------
 
 import { describe, it, expect } from 'vitest';
@@ -87,5 +90,39 @@ describe('harness smoke', () => {
     renderPage(<Crashing />);
 
     expect(await screen.findByTestId('render-crashed')).toHaveTextContent('render crashed: on purpose');
+  });
+
+
+  it('a find that will be tried again throws its bare message — the one that gives up, like a find outside a wait, prints the page', async () => {
+    renderUsers();
+    await screen.findByRole('grid', { name: 'Users' });
+    const missing = /^Unable to find an element with the text: Nowhere on the page/;
+    const printed = /Ignored nodes: comments[\s\S]*<body/;
+
+    // Outside a wait the error shows the page
+    expect(() => screen.getByText('Nowhere on the page')).toThrow(printed);
+
+    // Inside one every failed try is the message alone: the print
+    // made a try longer than the pause before the next (setup.js)
+    const tries = [];
+    const find = () => {
+      try {
+        return screen.getByText('Nowhere on the page');
+      } catch (error) {
+        tries.push(error.message);
+        throw error;
+      }
+    };
+    const gaveUp = await waitFor(find, { timeout: 300 }).then(() => null, (error) => error);
+    expect(tries.length).toBeGreaterThan(0);
+    tries.forEach((message) => {
+      expect(message).toMatch(missing);
+      expect(message).not.toMatch(printed);
+    });
+
+    // … and the wait's last word still does
+    expect(gaveUp.message).toMatch(missing);
+    expect(gaveUp.message).toMatch(printed);
+    await expect(screen.findByText('Nowhere on the page', {}, { timeout: 300 })).rejects.toThrow(printed);
   });
 });
