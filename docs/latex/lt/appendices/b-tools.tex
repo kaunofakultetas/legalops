@@ -887,7 +887,8 @@ ar žmogus pasakė \enquote{taip}, jis negali (\cref{ch:chat}).
     estimateAnalysisCost ir aiškaus naudotojo sutikimo}) ir 6 taisyklė. Kode --- kainos
     užtvara.
   \item[Grąžina] \texttt{started: true}, \code{stopsForScope}, ataskaitos kortelė ir --- kai
-    analizė sustoja apimties patvirtinimui --- \code{next}: kai \code{getReport} rodo
+    analizė sustoja apimties patvirtinimui --- \code{next}: kortelė rodo analizės eigą realiuoju
+    laiku, todėl tame pačiame ėjime \code{getReport} nekviečiamas; kai \code{getReport} rodo
     \code{scope_review}, parodyti naudotojui apimtį ir likusios dalies kainą ir gauti antrą
     sutikimą. Kai API atsako \code{ALREADY_RUNNING}: \texttt{started: false},
     \texttt{alreadyRunning: true} ir tos įmonės ataskaitos, kuri laukia eilėje, vykdoma ar

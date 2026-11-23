@@ -76,7 +76,9 @@ import { ActionsToolCard, CorpusToolCard, EstimateToolCard, ProductToolCard, Rep
 // attachment: 'Įkėliau dokumentą: "title" (document id …; …).'
 const LEGACY_MARKER = /^(?:Įkėliau dokumentą|I attached a document): "(.+)" \(document id ([\w-]+); ([^)]*)\)\.?$/;
 
-// Tools with their own rendering; everything else is a pill
+// Tools with their own rendering; everything else is a pill.
+// The three of the report card are ToolCards' REPORT_TOOLS
+// too: it shows one report once in a reply
 const TOOL_CARDS = {
   runComplianceAnalysis: ReportToolCard,
   approveReportScope: ReportToolCard,

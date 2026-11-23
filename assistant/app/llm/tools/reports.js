@@ -55,10 +55,12 @@
 //  can still start the run or approve its acts.
 //
 //  The report answers share one card shape, which the chat
-//  renders with a link to the report's page. A start Django
-//  refuses as ALREADY_RUNNING answers the report that holds
-//  the company instead — running, or waiting for its scope —
-//  so the model can follow it with getReport.
+//  renders with a link to the report's page. That card
+//  follows a run live, so a start's answer tells the model
+//  not to read the report again in the same turn. A start
+//  Django refuses as ALREADY_RUNNING answers the report that
+//  holds the company instead — running, or waiting for its
+//  scope — so the model can follow it with getReport.
 //
 //  A finding says what a breach of its provision can cost
 //  (canCost): the ceiling of the fine and the measures the
@@ -982,11 +984,14 @@ export function reportTools(ctx) {
           ...(autoApprove ? {} : { review: true }), ...(internalRequirements ? { internal: true } : {}),
         });
         if (autoApprove) return { started: true, stopsForScope: false, ...reportCard(report) };
+        // The chat's card follows the run by itself, so the
+        // model is told not to read the report again in the
+        // turn that started it: the read would say nothing new
         return {
           started: true, stopsForScope: true,
-          next: "the run stops once it has decided which acts apply (minutes): when getReport shows status scope_review, show "
-            + "the user its scope and the price of the rest, and get their yes to that price too — the start's yes does not "
-            + "cover it — before approveReportScope",
+          next: "the run stops once it has decided which acts apply (minutes); the card shows it live: no getReport in this "
+            + "turn. When getReport shows scope_review, show the user its scope and the price of the rest, and get their yes "
+            + "to that price too — the start's yes does not cover it — before approveReportScope",
           ...reportCard(report),
         };
       } catch (err) {

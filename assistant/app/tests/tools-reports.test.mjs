@@ -444,6 +444,8 @@ test("runComplianceAnalysis: the run stops for the user's approval of its acts, 
   assert.equal(reviewed.stopsForScope, true);
   assert.match(reviewed.next, /getReport.+scope_review.+approveReportScope/, "what comes next, by the tools' names");
   assert.match(reviewed.next, /their yes to that price too — the start's yes does not cover it/, "the approved list is confirmed again");
+  assert.match(reviewed.next, /the card shows it live: no getReport in this turn\. When getReport shows scope_review/,
+               "the run is not read again in the turn that started it — the chat's card follows it");
   assert.ok(!reviewed.next.includes("\n") && reviewed.next.length < 300, "one line");
   await call(set, "runComplianceAnalysis", { companyId: "c1", confirmedCostUsd: 27, autoApprove: false });
   assert.equal(stub.requests.at(-1).body.review, true);

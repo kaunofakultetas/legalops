@@ -20,7 +20,11 @@
 //      and the link — the card approves nothing: that is
 //      done on the report's page, or by the assistant's
 //      approveReportScope once the user has said yes — and is
-//      not polled: it moves only when a person acts;
+//      not polled: it moves only when a person acts. A
+//      report is shown once in a reply: when several of
+//      these calls answered the same one — a start, then a
+//      read of it — the last draws the card and the earlier
+//      ones are pills, or one analysis would look like two;
 //    - CorpusToolCard — searchLegalCorpus / getLegalProvision
 //      / checkCitations: the same pill, grown to hold the
 //      articles that were read — each one a link to its
@@ -55,6 +59,7 @@
 //  Split into (root component last):
 //
 //    ACTIVE_REPORT   — report statuses that still change
+//    REPORT_TOOLS    — the tools that draw the report card
 //    VERDICTS        — how a check's verdict shows on a row
 //    PILL            — the frame every pill wears
 //    toolState       — part status → running/done/failed/stopped
@@ -68,6 +73,7 @@
 //    CountChips      — "label: n" chips
 //    OwnCounts       — the company's own requirements, one line
 //    ReportCard      — the report card body
+//    answersReport   — a call that shows a given report
 //    ReportToolCard  — report tools (named export)
 //    verdictOf       — a checked reference's verdict
 //    ArticleRef      — one article, a link to its official text
@@ -84,6 +90,7 @@
 
 import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuiState } from '@assistant-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -119,6 +126,11 @@ const REGISTER_COUNTS = [['late', 'late'], ['open', 'open'], ['in_progress', 'in
 // One waiting for its acts to be approved (scope_review) is
 // not among them: no job is at work on it
 const ACTIVE_REPORT = new Set(['queued', 'running']);
+
+// The tools whose finished call draws the report card — the
+// ones Messages.jsx gives ReportToolCard (TOOL_CARDS).
+// cancelAnalysis answers a report too, but stays a pill
+const REPORT_TOOLS = new Set(['runComplianceAnalysis', 'approveReportScope', 'getReport']);
 
 // How a citation check's verdict shows on its article's row:
 // the colour of the row and the mark after the citation — a
@@ -357,6 +369,8 @@ function CallDetails({ id, args, result, state }) {
 //   - ReportToolCard, CorpusToolCard, EstimateToolCard,
 //     ProductToolCard, ActionsToolCard (below) — while
 //     running and on failure
+//   - ReportToolCard (below) — also for a call whose report
+//     a later call of the reply shows
 // -----------------------------------------------------------
 
 export function ToolPill({ toolName, args, result, status, isError }) {
@@ -532,6 +546,29 @@ function ReportCard({ card, toolName, alreadyRunning }) {
 
 
 // -----------------------------------------------------------
+// answersReport
+// -----------------------------------------------------------
+//
+// Whether a part of a reply is a report call that answered
+// the given report — one of REPORT_TOOLS, finished without
+// an error — and so shows it.
+//
+// Used by:
+//   - ReportToolCard (below)
+// -----------------------------------------------------------
+
+function answersReport(part, reportId) {
+  return part.type === 'tool-call' && REPORT_TOOLS.has(part.toolName) && !part.isError
+    && reportId != null && part.result?.report?.id === reportId;
+}
+
+
+
+
+
+
+
+// -----------------------------------------------------------
 // ReportToolCard
 // -----------------------------------------------------------
 //
@@ -540,14 +577,33 @@ function ReportCard({ card, toolName, alreadyRunning }) {
 // running or on failure. An approval answers the report as
 // it goes on to its second part, so its card follows the run.
 //
+// A report is shown once in a reply. The model may start an
+// analysis and read it in the same turn, and two cards of
+// one report looked like two analyses: of the calls that
+// answered the same report the last draws the card — the
+// newest answer, and after an approval the one that follows
+// the run — and the earlier ones are pills. That one card
+// still says the analysis was already running when a start
+// of the reply was refused for it.
+//
 // Used by:
 //   - Messages.jsx — tools.by_name
 // -----------------------------------------------------------
 
 export function ReportToolCard(props) {
-  const { result, status, isError, toolName } = props;
-  if (toolState(status, isError) !== 'done' || !result?.report?.id) return <ToolPill {...props} />;
-  return <ReportCard card={result} toolName={toolName} alreadyRunning={Boolean(result.alreadyRunning)} />;
+
+  const { result, status, isError, toolName, toolCallId } = props;
+  const reportId = result?.report?.id;
+  const repeated = useAuiState((s) => {
+    const parts = s.message.content;
+    const at = parts.findIndex((part) => part.type === 'tool-call' && part.toolCallId === toolCallId);
+    return at >= 0 && parts.slice(at + 1).some((part) => answersReport(part, reportId));
+  });
+  const refused = useAuiState((s) => s.message.content.some((part) => answersReport(part, reportId) && Boolean(part.result.alreadyRunning)));
+
+
+  if (toolState(status, isError) !== 'done' || !reportId || repeated) return <ToolPill {...props} />;
+  return <ReportCard card={result} toolName={toolName} alreadyRunning={Boolean(result.alreadyRunning) || refused} />;
 }
 
 

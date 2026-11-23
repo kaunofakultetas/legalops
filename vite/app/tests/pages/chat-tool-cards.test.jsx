@@ -22,7 +22,10 @@
 //      names that status and keeps the link, with no bar, no
 //      poll and no "already running"; the company's own
 //      requirements of a report that assessed them, as one
-//      quiet line under the chips and never among them;
+//      quiet line under the chips and never among them; a
+//      report several calls of one reply answered shown
+//      once — the last call the card, the earlier ones
+//      pills — stored or streamed in;
 //    - CorpusToolCard (searchLegalCorpus / getLegalProvision /
 //      checkCitations): citation chips opening the official
 //      text in a new tab, the version date, "nothing found",
@@ -379,7 +382,8 @@ describe('ToolPill', () => {
 //
 // runComplianceAnalysis / getReport answered a report: the
 // card; while the analysis runs, the card follows the live
-// report.
+// report. One report is one card in a reply, whatever number
+// of calls answered it.
 // -----------------------------------------------------------
 
 describe('ReportToolCard', () => {
@@ -427,10 +431,15 @@ describe('ReportToolCard', () => {
 
 
   it('a report without that group has no such line — nor has one whose group counts nothing', async () => {
+    // Three reports, a card each: a reply shows one report once
+    const another = (id, extra) => {
+      const card = reportCardOf(f.ID.reportDone, extra);
+      return { ...card, report: { ...card.report, id } };
+    };
     await showReply([
       toolPart('getReport', { toolCallId: 'c1', output: reportCardOf(f.ID.reportDone) }),
-      toolPart('getReport', { toolCallId: 'c2', output: reportCardOf(f.ID.reportDone, { ownRequirements: { counts: null, openBySeverity: null, note: '' } }) }),
-      toolPart('getReport', { toolCallId: 'c3', output: reportCardOf(f.ID.reportDone, { ownRequirements: 'x' }) }),
+      toolPart('getReport', { toolCallId: 'c2', output: another('report-empty-group', { ownRequirements: { counts: null, openBySeverity: null, note: '' } }) }),
+      toolPart('getReport', { toolCallId: 'c3', output: another('report-odd-group', { ownRequirements: 'x' }) }),
     ]);
     expect(within(reply()).getAllByText('Finished')).toHaveLength(3);
     expect(within(reply()).queryByText(/^Own requirements/)).toBeNull();
@@ -601,6 +610,110 @@ describe('ReportToolCard', () => {
     expect(pillOf('Starting the compliance analysis')).toHaveTextContent('failedCOST_NOT_CONFIRMED');
     expect(pillOf('Compliance report')).toHaveTextContent('Compliance report·done');
     expect(within(reply()).queryByRole('link', { name: /Open the report/ })).toBeNull();
+  });
+
+
+  it('a start and a read of it in one reply show the report once — two cards looked like two analyses: the read draws the card, the start is a pill', async () => {
+    const polls = given.capture('get', '/api/reports/:reportId', f.report(f.ID.reportRunning));
+    const started = reportCardOf(f.ID.reportRunning, { started: true, stopsForScope: true });
+    started.report = { ...started.report, status: 'queued', progress: null };
+    const { user } = await showReply([
+      toolPart('runComplianceAnalysis', { input: { companyId: f.ID.kreditas, confirmedCostUsd: 6 }, output: started }),
+      toolPart('getReport', { input: { reportId: f.ID.reportRunning }, output: reportCardOf(f.ID.reportRunning) }),
+    ]);
+    // One card — the read's, the newest answer — following the live report
+    expect(within(reply()).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(reply()).getAllByText('Compliance analysis: UAB Kreditas')).toHaveLength(1);
+    expect(within(reply()).getByText('Compliance report')).toBeInTheDocument();
+    await waitFor(() => expect(polls.length).toBeGreaterThan(0));
+    expect(within(reply()).getAllByRole('progressbar')).toHaveLength(1);
+    expect(within(reply()).queryByRole('button', { name: /^Compliance report/ })).toBeNull();
+    // The start is still told, where it was made: a pill that opens to its answer
+    const pill = pillOf('Starting the compliance analysis');
+    expect(pill).toHaveTextContent('Starting the compliance analysis·done');
+    await user.click(pill);
+    expect(document.getElementById(pill.getAttribute('aria-controls'))).toHaveTextContent('"started": true');
+  });
+
+
+  it('a read of a waiting report and its approval in one reply: the approval\'s card follows the run — no stale "awaiting approval" beside it', async () => {
+    given.json('get', '/api/reports/:reportId', { ...f.report(f.ID.reportRunning), id: f.ID.reportWaiting });
+    const approved = { approved: true, ...reportCardOf(f.ID.reportWaiting) };
+    approved.report = { ...approved.report, status: 'queued', progress: null };
+    await showReply([
+      toolPart('getReport', { input: { reportId: f.ID.reportWaiting }, output: reportCardOf(f.ID.reportWaiting) }),
+      toolPart('approveReportScope', { input: { reportId: f.ID.reportWaiting, confirmedCostUsd: 6 }, output: approved }),
+    ]);
+    expect(within(reply()).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(reply()).getByText('Approving the list of acts')).toBeInTheDocument();
+    expect(await within(reply()).findByText('33 % done · Gap analysis')).toBeInTheDocument();
+    expect(within(reply()).queryByText('Awaiting scope approval')).toBeNull();
+    expect(pillOf('Compliance report')).toHaveTextContent('Compliance report·done');
+  });
+
+
+  it('two reports in one reply keep a card each; of two reads of one report the later is the card', async () => {
+    await showReply([
+      toolPart('getReport', { toolCallId: 'c1', input: { reportId: f.ID.reportDone }, output: reportCardOf(f.ID.reportDone) }),
+      toolPart('getReport', { toolCallId: 'c2', input: { reportId: f.ID.reportWaiting }, output: reportCardOf(f.ID.reportWaiting) }),
+      toolPart('getReport', { toolCallId: 'c3', input: { reportId: f.ID.reportDone, status: 'missing' }, output: reportCardOf(f.ID.reportDone) }),
+    ]);
+    const links = within(reply()).getAllByRole('link', { name: 'Open the report' }).map((link) => link.getAttribute('href'));
+    expect(links).toEqual([`/reports/${f.ID.reportWaiting}`, `/reports/${f.ID.reportDone}`]);
+    // The first read of the finished report is the one pill, before both cards
+    const pill = pillOf('Compliance report');
+    expect(pill).toHaveTextContent('Compliance report·done');
+    expect(pill.compareDocumentPosition(within(reply()).getByText('Awaiting scope approval')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+
+  it('a start refused because the analysis already runs, then a read of it: the one card still says "already running"', async () => {
+    given.json('get', '/api/reports/:reportId', f.report(f.ID.reportRunning));
+    await showReply([
+      toolPart('runComplianceAnalysis', { output: reportCardOf(f.ID.reportRunning, { started: false, alreadyRunning: true }) }),
+      toolPart('getReport', { output: reportCardOf(f.ID.reportRunning) }),
+    ]);
+    expect(within(reply()).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(reply()).getByText('Compliance report')).toBeInTheDocument();
+    expect(within(reply()).getByText('This analysis is already running')).toBeInTheDocument();
+    expect(pillOf('Starting the compliance analysis')).toHaveTextContent('Starting the compliance analysis·done');
+  });
+
+
+  it('only a later call that shows the same report takes the card — not a failed read, nor the stop\'s answer of that report (a pill)', async () => {
+    await showReply([
+      toolPart('getReport', { toolCallId: 'c1', output: reportCardOf(f.ID.reportDone) }),
+      toolPart('getReport', { toolCallId: 'c2', state: 'output-error', errorText: '[NOT_FOUND] getReport failed (HTTP 404)' }),
+      toolPart('cancelAnalysis', { output: { cancelled: true, ...reportCardOf(f.ID.reportDone) } }),
+    ]);
+    expect(within(reply()).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(reply()).getByText('Finished')).toBeInTheDocument();
+    expect(pillOf('Compliance report')).toHaveTextContent('Compliance report·failedNOT_FOUND');
+    expect(pillOf('Stopping the compliance analysis')).toHaveTextContent('Stopping the compliance analysis·done');
+  });
+
+
+  it('streamed in: the start\'s card stands while the read of the same report runs, and gives way to the read\'s card once it answers', async () => {
+    given.json('get', '/api/reports/:reportId', f.report(f.ID.reportRunning));
+    const turn = openChatStream();
+    const { user } = renderChat();
+    await sendMessage(user, 'Pradėk analizę');
+    await turn.requested();
+    await turn.write({ type: 'start', messageId: 'srv-tool-4' }, { type: 'start-step' },
+      ...toolChunks({ toolName: 'runComplianceAnalysis', output: reportCardOf(f.ID.reportRunning, { started: true }) }), { type: 'finish-step' },
+      { type: 'start-step' }, ...toolChunks({ toolName: 'getReport', input: { reportId: f.ID.reportRunning }, pending: true }));
+    const live = await screen.findByTestId('assistant-message');
+    // The read has not answered: the start's card, the read a running pill
+    expect(await within(live).findByText('Starting the compliance analysis')).toBeInTheDocument();
+    expect(within(live).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(live).getByRole('button', { name: /^Compliance report/ })).toHaveTextContent('Compliance report·running…');
+    await turn.write({ type: 'tool-output-available', toolCallId: 'call_getReport_1', output: reportCardOf(f.ID.reportRunning) }, { type: 'finish-step' },
+      { type: 'start-step' }, ...textChunks(DONE_TEXT), { type: 'finish-step' }, { type: 'finish', finishReason: 'stop' });
+    await turn.end();
+    await waitFor(() => expect(within(live).getByRole('button', { name: /^Starting the compliance analysis/ })).toHaveTextContent('done'));
+    expect(within(live).getAllByRole('link', { name: 'Open the report' })).toHaveLength(1);
+    expect(within(live).getByText('Compliance report')).toBeInTheDocument();
+    expect(within(live).queryByRole('button', { name: /^Compliance report/ })).toBeNull();
   });
 
 

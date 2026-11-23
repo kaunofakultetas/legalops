@@ -850,8 +850,9 @@ current estimate; it cannot check that a person said yes (\cref{ch:chat}).
   \item[Kind] Writes, and spends. Asks first: the description (\enquote{Only after
     estimateAnalysisCost and the user's explicit yes}) and rule 6. A cost gate in the code.
   \item[Returns] \texttt{started: true}, \code{stopsForScope}, the report card, and --- when it
-    stops for its scope --- \code{next}: show the user the scope and the price of the rest
-    when \code{getReport} shows \code{scope_review}, and get a second yes. When the API
+    stops for its scope --- \code{next}: the card shows the run live, so no \code{getReport} in
+    the same turn; show the user the scope and the price of the rest when \code{getReport}
+    shows \code{scope_review}, and get a second yes. When the API
     refuses with \code{ALREADY_RUNNING}: \texttt{started: false}, \texttt{alreadyRunning: true} and
     the card of the company's report that is queued, running or waiting for its scope.
   \item[Errors] \code{COST_UNKNOWN} when the estimate has no total, or when a model's price is
