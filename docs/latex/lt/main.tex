@@ -1,0 +1,77 @@
+% ============================================================
+%  [*] Compliance AI Assistant — system documentation
+%
+%  The root file: the class, the shared preamble, the front
+%  matter and the chapters in their order. Each chapter is a
+%  file of its own under chapters/ (appendices/ for the
+%  reference tables); this file holds no running text.
+%
+%  Build:  docs/buildDocs.sh
+% ============================================================
+\documentclass[a4paper, fontsize=10.5pt, DIV=calc, parskip=half-, oneside, open=any,
+               numbers=noenddot, headings=normal, toc=chapterentrydotfill,
+               listof=totoc, bibliography=totoc]{scrreprt}
+\input{preamble}
+
+% The state of the system this document describes
+\newcommand{\docdate}{2026 m. lapkričio 16 d.}
+\newcommand{\docauthor}{Tomas Vanagas}
+
+\hypersetup{pdftitle={Atitikties asistentas — sistemos dokumentacija},
+            pdfauthor={\docauthor},
+            pdfsubject={Architektūra, funkcijos ir dirbtinio intelekto naudojimas}}
+
+% One chapter alone: no title page, no contents, no part pages
+\newif\ifwhole \wholetrue
+\ifdefined\only \wholefalse \includeonly{\only} \fi
+\newcommand{\docpart}[1]{\ifwhole\part{#1}\fi}
+
+
+\begin{document}
+
+\ifwhole
+  \input{front/title}
+  \input{front/about}
+  \tableofcontents
+\fi
+
+
+\docpart{Sistemos apžvalga}
+\include{chapters/01-introduction}
+\include{chapters/02-architecture}
+\include{chapters/03-data-model}
+
+
+\docpart{Dirbtinis intelektas sistemoje}
+\include{chapters/04-model-layer}
+\include{chapters/05-prompts}
+\include{chapters/06-corpus}
+\include{chapters/07-obligations}
+\include{chapters/08-company}
+\include{chapters/09-report}
+\include{chapters/10-register}
+\include{chapters/11-programme}
+\include{chapters/12-chat}
+\include{chapters/13-control}
+
+
+\docpart{Sistemos naudojimas ir eksploatavimas}
+\include{chapters/14-console}
+\include{chapters/15-api}
+\include{chapters/16-security}
+\include{chapters/17-operations}
+\include{chapters/18-testing}
+\include{chapters/19-course}
+
+
+\appendix
+% KOMA's \appendix is not seen by cleveref: name the appendices as such
+\crefalias{chapter}{appendix}\crefalias{section}{subappendix}\crefalias{subsection}{subsubappendix}
+\docpart{Žinynas}
+\include{appendices/a-prompts}
+\include{appendices/b-tools}
+\include{appendices/c-acts}
+\include{appendices/d-config}
+\include{appendices/e-glossary}
+
+\end{document}

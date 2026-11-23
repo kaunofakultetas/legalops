@@ -1,0 +1,312 @@
+% STATUS: verified
+\chapter{Introduction}\label{ch:intro}
+
+This chapter says what the \product{} is for, what it does, and where in it a language model
+is at work. It ends with the system in numbers, the course it was built for, and what the
+system does not claim to do.
+Everything it mentions is explained in a later chapter; the references say where.
+
+\section{The problem}\label{sec:intro:problem}
+
+A financial institution in Lithuania answers to several dozen legal acts at once: regulations
+of the European Union that bind it directly, directives that reach it through national law,
+Lithuanian laws, and the resolutions, instructions and guidelines of its supervisors. A
+crypto-asset service provider, for instance, must find its duties in the regulation on markets
+in crypto-assets and its technical standards, in the regulation on digital operational
+resilience, in the rules on money-laundering prevention and on transfers of funds, in the
+data-protection regulation, and in the national laws that give all of these their fines. The
+person responsible for compliance has to establish four things, and to establish them again
+whenever a law or the company changes:
+
+\begin{enumerate}
+  \item \textbf{Which acts apply} to this company, given what it is and what it does.
+  \item \textbf{What each of them obliges} the company to do, provision by provision.
+  \item \textbf{Whether the company's own documents} --- its policies and procedures --- carry
+        each obligation out, and where they fall short.
+  \item \textbf{What to do about the gaps}, in what order, and who owns each action.
+\end{enumerate}
+
+Done by hand this is weeks of reading. The reading is also exactly the kind of work a language
+model does quickly and, left alone, unreliably: it will cite an article that says something
+else, quote a sentence the policy does not contain, or call a duty met because the policy
+mentions the subject. The \product{} is built around that tension. It lets models do the
+reading, and it surrounds their calls with three things: the text of the law itself,
+fetched from its official source, so that the law is read and not recalled from memory; checks made by
+ordinary code, so that a quotation or a citation is verified and not trusted; and a person who
+decides, wherever a decision has consequences.
+
+\section{What the system does}\label{sec:intro:does}
+
+The \product{} (\lt{\productlt} in its first language, Lithuanian) is a self-hosted web
+application. A user signs in and lands in a conversation with the \term{chat assistant}; pages
+exist beside the chat for reviewing results and for administration. In the order in which a
+user meets them, the system:
+
+\begin{description}
+  \item[Keeps the law as text.] A \term{legal corpus} of 78 catalogued acts, 68 of them in
+    use, is fetched from the official machine sources of the European Union and of Lithuania
+    (two guidelines are uploaded as files), parsed down to article, paragraph and point, and
+    kept in versions. Findings and answers cite provisions of this corpus and can show their
+    words (\cref{ch:corpus}).
+  \item[Turns the law into a register of obligations.] Each act is read once and the duties it
+    imposes are written down as \term{obligations} --- who owes what, under which condition, by
+    when, how gravely --- each tied to the provisions it comes from. A second model call then checks
+    every obligation against its provision, and the design leaves the approval of each to a
+    person (\cref{ch:obligations}; how the register that ships was reviewed is stated in
+    \cref{ch:control}).
+  \item[Gets to know a company.] The user describes the company in the chat and drops in its
+    policies; the assistant files the profile and the documents through its tools. Each
+    document is indexed for search and read into a structured \term{inventory} of what it
+    establishes (\cref{ch:company}).
+  \item[Answers questions about the law.] The chat searches the corpus, quotes the exact
+    provision, and checks whether an article a document cites really regulates what the
+    document says it does (\cref{ch:chat,ch:company}).
+  \item[Makes a compliance report.] An analysis decides which acts apply to the company,
+    stops for a person to approve that list (unless the person who started it chose to let it
+    run through), then compares every obligation of those acts that fits the company with the company's documents. The result is a \term{report}: for every such obligation a \term{finding}
+    with its status, the evidence quoted from the documents, a recommendation and, for a gap
+    the act sanctions, what a breach can cost; an \term{action plan} that covers every gap; and a summary for the board.
+    A person reviews the findings and signs the report off. It exports to PDF and Excel
+    (\cref{ch:report}).
+  \item[Follows the actions over time.] The plan of a signed-off report moves into the
+    company's \term{action register}, where an action is closed when a later signed-off
+    report finds its obligations met, or by a person by hand with a note that says why
+    (\cref{ch:register}).
+  \item[Drafts the documents of a compliance programme.] From the same documents the system
+    drafts three \term{work products}: a compliance policy with the documents that are still
+    missing; the governance structure, the compliance process and its responsibility matrix;
+    and the legal risk criteria and register. Code checks each against the rules of its kind,
+    and a person edits and approves it (\cref{ch:programme}).
+  \item[Shows its own workings.] An administrator manages the corpus, reviews obligations,
+    reads and edits every prompt, and sees every recorded model call with its cost, and every change
+    anyone made (\cref{ch:console,ch:prompts,ch:security}).
+\end{description}
+
+\section{From the law to the report in one picture}\label{sec:intro:picture}
+
+\Cref{fig:intro:map} shows the whole system as four tracks. The first runs once per act, long
+before any company is involved: it is the costly, careful reading of the law, and every report
+reuses it. The second reads each document once; only the check of its citations is repeated
+by every report. The third is a report; the fourth a work product. The chat assistant stands
+above them: through its tools it reads all four, files a company's documents and starts a
+report or a work product, and it never does their work itself.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    n/.style={text width=15.5mm, inner xsep=3pt, inner ysep=4pt, minimum height=11.5mm, font=\sffamily\scriptsize},
+    node distance=5mm and 3.2mm]
+  % --- the law
+  \node[ext, n] (src) {official sources};
+  \node[svc, n, right=of src] (corp) {legal corpus: acts, provisions};
+  \node[ai, n, right=of corp] (ext) {obligations extracted};
+  \node[ai, n, right=of ext] (jud) {a judge checks each};
+  \node[man, n, right=of jud] (rev) {a person reviews};
+  \node[store, n, right=of rev, text width=15mm] (reg) {register of obligations};
+  \draw[flow] (src) -- (corp); \draw[flow] (corp) -- (ext); \draw[flow] (ext) -- (jud);
+  \draw[flow] (jud) -- (rev); \draw[flow] (rev) -- (reg);
+  % --- the company
+  \node[data, n, below=13mm of src, text width=13mm] (docs) {a company's documents};
+  \node[ai, n, right=of docs] (idx) {indexed: embeddings};
+  \node[ai, n, right=of idx] (inv) {inventory of each document};
+  \node[ai, n, right=of inv] (cit) {citations checked};
+  \draw[flow] (docs) -- (idx); \draw[flow] (idx) -- (inv); \draw[flow] (inv) -- (cit);
+  % --- the report
+  \node[ai, n, below=13mm of docs] (app) {which acts apply};
+  \node[man, n, right=of app] (scope) {scope approved};
+  \node[ai, n, right=of scope] (gap) {gap analysis: findings};
+  \node[chk, n, right=of gap] (chk) {quotes located, sanctions joined};
+  \node[ai, n, right=of chk] (plan) {action plan, summary};
+  \node[man, n, right=of plan] (sign) {reviewed, signed off};
+  \node[chk, n, right=of sign] (areg) {action register};
+  \draw[flow] (app) -- (scope); \draw[flow] (scope) -- (gap); \draw[flow] (gap) -- (chk);
+  \draw[flow] (chk) -- (plan); \draw[flow] (plan) -- (sign); \draw[flow] (sign) -- (areg);
+  % --- work products
+  \node[ai, n, below=13mm of app] (wp) {policy, structure, risk register drafted};
+  \node[chk, n, right=of wp] (rules) {rules of the kind checked};
+  \node[man, n, right=of rules] (appr) {edited, approved};
+  \draw[flow] (wp) -- (rules); \draw[flow] (rules) -- (appr);
+  % --- joins
+  \draw[opt] (reg.south) |- ($(gap.north)+(0,5mm)$) -- (gap.north);
+  \draw[opt] (cit.south) -- ++(0,-4mm) -| ($(gap.north)+(-3mm,0)$);
+  \draw[opt] (docs.west) -- ++(-3mm,0) |- (wp.west);
+  % --- lanes
+  \begin{scope}[on background layer]
+    \node[lane, fit=(src)(reg)] (l1) {};
+    \node[lane, fit=(docs)(cit)] (l2) {};
+    \node[lane, fit=(app)(areg)] (l3) {};
+    \node[lane, fit=(wp)(appr)] (l4) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (l1.north west) {The law --- once per act};
+  \node[lanelabel, anchor=south west] at (l2.north west) {The company --- its documents};
+  \node[lanelabel, anchor=south west] at (l3.north west) {A report};
+  \node[lanelabel, anchor=south west] at (l4.north west) {A work product};
+  % --- the chat
+  \node[ai, n, text width=30mm, right=6mm of appr, minimum height=11.5mm] (chat) {the chat assistant reads all of this, and starts reports and work products, through its tools};
+\end{tikzpicture}
+\actorlegend
+\caption{The system as four tracks. Yellow boxes are calls to a model, blue boxes are
+checks or computations by code, dark boxes are decisions of a person. The dotted lines show
+what a report takes from the tracks above it: the obligations of the acts that apply, and what
+the company's documents say.}\label{fig:intro:map}
+\end{figure}
+
+Three rules, visible in the picture, run through the whole system and are the subject of
+\cref{ch:control}:
+
+\begin{enumerate}
+  \item \textbf{The law is read, not remembered.} A model that reads an act is given the
+    provision's text from the corpus and asked a question about it, and a report judges a
+    company against the obligations read that way. Where a structured answer names a
+    provision, code looks the provision up; where it quotes a document, code finds the
+    quotation in the document. The chat's own text is the exception: nothing checks it, and
+    the chat is told to mark every number it has not read in the corpus as unverified
+    (\cref{ch:chat}).
+  \item \textbf{The model drafts, code checks, a person decides.} Scores, bands, the order of a plan and
+    the fine attached to a finding are computed, never taken from a model. Nothing is ever
+    marked approved by the system itself: an obligation of the register, a finding's override,
+    the sign-off of a report and a work product are each approved by a named person, and the
+    approval is recorded. The scope of a report is approved the same way; a person may instead
+    let a report run through without stopping, and the report then records that nobody
+    approved its scope. The chat assistant approves nothing on its own. It can record three
+    decisions, always in the user's name: a report's scope, on the user's yes and at the
+    price the user accepted; a finding's override, on the user's decision; and a credential
+    marked verified, on the user's word that it was checked. It approves no obligation, work
+    product or report (\cref{ch:chat}).
+  \item \textbf{Every call is on the record.} Each model call that answers is logged with its
+    tokens, its cost and, when a prompt produced it, the prompt version (only the embedding of
+    a search query, a few tokens, is left out on purpose); each prompt is stored in versions an
+    administrator can read, change and roll back; each report records which versions of which
+    prompts and acts it was made from.
+\end{enumerate}
+
+\section{Where the models are}\label{sec:intro:models}
+
+A language model is called in twenty-three places, each with a stored prompt of its own, and a
+second kind of model turns text into vectors for search. \Cref{tab:intro:paths} groups them;
+Part~II of this document takes them one by one, and \cref{app:prompts} describes every prompt.
+All of them are reached through one service and one gateway (\cref{ch:models}).
+
+\begin{table}[H]
+\caption{Every place a model is called, by what it is for}\label{tab:intro:paths}
+\begin{tabularx}{\textwidth}{@{}L{31mm}YL{19mm}@{}}
+\toprule
+\hd{What for} & \hd{What the model is asked} & \hd{Chapter} \\
+\midrule
+Reading the law, once per act &
+  To write down the obligations of an act's provisions (\prompt{corpus.extract_obligations}) and
+  the requirements of a standard (\prompt{corpus.extract_requirements}); to say whom an act's own
+  scope provisions cover (\prompt{corpus.scope}); to read its sanction provisions into tiers
+  (\prompt{corpus.sanctions}); to mark the headings of a standard that is not numbered the usual
+  way (\prompt{corpus.standard_outline}); and, as a judge, to check each extracted obligation
+  against the provision it cites (\prompt{corpus.verify_obligations}). &
+  \cref{ch:corpus,ch:obligations} \\
+Reading a company's documents &
+  To read a document into an inventory of what it establishes (\prompt{report.inventory}); and, as a
+  judge, to say whether an article a document cites regulates what the document claims
+  (\prompt{corpus.check_citations}). &
+  \cref{ch:company} \\
+Making a report &
+  To decide whether an act applies to the company (\prompt{report.applicability}); to judge each
+  obligation against the documents (\prompt{report.gap_analysis}); to read the company's own
+  requirements out of its policies and judge them (\prompt{company.internal_requirements},
+  \prompt{report.internal_gap}); to plan the actions and merge the drafts
+  (\prompt{report.action_plan}, \prompt{report.plan_merge}); to write the board's summary
+  (\prompt{report.summary}). &
+  \cref{ch:report} \\
+Drafting work products &
+  To draft the compliance policy and list the missing documents (\prompt{programme.policy},
+  \prompt{programme.documents}); the structure and the responsibility matrix
+  (\prompt{programme.structure}, \prompt{programme.raci}); the risk criteria and scenarios
+  (\prompt{programme.risk_criteria}, \prompt{programme.risk_scenarios}). &
+  \cref{ch:programme} \\
+Conversation &
+  To hold the chat and choose which tools to call (\prompt{chat.assistant}); to give a thread its
+  title (\prompt{chat.title}). &
+  \cref{ch:chat} \\
+Search &
+  An embedding model turns the provisions of the corpus, the obligations, the passages of a
+  company's documents and each search query into vectors. &
+  \cref{ch:models,ch:corpus} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Just as telling is where no model is called. Fetching and parsing the law (but for the
+headings of a standard the rules cannot read), locating a quotation, looking a provision up, joining a finding to its sanction, computing a risk score,
+ordering a plan, moving the action register, and every approval are code or people. The
+action register in particular --- the part of the system that says whether a gap was really
+closed --- contains no model call at all (\cref{ch:register}).
+
+\section{The system in numbers}\label{sec:intro:numbers}
+
+The figures below were read on the deployed system on 13~November 2026; the two that have
+changed since, the count of prompt versions and the sanction tiers --- read again on a copy
+of the corpus with the new version of their prompt --- are given as they stand since
+19~November 2026.
+They are given so that the reader has a sense of scale; the chapters say how each was obtained.
+
+\begin{table}[H]
+\caption{The system on 13 November 2026}\label{tab:intro:numbers}
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+\toprule
+\hd{What} & \hd{How much} \\
+\midrule
+Legal corpus & 78 acts in the catalogue, 68 of them enabled; 26\,983 provisions stored as units in
+  their current versions; 4\,059 passages embedded for search (\cref{app:acts}) \\
+Register of obligations & 5\,960 obligations extracted from 66 of the 68 acts (two state none): 5\,938 approved,
+  10 rejected, 12 left for a person; 302 sanction tiers read from 27 acts \\
+Prompts & 23, in 91 versions since 20~November 2026 (85 until 16~November); the chat's prompt is in
+  its seventeenth version, the report summary's in its twelfth \\
+One full report & Made on 13~November 2026, without the scope review, for the course's sample company, a crypto-asset service
+  provider with 26 policies: 26 acts assessed (one of them as preparation for a date still
+  ahead), 2\,151 findings from the law and 475 from the company's own policies, an action plan of 51 actions covering all 1\,633 open findings;
+  272 model calls, 1 hour 38 minutes, \$13.20 (\cref{ch:report}) \\
+Code & About 33\,600 lines in the API, 10\,700 in the assistant service and 46\,800 in the
+  console, with about 94\,000 lines of tests beside them \\
+Tests & 405 in the API, 509 in the assistant service, 5\,180 in the console
+  (\cref{ch:testing}); six suites of labelled cases that measure six of the prompts against
+  the real model, every label made on 12~November 2026 by the AI coding assistant used to
+  build the system and none yet confirmed by a person (\cref{ch:control}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{The course the system was built for}\label{sec:intro:course}
+
+The \product{} is the project of the course \lt{Finansų teisė ir finansų įstaigų veiklos
+atitikties valdymas} (financial law and the compliance management of financial institutions)
+of the FinTech master's programme at Vilnius University Kaunas Faculty, autumn 2026. The course
+teaches a method: classify the institution, build its compliance policy and governance, assess
+its legal risk, monitor and report. It gives three assignments on a sample organisation,
+\demo{} --- a fictional crypto-asset service provider with 26 policies --- and it describes
+the role of the technologist who builds tools for compliance work: prompts bound to schemas,
+answers grounded in retrieved sources, kept sets of labelled cases, regression measurement,
+audit trails. The system is an attempt to build that method as software, and the sample
+organisation is the company on which the reports and the other company-side measurements of
+this document were made.
+\Cref{ch:course} maps the course's assignments and concepts onto the system part by part.
+
+\section{What the system does not claim}\label{sec:intro:limits}
+
+\begin{itemize}
+  \item \textbf{It is not legal advice.} A report is a structured first reading for a
+    compliance officer to review: its summary carries a section on its own limitations, and it
+    records how many of its findings rest on approved obligations of the register.
+  \item \textbf{It judges what is written down.} A finding says whether the company's documents
+    establish what an obligation asks for --- the design of its arrangements. Whether the
+    company does in practice what its policy says is outside what documents can show; a
+    finding that is \status{met} carries a note to verify it in practice where that matters.
+  \item \textbf{It reads text.} A scanned document without a text layer gives it nothing to
+    read: there is no optical character recognition.
+  \item \textbf{Its law is the law of its corpus.} It covers the financial regulation of
+    the European Union and of Lithuania that the catalogue lists (\cref{app:acts}), and any
+    act an administrator adds. An act outside the corpus does not exist for it, and it says
+    so when a document cites one.
+  \item \textbf{Its measurements are observations.} The accuracy figures, costs and durations
+    in this document were measured on one sample company, or on the shared corpus, on the days
+    named. They show how the
+    system behaved, not how it must behave elsewhere.
+\end{itemize}
+
+The limitations of each part are stated in its chapter, and gathered in \cref{ch:control}.

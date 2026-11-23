@@ -1,0 +1,1110 @@
+% STATUS: reviewed
+\chapter{Duomenų modelis}\label{ch:data}
+
+Viskas, ką sistema žino, saugoma vienoje PostgreSQL duomenų bazėje su plėtiniu \code{pgvector}:
+teisės aktų bazė ir jos vektoriai, pareigų registras, įmonės ir jų dokumentai, ataskaitos,
+programos dokumentai, instrukcijos, užduočių eilė, kiekvieno modelio iškvietimo įrašas ir
+veiksmų žurnalas. Prie jos jungiasi tik API (Django); asistento paslauga skaito ir rašo per API
+(\cref{ch:arch}). Šiame skyriuje lentelės aprašomos taip, kaip jas apibrėžia modelių failai
+(kiekvienos API programėlės \file{<app>/models.py}). Skyrius pradedamas taisyklėmis, kurių
+laikosi kiekviena lentelė, ir dviem ryšių schemomis, toliau programėlė po programėlės
+aptariamos lentelės, svarbiausi jų stulpeliai ir kiekvieno JSON stulpelio struktūra, o baigiama
+tuo, ką ataskaita nusikopijuoja, kad vėliau skaitytųsi taip pat, ir tuo, kas --- modelis, kodas
+ar žmogus --- rašo kuriuos stulpelius. Ką su lentelėmis daro apdorojimo grandinės, aprašyta
+kiekvienai grandinei skirtame skyriuje.
+
+\section{Taisyklės}\label{sec:data:conventions}
+
+Kiekviena API programėlė savo lentelėms taiko tas pačias taisykles; \file{users/models.py} jas
+išdėsto savo antraštiniame komentare, o kitos programėlės jų laikosi.
+
+\paragraph{Raktai.} Pirminis raktas yra \code{TextField}, kuriame tekstu laikomas 4 versijos
+UUID, sukuriamas Python kode įrašymo metu (\code{id=str(uuid.uuid4())}); duomenų bazė neturi
+sekos ir nieko nepriskiria. Kadangi identifikatorius egzistuoja dar prieš įrašant eilutę,
+etapas, kuriantis šimtus eilučių, jas įrašo vienu \code{bulk_create} ir vis tiek žino kiekvieną
+identifikatorių --- taip savo išvadas įrašo atitikties spragų analizė, o veiksmų planas paskui
+tuos identifikatorius išvardija \code{finding_ids}. Dvi lentelės vietoj to turi natūralųjį
+raktą: \code{rate_limit_windows} --- ribotuvo raktą, \code{model_prices} --- modelio
+identifikatorių. Viena lentelė identifikatorius gauna iš išorės: \code{chat_messages} eilutė
+išlaiko identifikatorių, kurį žinutei suteikė pokalbio klientas; \file{chat/store.py} jį
+priima tik tada, kai jis atitinka \code{MESSAGE_ID} (raidės, skaitmenys ir \code{_ . : -}, ne
+daugiau kaip 128 simboliai) ir dar nepriklauso kitam pokalbiui.
+
+\paragraph{Laikas.} Laiko momentas yra \code{DateTimeField} su laiko juostą žinančia UTC
+reikšme (\file{settings.py}: \code{USE_TZ = True}, \code{TIME_ZONE = "UTC"}). Joks stulpelis
+neužsipildo savaime: \code{auto_now} nenaudojamas, o kiekvienas įrašas perduoda
+\code{utc_now()} reikšmę (\file{common/timestamps.py}), kurią šio failo antraštinis komentaras
+vadina \enquote{vieninteliu laikrodžiu, kurį skaito kodas}. Perduodamas per API, momentas yra
+ISO~8601 eilutė, besibaigianti \code{+00:00}. Diena be laiko --- data, kurią įsigalioja
+redakcija, data, nuo kurios taikomas aktas, veiksmo terminas, leidimo galiojimas --- yra
+\code{DateField}.
+
+\paragraph{Išvardijimai.} Leistinos būsenos ar rūšies reikšmės yra konstantų rinkinys
+(\en{tuple}) modelio faile (\code{REPORT_STATUSES}, \code{FINDING_STATUSES}, \dots), o
+\code{CheckConstraint} modelio \code{Meta.constraints} priverčia duomenų bazę atmesti bet kokią
+kitą reikšmę. Apribojimai pavadinti pagal lentelę ir tai, ką jie tikrina (\code{reports_status_check}). API rodiniai prieš įrašydami reikšmę
+patikrina ją pagal tą patį rinkinį --- pavyzdžiui, įkeliant dokumentą pagal
+\code{DOCUMENT_KINDS} ---, taigi apribojimas saugo nuo reikšmės, kurią suklysdamas pateiktų pats
+kodas.
+
+
+Keli tekstiniai stulpeliai apribojimo sąmoningai neturi, ir skaitytojas su jais susidurs
+toliau: \code{work_products.kind} (\enquote{vėliau pridėtai rūšiai reikia modulio, ne
+migracijos}), \code{report_acts.doc_type} (jame laikomi katalogo tipai ir dar
+\code{internal} --- eilutė, prie kurios kabinami įmonės vidaus reikalavimai), išvadų ir
+veiksmų \code{category} (ribojama tik lentelėje \code{obligations}),
+\code{report_findings.source_kind} ir \code{report_findings.override_status} (rodinys jį
+tikrina pagal \code{FINDING_STATUSES}), \code{prompt_versions.source},
+\code{chat_messages.role} ir lentelės \code{llm_calls} \code{outcome} bei \code{purpose}. Du
+\code{report_citations} stulpeliai yra arba tušti, arba viena iš sąrašo reikšmių: jų
+apribojimai aiškiai leidžia \code{NULL}.
+
+\paragraph{JSON stulpeliai.} Struktūrizuotos reikšmės, kurios skaitomos ir rašomos ištisai ---
+akto sankcijų perskaitymas, išvados įrodymai, ataskaitos statistika ---, yra
+\code{JSONField} stulpeliai, saugomi kaip \code{jsonb}. Jų struktūrą nustato juos rašantis
+kodas, ne duomenų bazė, o raktai juose dažniausiai rašomi kupranugario stiliumi
+(\code{maxFineEur}, \code{promptVersionId}), kaip juos pateikia API, --- išvardijimo reikšmė,
+naudojama kaip raktas, išlaiko savo rašybą (\code{not_applicable} objekte \code{stats.findings})
+---, o patys stulpeliai pavadinti mažosiomis raidėmis su pabraukimais. Juos skaitantis kodas sąmoningai
+atlaidus: pavyzdžiui, \code{inventory_citations} faile \file{companies/inventory.py} trūkstamą
+ar netaisyklingą sąrašą perskaito kaip nuorodų nebuvimą, niekada ne kaip klaidą.
+\Cref{sec:data:corpus,sec:data:companies,sec:data:analysis,sec:data:programme,sec:data:ops}
+pateikia kiekvieno iš jų struktūrą.
+
+\paragraph{Vektoriai ir viso teksto paieška.} Vektorius yra \code{VectorField} su 1\,536
+matmenimis (\code{EMBED_DIMENSIONS}, deklaruota \file{corpus/models.py} ir
+\file{companies/models.py} kaip \enquote{vienas modelis}). Modelis nustatomas
+\file{settings.py} (\code{AI_EMBED_MODEL}, numatytasis
+\code{gateway:azure/text-embedding-3-large}), o asistento paslauga prašo jo būtent tiek
+matmenų (\code{EMBED_DIMENSIONS} jos faile \file{routes/internal.js}); pakeitus modelį,
+reikia vektorių perskaičiavimo užduoties, ne schemos pakeitimo (\cref{ch:models}). Vektorius
+laiko keturi stulpeliai. Abu tie, kuriuose ieškoma, --- \code{legal_chunks.embedding} ir
+\code{company_document_chunks.embedding} --- turi po HNSW indeksą kosinusiniam atstumui
+(\code{m=16}, \code{ef_construction=64}, operatorių klasė \code{vector_cosine_ops}) ir šalia jo
+GIN indeksą pagal \code{to_tsvector('simple', text)} mišriosios paieškos raktažodžių daliai.
+Konfigūracija \code{simple} pasirinkta todėl, kad, \file{corpus/models.py} žodžiais,
+\enquote{lietuvių kalbai Postgres neturi kamienavimo, linksniavimą perima vektorinė dalis}. Du
+pareigos vektoriai (\code{embedding}, \code{embedding_en}) indekso neturi: jie yra užklausa,
+lyginama su indeksuotomis įmonės dokumentų ištraukomis, o ne tai, kur ieškoma.
+
+\paragraph{Kas vyksta trinant.} Kiekvienas išorinis raktas nurodo, kas nutinka eilutei, kai
+ištrinama eilutė, į kurią jis rodo, ir šie pasirinkimai lemia, kas po trynimo išlieka
+(\cref{tab:data:ondelete}). Dalis, kuri be visumos neturi prasmės, išnyksta kartu su ja
+(\code{CASCADE}); naršymui laikoma nuoroda išvaloma, o eilutė išlieka (\code{SET_NULL});
+savininko negalima ištrinti, kol jam kas nors priklauso (\code{PROTECT}); o įrašas, kuris turi
+pergyventi tai, ką įvardija, identifikatorių laiko paprastu tekstu, visai be išorinio rakto.
+
+\begin{xltabular}{\textwidth}{@{}L{22mm}YL{44mm}@{}}
+\caption{Keturios trynimo taisyklės ir kur kiekviena taikoma}\label{tab:data:ondelete}\\
+\toprule
+\hd{Taisyklė} & \hd{Kur taikoma} & \hd{Pasekmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Taisyklė} & \hd{Kur taikoma} & \hd{Pasekmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{CASCADE} & Akto redakcijos, struktūriniai vienetai ir fragmentai bei jo pareigos; redakcijos vienetai ir fragmentai; vieneto vaikiniai vienetai; įmonės leidimai, taikomi standartai, rolės, ataskaitos, veiksmų registras, programos dokumentai ir vidaus reikalavimai (\code{obligations.company}); dokumento fragmentai; ataskaitos aktai, išvados, veiksmai ir nuorodų eilutės; užduoties etapai; instrukcijos versijos; pokalbio žinutės; naudotojo sesijos ir pokalbiai; standarto taikymas, kai ištrinamas standarto aktas. & Ištrynus aktą iš teisės aktų bazės, pašalinamas visas jo pareigų registras; ištrynus įmonę, pašalinamos visos apie ją parengtos ataskaitos. \\
+\code{SET_NULL} & Kiekvienas stulpelis, įvardijantis veikusį naudotoją (\code{created_by}, \code{reviewed_by}, \code{approved_by}, \dots, taip pat \code{jobs.created_by}, \code{llm_calls.user}, \code{audit_log.user}); kiekviena ataskaitos eilučių nuoroda į teisės aktų bazę ir į įmonės dokumentus; pareigos redakcija, nuostata ir šaltinio dokumentas; \code{legal_documents.current_version}, \code{prompts.active_version}; \code{company_documents.company}; \code{reports.job}, \code{work_products.job}; išvados akto eilutė (\code{report_findings.act}); pokalbio įmonė ir rolė; leidimo įrodymų dokumentas ir standarto taikymo sertifikatas; ataskaitos, kurias įvardija registro veiksmas. & Ataskaita išlieka ištrynus aktą, pareigą ar dokumentą, kurį ji skaitė: ji turi savo kopijas (\cref{sec:data:snapshots}) ir netenka tik nuorodos. \\
+\code{PROTECT} & \code{companies.owner}, \code{company_documents.owner}. & Naudotojo, kuriam priklauso įmonė ar dokumentas, negalima ištrinti, kol jie jam priklauso. Paprastas paskyros trynimas ją išjungia (\code{users.active}), todėl veiksmų žurnalo eilutės ir nuosavybė lieka nepaliestos; tik administratoriaus galutinis ištrynimas (\route{DELETE}{/api/users/{id}?purge=true}, \code{purge_account} faile \file{users/purge.py}) paskyrą ištrina visam laikui: pirmiausia jos dokumentus, tada įmones, tada pačią paskyrą. \\
+Be išorinio rakto & \code{job_steps.prompt_version_id}; \code{llm_calls.thread_id}, \code{.job_step_id}, \code{.prompt_version_id}; \code{obligations.prompt_version_id}; \code{chat_messages.parent_id}; \code{audit_log.target_id}; \code{company_actions.plan_action_id}; \code{report_actions.finding_ids} ir kiekvienas identifikatorius JSON stulpelyje. & Įrašas, kas kurį modelį iškvietė, už kokią kainą ir pagal kurią instrukcijos versiją, lieka išsamus ir tada, kai pokalbio, užduoties etapo ar versijos, kuriuos jis įvardija, nebėra. \\
+\end{xltabular}
+
+Du trynimai padaro daugiau nei vien taisyklės. Trinant įmonę, pirmiausia atsiejami jos
+dokumentai (\code{company_documents.company} išvaloma, \file{companies/api/company_views.py}):
+failai priklauso savo savininkui, ne įmonei. Ištrynus įmonės dokumentą, iš jo perskaityti
+reikalavimai (šaltinio \code{internal} \code{obligations}) lieka su tuščiu
+\code{company_document}, ir ataskaita jų nebeskaito, nes vidaus reikalavimų etapas ima tik tų
+dokumentų, kuriuos jis skaito, reikalavimus (\file{analysis/internal.py}). Senas kelių lentelių
+eilutes --- pasibaigusias sesijas, baigtas užduotis, sąnaudų įrašus --- išvalo kasdienė
+priežiūros užduotis (\cref{ch:arch,ch:ops}).
+
+\section{Ryšiai iš pirmo žvilgsnio}\label{sec:data:figures}
+
+\Cref{fig:data:law} rodo teisės, įmonės ir ataskaitų lenteles ir tai, kaip jos susijusios;
+\cref{fig:data:ops} --- lenteles, kuriomis sistema veikia. Ištisinė linija žymi dalį, kuri
+ištrinama kartu su visuma, taškinė --- nuorodą, kuri išvaloma, kai išnyksta jos taikinys, o
+brūkšninė --- identifikatorių, laikomą tekstu be išorinio rakto. Schemose stulpelių nėra; juos
+pateikia tolesni poskyriai.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm, font=\sffamily\scriptsize,
+    tbl/.style={svc, minimum height=7mm, inner ysep=3pt, inner xsep=4pt},
+    own/.style={draw=ink, line width=.7pt},
+    ref/.style={draw=muted, line width=.6pt, densely dotted}]
+  \begin{scope}[on background layer]
+    \draw[lane] (0,8) rectangle (68,-54);
+    \draw[lane] (76,8) rectangle (150,-48);
+    \draw[lane] (0,-60) rectangle (150,-114);
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (1,-53) {teisė};
+  \node[lanelabel, anchor=south west] at (77,-47) {įmonė};
+  \node[lanelabel, anchor=south west] at (1,-113) {ataskaitos ir tai, kas po jų};
+
+  % the law
+  \node[tbl] (ld) at (22,-4) {\code{legal_documents}};
+  \node[tbl] (lv) at (22,-18) {\code{legal_document_versions}};
+  \node[tbl] (lu) at (22,-32) {\code{legal_units}};
+  \node[tbl] (lc) at (22,-46) {\code{legal_chunks}};
+  \node[tbl] (ob) at (54,-30) {\code{obligations}};
+
+  % the company
+  \node[tbl] (co) at (134,-22) {\code{companies}};
+  \node[tbl, align=center] (cx) at (132,-1) {\code{company_credentials}\\ \code{company_standards}\\ \code{company_roles}};
+  \node[tbl] (cd) at (98,-22) {\code{company_documents}};
+  \node[tbl] (cc) at (100,-38) {\code{company_document_chunks}};
+
+  % reports
+  \node[tbl] (re) at (80,-70) {\code{reports}};
+  \node[tbl] (ra) at (22,-80) {\code{report_acts}};
+  \node[tbl] (rf) at (52,-102) {\code{report_findings}};
+  \node[tbl] (rc) at (106,-86) {\code{report_citations}};
+  \node[tbl] (rx) at (100,-106) {\code{report_actions}};
+  \node[tbl] (ca) at (128,-70) {\code{company_actions}};
+  \node[tbl] (wp) at (128,-104) {\code{work_products}};
+
+  % the law
+  \draw[own] (ld) -- node[lbl, right] {redakcijos} (lv);
+  \draw[ref] ([xshift=-6mm]ld.south) -- node[lbl, left] {dabartinė} ([xshift=-6mm]ld.south |- lv.north);
+  \draw[own] (lv) -- node[lbl] {vienetai} (lu);
+  \draw[own] (lu) -- node[lbl] {fragmentai} (lc);
+  \draw[own] ([yshift=1.2mm]lu.west) -- ++(-3,0) |- node[lbl, pos=.25, left] {tėvinis} ([yshift=-1.2mm]lu.west);
+  \draw[own] (ld.east) -| node[lbl, pos=.3] {aktas} (ob.north);
+  \draw[ref] (lu.east) -- node[lbl, pos=.5, below] {nuostata} (ob.west);
+
+  % the company
+  \draw[own] (co) -- node[lbl] {dokumentai} (cd);
+  \draw[own] (cd) -- node[lbl] {fragmentai} (cc);
+  \draw[own] (co) -- (cx);
+  \draw[ref] (ob.east) -- node[lbl, pos=.45] {išskirta iš} (cd.west);
+  \draw[own] (cx.north) -- ++(0,4) -| node[lbl, pos=.25] {įmonės taikomas standartas} (ld.north);
+
+  % reports
+  \draw[own] (co.south west) -- ++(0,-28) -| node[lbl, pos=.2] {ataskaitos} (re.north);
+  \draw[own] (co.south) -- node[lbl, pos=.55] {registras} (co.south |- ca.north);
+  \draw[own] (co.east) -- ++(4,0) |- node[lbl, pos=.3] {programa} (wp.east);
+  \draw[own] (re) -- node[lbl, pos=.4] {aktai} (ra);
+  \draw[own] (re) -- node[lbl, pos=.45] {išvados} (rf);
+  \draw[own] (re.south east) -- node[lbl, pos=.55, right] {nuorodų patikra} (rc.north west);
+  \draw[own] (re.south) -- node[lbl, pos=.6] {planas} (rx.north west);
+  \draw[ref] (ra) -- node[lbl] {aktas} (rf);
+  \draw[ref] (rf.north) -- node[lbl, pos=.62] {pareiga} (ob.south);
+  \draw[ref] (ca.west) -- node[lbl, pos=.4] {ataskaita} (ca.west -| re.east);
+\end{tikzpicture}
+\caption{Teisės ir įmonės pusės. Ištisinė linija: dalis, ištrinama kartu su visuma; taškinė:
+  nuoroda, išvaloma ištrynus jos taikinį. Savo išvadas \code{report_actions} įvardija
+  ne išoriniu raktu, o identifikatoriais JSON sąraše (\code{finding_ids}).}\label{fig:data:law}
+\end{figure}
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm, font=\sffamily\scriptsize,
+    tbl/.style={svc, minimum height=7mm, inner ysep=3pt, inner xsep=4pt},
+    own/.style={draw=ink, line width=.7pt},
+    ref/.style={draw=muted, line width=.6pt, densely dotted},
+    txt/.style={draw=mid, line width=.6pt, dashed}]
+  \node[tbl] (us) at (75,0) {\code{users}};
+  \node[tbl] (se) at (20,0) {\code{sessions}};
+  \node[tbl] (au) at (130,0) {\code{audit_log}};
+  \node[tbl] (ct) at (26,-20) {\code{chat_threads}};
+  \node[tbl] (cm) at (40,-40) {\code{chat_messages}};
+  \node[tbl] (jo) at (75,-20) {\code{jobs}};
+  \node[tbl] (js) at (75,-40) {\code{job_steps}};
+  \node[tbl] (pr) at (130,-20) {\code{prompts}};
+  \node[tbl] (pv) at (130,-40) {\code{prompt_versions}};
+  \node[tbl] (lc) at (75,-60) {\code{llm_calls}};
+  \node[tbl] (mp) at (130,-60) {\code{model_prices}};
+  \node[ext] (cx) at (20,-60) {įmonės, rolės};
+  \node[ext, align=center] (rw) at (51,-20) {ataskaitos,\\ programos dok.};
+  \node[tbl, align=center] (st) at (124,-76) {\code{mcp_servers}\quad\code{rate_limit_windows}};
+
+  \draw[own] (us) -- node[lbl] {sesijos} (se);
+  \draw[ref] (us) -- node[lbl] {naudotojas} (au);
+  \draw[own] (us.south west) -- node[lbl, pos=.45] {pokalbiai} (ct.north east);
+  \draw[ref] (us) -- node[lbl] {created\_by} (jo);
+  \draw[ref] (us.south east) -- node[lbl, pos=.55] {created\_by} (pv.north west);
+  \draw[own] (ct) -- node[lbl] {žinutės} (cm);
+  \draw[ref] (ct.south) -- node[lbl, pos=.5, left] {įmonė, rolė} (cx.north);
+  \draw[own] (jo) -- node[lbl] {etapai} (js);
+  \draw[own] (pr) -- node[lbl, left] {versijos} (pv);
+  \draw[ref] ([xshift=6mm]pr.south) -- node[lbl, right] {aktyvi} ([xshift=6mm]pr.south |- pv.north);
+  \draw[txt] (js) -- node[lbl, pos=.62] {prompt\_version\_id} (pv);
+  \draw[txt] (lc) -- node[lbl] {job\_step\_id} (js);
+  \draw[txt] (lc.north east) -- node[lbl, pos=.45] {prompt\_version\_id} (pv.south west);
+  \draw[txt] (lc.west) -- node[lbl, pos=.4] {thread\_id} (ct.south east);
+  \draw[txt] (lc) -- node[lbl] {kaina pagal modelio pavadinimą} (mp);
+  \draw[ref] (rw.east) -- node[lbl, above] {užduotis} (jo.west);
+  \draw[ref] ([xshift=3mm]us.south) .. controls (92,-12) and (92,-48) .. node[lbl, pos=.3] {naudotojas} (lc.north east);
+  \node[note, anchor=north, align=center] at (st.south) {ryšių neturi, bet \code{mcp_servers.created_by}\\ rodo į \code{users} (išvaloma, kai naudotojo nebėra)};
+\end{tikzpicture}
+\caption{Veikimo lentelės. Ištisinė linija: dalis, ištrinama kartu su visuma; taškinė: nuoroda,
+  išvaloma ištrynus jos taikinį; brūkšninė: identifikatorius, laikomas tekstu be išorinio rakto.
+  Du brūkšniniai stačiakampiai žymi \cref{fig:data:law} lenteles.}\label{fig:data:ops}
+\end{figure}
+
+\section{Teisės aktų bazė ir pareigų registras}\label{sec:data:corpus}
+
+Programėlė \code{corpus} laiko teisės aktus, jų redakcijas, jų tekstą, suskaidytą į
+struktūrinius vienetus ir fragmentus, ir iš jų išskirtas pareigas. Aktas yra
+\code{legal_documents} eilutė; kiekviena atsisiųsta ar įkelta redakcija yra
+\code{legal_document_versions} eilutė; redakcijos struktūra yra \code{legal_units} medis; o
+ištraukos, kuriose ieškoma, yra \code{legal_chunks}. Kaip tekstas ten patenka --- šaltiniai,
+struktūros atpažinimas, skaidymas į fragmentus ---, aprašyta \cref{ch:corpus}; kaip pareigos
+išskiriamos ir vertinamos --- \cref{ch:obligations}. 2026 m. lapkričio 13 d. lentelėse buvo 78
+aktai, 71 redakcija, 28\,886 vienetai, 4\,059 fragmentai ir 5\,960 pareigų.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_documents}: vienas katalogo aktas ar standartas}\label{tab:data:ld}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{slug} & Unikalus; raktas, kuriuo aktą įvardija katalogas (\file{corpus/catalog.yaml}). \\
+\code{title}, \code{title_en}, \code{short_title} & Oficialus pavadinimas, jo vertimas į anglų kalbą ir trumpasis pavadinimas, kurį spausdina nuorodos (\enquote{MiCA}; standarto atveju --- jo žymuo, \enquote{ISO/IEC 27001:2022}). \\
+\code{jurisdiction} & \code{EU}, \code{LT} arba \code{INTL} (tarptautinis standartas). \\
+\code{doc_type} & \code{regulation}, \code{directive}, \code{law}, \code{resolution}, \code{order}, \code{guideline}, \code{licensing}, \code{standard}, \code{other}. \\
+\code{source_kind}, \code{external_id}, \code{source_url} & Iš kur gaunamas tekstas: \code{cellar}, \code{etar}, \code{eseimas} (senasis \code{etar} pavadinimas), \code{lb}, \code{url}, \code{upload}; identifikatorius šaltinyje (CELEX numeris, e-TAR identifikatorius) ir oficiali nuoroda. \\
+\code{language} & Teksto kalba, numatytoji \code{lt}. \\
+\code{domains}, \code{applies_to} & JSON sąrašai: akto temų žymos ir įstaigų tipai, kuriuos jis paprastai reglamentuoja (\code{casp}, \code{emi}, \dots{} arba \code{all}), --- pagal juos taikytinumo atranka filtruoja prieš modeliui perskaitant aktą. \\
+\code{applicability_notes} & Kataloge parašyta pastaba tai atrankai. \\
+\code{status} & \code{in_force}, \code{not_yet_applicable}, \code{repealed}. \\
+\code{enabled} & Neigiama reikšmė (\en{False}) paslepia aktą nuo paieškos ir analizės, neištrindama jo redakcijų. \\
+\code{current_version} & Naudojama redakcija; paieška visada skaito tik dabartinės redakcijos fragmentus. \\
+\code{last_checked_at}, \code{last_error} & Paskutinis atnaujinimas ir jo klaida. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_document_versions}: viena nekeičiama akto redakcija}\label{tab:data:lv}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{document}, \code{version_no} & Aktas ir redakcijos numeris; kartu unikalūs. \\
+\code{content_hash}, \code{label} & Neapdorotų baitų maiša ir tai, kaip redakciją vadina šaltinis (konsoliduotas CELEX numeris, pvz., \code{02023R1114-20240109}, e-TAR redakcijos identifikatorius). Atnaujinimas, radęs tą pačią maišą ar žymą, nieko nesukuria, nebent jis priverstinis (užduoties \code{force}, \file{corpus/ingest.py}). \\
+\code{file_path}, \code{content_type}, \code{source_url} & Neapdoroti baitai diske, įkėlimų aplanke, kad pakartotiniam struktūros atpažinimui nereikėtų iš naujo atsisiųsti. \\
+\code{effective_date} & Data, kurią redakcija įsigalioja, jei žinoma. \\
+\code{parser}, \code{text} & Struktūros atpažinimo modulis, kuris ją perskaitė (tuščias, kai tekstas tiesiog ištrauktas), ir ištrauktas grynas tekstas. \\
+\code{char_count}, \code{unit_count}, \code{article_count}, \code{chunk_count}, \code{embed_model} & Kiekiai ir jos fragmentų vektorizavimo modelis. \\
+\code{status}, \code{error} & \code{pending}, \code{parsing}, \code{embedding}, \code{ready}, \code{failed}. \\
+\code{obligations_extracted_at} & Kada paskutinį kartą baigtas pareigų išskyrimas; tuščia reiškia, kad niekada, ir tada ataskaita pirmiausia išskiria pareigas. \\
+\code{scope}, \code{sanctions}, \code{changes} & JSON: modelio perskaitytos akto taikymo srities ir sankcijų nuostatos bei tai, ką redakcija pakeitė, palyginti su ankstesne (žr. toliau). Tuščia reiškia, kad neperskaityta arba neužfiksuota. \\
+\end{xltabular}
+
+Trys redakcijos JSON stulpeliai yra tokios struktūros:
+
+\begin{codeblock}
+scope     = {types: [institution types, or "all"], reasoning,
+             promptVersionId, model, readAt}
+sanctions = {tiers: [{path, where, condition, documentId, infringedAct,
+                      articles: [[from, to]], all, addressee, persons,
+                      maxFineEur, maxFinePercent, benefitMultiple, measures}],
+             note, provisions: [paths read], promptVersionId, model, readAt}
+changes   = {from: previous version id, changed, added, removed: [paths]}
+\end{codeblock}
+
+\code{scope} rašo \file{corpus/scope.py}; jis leidžia taikytinumo atrankai palikti aktą,
+kurį katalogo \code{applies_to} atmestų. Stulpelyje \code{sanctions} (\file{corpus/sanctions.py})
+kiekviena pakopa yra maksimali bauda ar priemonė, kurią nustato viena nuostata: jos
+\code{documentId} yra aktas, kurį ji liečia (šis, kitas teisės aktų bazės aktas arba tuščia,
+o \code{infringedAct} tada įvardija aktą, kurio bazėje nėra), \code{articles} --- straipsnių
+intervalai, kuriuos ji apima, kiekvienas nuo pirmojo iki paskutiniojo straipsnio pagal akto
+jiems duotus numerius --- iki 2026~m. lapkričio 19~d. atliktame skaityme vien skaičiai ---
+(\code{all}, kai apima visus straipsnius), \code{persons} --- asmenų rūšys, kurias pakopa
+saisto, kai jos nuostata saisto tik dalį tų, kuriuos reguliuoja aktas, --- išlaikomos
+straipsnių nenurodančioje pakopoje ir straipsnius nurodančioje pakopoje, šalia kurios kita
+tų pačių straipsnių pakopa saisto kitus asmenis (kitu atveju tuščia, o iki tos dienos
+atliktame skaityme šio lauko nėra), \code{addressee} ---
+viena iš \code{legal}, \code{natural}, \code{any}, o \code{measures} --- kodai iš
+\code{withdrawal}, \code{restriction}, \code{cease}, \code{public_statement},
+\code{management_ban}, \code{disgorgement}, \code{periodic_penalty}, \code{criminal},
+\code{other}; išlaikoma ne daugiau kaip \code{MAX_TIERS = 24}. \code{changes} apskaičiuojamas be
+modelio, kai aktyvinama nauja redakcija (\code{version_changes} faile \file{corpus/ingest.py}),
+straipsnis po straipsnio --- arba, jei akte straipsnių nėra, pagal aukščiausio lygio punktus
+---, lyginant tekstus ir nepaisant tarpų.
+
+\paragraph{Vienetai ir fragmentai.} Redakcijos tekstas saugomas dar dukart: kaip struktūrinių
+vienetų medis, kurį įvardija nuoroda, ir kaip fragmentai, kuriuose ieškoma
+(\cref{tab:data:lu}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_units} ir \code{legal_chunks}}\label{tab:data:lu}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{legal\_units}} \\
+\code{version}, \code{parent}, \code{ordinal}, \code{depth} & Mazgo vieta redakcijos medyje, dokumento tvarka (indeksuota pagal redakciją ir eilės numerį). \\
+\code{unit_type} & \code{part}, \code{title}, \code{chapter}, \code{section}, \code{subsection}, \code{article}, \code{paragraph}, \code{point}, \code{subpoint}, \code{annex}, \code{recital}, \code{preamble}, \code{text}, \code{clause} (numeruotas standarto skirsnis, \enquote{6.1.2}). \\
+\code{number}, \code{heading} & Jo paties numeris ir antraštė; redakcija, tipas ir numeris kartu indeksuoti, kad būtų galima rasti cituojamą straipsnį. \\
+\code{path} & Nuoroda, kurią jis spausdina: \enquote{59 str. 1 d.}, \enquote{Art. 59(1)}. \\
+\code{text} & Jo \emph{visas} tekstas su vaikiniais vienetais, kad vien straipsnio eilutė atsakytų į \enquote{pacituok 59 straipsnį}. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{legal\_chunks}} \\
+\code{version}, \code{unit}, \code{ordinal} & Paieškos vienetas --- straipsnis arba ilgo straipsnio dalių seka --- ir jo vieta (indeksuota pagal redakciją ir eilės numerį). \\
+\code{document} & Akto kopija, kad paieška galėtų filtruoti pagal aktą be jungimo (indeksuota). \\
+\code{path}, \code{heading}, \code{text}, \code{char_count} & Tai, ką rodo paieškos rezultatas; GIN indeksas apima \code{text}. \\
+\code{embedding} & Po HNSW indeksu; tuščias, kol neatliktas vektorizavimo etapas, ir paieška tokias eilutes praleidžia. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{obligations}: viena pareiga arba vienas reikalavimas}\label{tab:data:ob}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{source_kind} & \code{legal} (iš teisės akto), \code{internal} (įmonės vidaus reikalavimas, perskaitytas iš jos politikos), \code{standard} (standarto reikalavimas, išskirtas arba įvestas administratoriaus). \\
+\code{document}, \code{version}, \code{unit} & Aktas, redakcija, iš kurios perskaityta, ir pirmoji cituojama nuostata (\code{legal} ir \code{standard} atveju). \\
+\code{company}, \code{company_document} & \code{internal} atveju: įmonė ir politika, iš kurios perskaityta. \\
+\code{title}, \code{title_en}, \code{text}, \code{text_en} & Pareiga lietuvių ir anglų kalbomis. \\
+\code{addressee}, \code{conditions}, \code{deadline}, \code{evidence} & Kam ji privaloma, kokiomis sąlygomis, iki kada ir kas įrodytų atitiktį. \\
+\code{applies_to} & JSON sąrašas įstaigų tipų (arba \code{all}), kuriems pareiga privaloma; ataskaita palieka pareigas, tinkančias įmonei. \\
+\code{category} & Viena iš dvidešimties: \code{licensing}, \code{registration}, \code{governance}, \code{policy}, \code{procedure}, \code{risk_management}, \code{ict_security}, \code{outsourcing}, \code{incident_reporting}, \code{reporting}, \code{disclosure}, \code{record_keeping}, \code{customer_protection}, \code{aml_kyc}, \code{capital}, \code{safeguarding}, \code{training}, \code{data_protection}, \code{ai_governance}, \code{other}. \\
+\code{severity} & \code{critical}, \code{high}, \code{medium}, \code{low}. \\
+\code{citations} & JSON: nuostatos, kuriomis ji grindžiama (žr. toliau). \\
+\code{status} & \code{proposed} (iš modelio), \code{approved}, \code{rejected}. Atmesta eilutė niekada nepatenka į ataskaitą; patvirtinta eilutė išlieka pakartotinio išskyrimo metu. \\
+\code{prompt_version_id}, \code{model} & Ją išskyrusi instrukcijos versija ir modelis, tekstu. \\
+\code{verification} & JSON: vertintojo verdiktas (žr. toliau); tuščias, jei niekada nevertinta arba po to redaguota. Kai nė vienos cituojamos nuostatos dabartinėje akto redakcijoje nėra, kodas be modelio iškvietimo įrašo \code{unsupported} (\file{corpus/verify.py}). \\
+\code{embedding}, \code{embedding_en} & Pavadinimo ir teksto vektoriai kiekviena kalba. \\
+\code{notes}, \code{reviewed_by}, \code{reviewed_at} & Peržiūrėtojo pastaba ir kas pareigą patvirtino ar atmetė. \\
+\end{xltabular}
+
+\begin{codeblock}
+citations (legal, standard) = [{unitId, path}]
+citations (internal)        = [{path: the section, documentId, documentTitle,
+                                quote, start}]
+verification = {verdict: supported | partly | unsupported,
+                issue: none | duty | addressee | condition | deadline | merged,
+                note, promptVersionId, model, checkedAt}
+\end{codeblock}
+
+Vidaus reikalavimo \code{start} yra simbolis, nuo kurio jo citata prasideda politikos tekste,
+arba tuščia, kai tekste ji pažodžiui neužrašyta. Patikra \enquote{nustato žmogaus peržiūros
+eiliškumą ir nieko nesprendžia} (\file{corpus/models.py}). Registrą aptarnauja du indeksai:
+pagal aktą ir būseną bei pagal įmonę ir būseną.
+
+\section{Įmonės ir jų dokumentai}\label{sec:data:companies}
+
+Programėlė \code{companies} laiko profilį, kuriuo remiasi ataskaita, tai, ką įmonė turi ir
+taiko, jos roles ir jos dokumentus su jų tekstu, inventoriumi ir ištraukomis
+(\cref{ch:company}). Įmonė priklauso savo savininkui; dokumentas turi savo savininką, nes failą
+galima įmesti į pokalbį dar prieš atsirandant bet kokiai įmonei ir priskirti vėliau.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{companies}: profilis}\label{tab:data:co}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{owner} & Naudotojas, kuriam ji priklauso (\code{PROTECT}). \\
+\code{name}, \code{registration_code}, \code{country}, \code{legal_form} & Tapatybė; numatytoji šalis --- \code{LT}. \\
+\code{nace_codes}, \code{sector}, \code{activities} & EVRK (NACE) kodų JSON sąrašas; laisvas tekstas. \\
+\code{size_category}, \code{employees}, \code{annual_turnover_eur} & Dydis: \code{micro}, \code{small}, \code{medium}, \code{large}, \code{unknown}. \\
+\code{institution_type} & Pagal ką pirmiausia filtruoja taikytinumo atranka: \code{bank}, \code{credit_union}, \code{payment_institution}, \code{emi}, \code{casp}, \code{crowdfunding}, \code{consumer_credit}, \code{real_estate_credit}, \code{currency_exchange}, \code{investment_firm}, \code{insurance}, \code{other_financial}, \code{none}, \code{unknown}. \\
+\code{uses_ai}, \code{provides_ai}, \code{processes_personal_data}, \code{is_public_sector} & Trijų būsenų požymiai: tuščia reiškia, kad niekas nepasakė, ir tada atranka palieka aktus, kuriuos požymis lemtų, užuot tylą palaikiusi \enquote{ne}. \code{ai_description} aprašo, kaip naudojamas DI. \\
+\code{financial_market} & JSON: finansų rinkos klasifikacija (rinka, paslaugų kategorijos, leidimas). \\
+\code{attributes} & JSON: atviras pokalbio metu sužinotų faktų, kuriems dar nėra stulpelio, rinkinys. \\
+\end{xltabular}
+
+\paragraph{Ką įmonė turi.} \code{company_credentials} eilutė yra sertifikatas, licencija,
+leidimas ar registracija (\code{kind}: \code{certificate}, \code{license}, \code{permit},
+\code{registration}) su išdavėju, identifikatoriumi, galiojimu ir apimtimi. Jos
+\code{status} yra \code{claimed}, kol žmogus nepatikrina jo išdavėjo registre ir nenustato
+\code{verified} (su \code{verified_by}, \code{verified_at}); deklaruotas leidimas laikomas
+įrodymu tik su šia išlyga, o \code{evidence_document} gali rodyti į jį įrodantį dokumentą.
+\code{company_standards} eilutė yra teisės aktų bazės standartas, kurį įmonė taiko, po vieną
+įmonei ir standartui (unikalu), su \code{status} \code{certified}, \code{implementing} arba
+\code{planned}, jo taikymo sritimi ir jį sertifikuojančiu leidimu; ataskaita, kuri
+neįvardija savų aktų, vertina kiekvieną taikomą standartą, o ataskaita, kuri savo aktus
+įvardija, vertina tarp jų esančius standartus, taikomus ar ne (\code{adopted_standards} faile
+\file{analysis/pipeline.py}). \code{company_roles} eilutė yra rolės profilis --- pavyzdžiui,
+atitikties pareigūno ---, sutrauktas į \code{context}, tekstą, kurį gali perimti pokalbis, o
+\code{sources} išvardija dokumentų skirsnius, iš kurių jis sudarytas
+(\code{[{documentId, title, section}]}); pavadinimas įmonėje unikalus.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{company_documents}: vienas įkeltas failas}\label{tab:data:cd}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{owner}, \code{company} & Jį įkėlęs naudotojas (\code{PROTECT}) ir įmonė, kuriai jis priskirtas (tuščia, kol nepriskirtas). \\
+\code{title}, \code{kind} & \code{kind}: \code{policy}, \code{procedure}, \code{contract}, \code{register}, \code{other}. \\
+\code{file_path}, \code{mime}, \code{size}, \code{sha256} & Failas įkėlimų aplanke ir jo maiša. \\
+\code{text}, \code{char_count} & Ištrauktas tekstas --- tai, ką skaito modelis ir kas skaidoma į fragmentus. \\
+\code{extraction_status}, \code{extraction_error} & \code{pending}, \code{done}, \code{empty}, \code{failed}. \\
+\code{inventory}, \code{inventory_key} & JSON: įrodymų inventorius ir raktas, kuriam jis apskaičiuotas, \code{<sha256 of the text>:<prompt version id>:s<SCHEMA_VERSION>}; naujas tekstas, instrukcijos versija ar inventoriaus struktūra jį pasendina (\file{companies/inventory.py}, \code{SCHEMA_VERSION = 2}). \\
+\code{requirements_key} & Paskutinio jo vidaus reikalavimų perskaitymo \code{<sha256 of the file>:<prompt version id>}; tuščia reiškia, kad niekada neperskaityta. \\
+\code{indexed_at} & Kada paskutinį kartą sudaryti jo fragmentai. \\
+\code{outline} & JSON: tekste rastos antraštės, \code{[{title, level, offset}]}, kad skaitytojas galėtų peršokti į \enquote{§7.2}. \\
+\code{uploaded_at} & Įkėlimo momentas; kartu su \code{owner} --- savininko sąrašo tvarka (indeksuota). \\
+\end{xltabular}
+
+Inventorius yra išsaugotas instrukcijos \prompt{report.inventory} atsakymas; jo raktus nustato
+šios instrukcijos JSON schema:
+
+\begin{codeblock}
+inventory = {documentType: policy | procedure | register | contract | plan
+                           | report | profile | other,
+             summary, scope, controls: [{name, description, quote}],
+             roles, registers, approval, reviewCycle, lawsReferenced,
+             citations: [{act, article, paragraph, point, claim, quote}],
+             weaknesses}
+\end{codeblock}
+
+\code{roles}, \code{registers}, \code{lawsReferenced} ir \code{weaknesses} yra trumpų tekstų
+sąrašai; \code{citations} --- nuorodos, kurias tikrina teisės aktų nuorodų patikra
+(\cref{ch:company}). \code{company_document_chunks} eilutė yra teksto langas su savo
+\code{ordinal}, \code{char_start}, artimiausia virš jo esančia antrašte \code{heading}
+(skirsniu, kurį įvardija nuoroda į fragmentą), \code{text} ir \code{embedding}, po jau
+aprašytais HNSW ir GIN indeksais bei indeksu pagal dokumentą ir eilės numerį.
+
+\section{Ataskaitos ir veiksmų registras}\label{sec:data:analysis}
+
+Programėlė \code{analysis} laiko ataskaitas ir viską, iš ko ataskaita sudaryta, taip pat
+veiksmų registrą, kuris jas pergyvena. Viena ataskaita yra viena \code{reports} eilutė su jos
+aktais (\code{report_acts}), išvadomis (\code{report_findings}), veiksmais
+(\code{report_actions}) ir nuorodų patikros eilutėmis (\code{report_citations});
+\code{company_actions} priklauso įmonei, ne ataskaitai. Kaip ataskaita rengiama, aprašyta
+\cref{ch:report}, kaip toliau gyvuoja registras --- \cref{ch:register}.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{reports}: viena įmonės atitikties spragų analizė}\label{tab:data:re}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company}, \code{created_by}, \code{job} & Įmonė, ją pradėjęs naudotojas ir paskutinio jos vykdymo užduotis (\cref{ch:arch}); užduotis pakeičiama, kai į eilę įtraukiama antroji vykdymo dalis. \\
+\code{status} & \code{queued}, \code{running}, \code{scope_review} (laukiama, kol žmogus patvirtins aktų sąrašą), \code{done}, \code{failed}, \code{cancelled}. \\
+\code{language} & \code{lt} arba \code{en}: kalba, kuria rašoma ataskaita. \\
+\code{scope} & JSON: ką vykdymui pavesta atlikti (žr. toliau). \\
+\code{profile_snapshot} & JSON: įmonė tokia, kokią ją perskaitė vykdymas (žr. toliau). \\
+\code{title}, \code{summary} & Pavadinimas ir santrauka (Markdown), kuriuos parašė santraukos instrukcija. \\
+\code{stats} & JSON: kiekiai, kaina ir kilmė (žr. toliau). \\
+\code{error} & Kodėl vykdymas nepavyko; \code{AI_BUDGET_EXHAUSTED: …}, kai DI tinklų sąsaja atsisakė dėl savo biudžeto. \\
+\code{scope_approved_by}, \code{scope_approved_at} & Kas ir kada patvirtino aktų sąrašą. Vykdymą, pradėtą be peržiūros, pažymi pati apdorojimo grandinė: laikas yra, žmogaus nėra. \\
+\code{approved_by}, \code{approved_at}, \code{approval_note} & Patvirtinimas; jį vėl panaikina bet kuri vėlesnė išvados peržiūra (pakeista jos būsena, pastaba ar priežastis). \\
+\code{created_at}, \code{started_at}, \code{finished_at} & Trys jos momentai; indeksuota pagal įmonę ir sukūrimo laiką. \\
+\end{xltabular}
+
+\begin{codeblock}
+scope = {documentIds: [ids of legal_documents named by the user],
+         review: true,     only when the scope review was asked for
+         internal: true}   only when own requirements are to be assessed
+
+stats = {acts: {applies, uncertain, not_applies,
+                assessed, upcoming, unconfirmed, indirect},
+         findings: {met, partial, missing, unknown, not_applicable},
+         openBySeverity: {critical, high, medium, low},
+         upcoming: {findings, openBySeverity},  only if an upcoming act has findings
+         internal: {findings, openBySeverity},  only if own requirements have findings
+         changes: {since, sinceDate, closed: {count, titles}, new, back},
+                                                 only if an earlier report exists
+         actions, reviewedObligations, tokens, costUsd,
+         citations: {checked, match, mismatch, notFound, notInCorpus, unknown},
+         provenance: {prompts: [{slug, version, model}], models,
+                      corpus: [{act, versionNo, versionDate}]}}
+\end{codeblock}
+
+Apimties \code{documentIds} yra teisės aktų bazės aktai, ne įmonės dokumentai: ten įvardytas
+aktas vertinamas net tada, kai jo verdiktas \code{uncertain} arba kai įmonei jis privalomas
+tik netiesiogiai (\code{assessment_of} faile \file{analysis/pipeline.py}); aktas, kurį atmeta
+katalogo atranka arba kurį modelis pripažįsta
+netaikomu, nevertinamas. \code{stats} apskaičiuoja \code{report_stats} faile
+\file{analysis/pipeline.py}, kai vykdymas baigiasi, ir dar kartą anksčiau, kai vykdymas
+sustoja apimties peržiūrai. Išvados skaičiuojamos pagal \emph{faktinę} būseną --- viršų ima
+peržiūrėtojo sprendimas --- įmonei galiojančių aktų atžvilgiu; aktų, vertinamų pasiruošimui,
+ir įmonės vidaus reikalavimų išvados skaičiuojamos atskirai, po \code{upcoming} ir
+\code{internal}. Kiekiai perskaičiuojami, kai peržiūrėtojas pakeičia išvados būseną
+(\code{finding_counts}); visa kita --- ne. \code{tokens} ir \code{costUsd} sumuoja visų
+užduoties etapų, priskirtų ataskaitai (\code{subject = report:<id>}), modelio iškvietimus,
+todėl įskaičiuojamos abi vykdymo su apimties peržiūra dalys. \code{provenance} įvardija
+kiekvieną veikusią instrukcijos versiją ir modelį, o kiekvienam aktui, kurį ataskaita vertino,
+užuot atmetusi atrankoje, --- perskaitytos redakcijos numerį ir datą. \code{changes}
+(\code{changes} faile \file{analysis/register.py}) kiekvieną pareigą lygina su paskutine
+ankstesne baigta ataskaita, kuri ją vertino: spragos \code{closed} (uždarytos), spragos
+\code{new} (naujos) ir pareigos, kurios iš atitinkančių vėl tapo spragomis (\code{back}),
+kiekviena su kiekiu ir ne daugiau kaip penkiais pavadinimais.
+
+\code{profile_snapshot} yra įmonė tokia, kokią ją su visais priedais pateikia API
+(\code{serialize_company(…, with_related=True)} faile \file{companies/serializers.py}):
+profilio stulpeliai jų API pavadinimais (\code{institutionType}, \code{usesAi},
+\code{financialMarket}, \code{attributes}, \dots) ir sąrašai \code{credentials},
+\code{standards}, \code{roles} bei \code{documents} --- pastarajame kiekvieno dokumento
+metaduomenys, jo inventoriaus \code{documentType} ir vienos eilutės \code{inventorySummary},
+niekada ne jo tekstas. Jį įrašo \code{freeze_profile} faile \file{analysis/pipeline.py}:
+pirmosios vykdymo dalies etape \code{profile} ir dar kartą, kai prasideda antroji dalis. Antroji
+dalis įmonę perskaito iš naujo, todėl ataskaita, parengta su apimties peržiūra, rodo tą įmonę,
+pagal kurią vertintos jos išvados, --- su leidimu, patikrintu ataskaitai laukiant, ar tuo metu
+pridėtu dokumentu. Ataskaita, vykdoma be peržiūros, jį įrašo vieną kartą.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_acts}: vienas aktas taip, kaip jį traktavo ataskaita}\label{tab:data:ra}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{document}, \code{version} & Nuorodos į aktą ir perskaitytą redakciją (laikomos tik naršymui). \\
+\code{document_title}, \code{short_title}, \code{jurisdiction}, \code{doc_type}, \code{source_url} & Kopijos iš katalogo ataskaitos vykdymo metu. \code{doc_type} \code{standard} žymi taikomą standartą (taikomas todėl, kad įmonė jį taiko, be modelio iškvietimo); \code{internal} --- eilutę, prie kurios kabinami įmonės vidaus reikalavimai. \\
+\code{applicability}, \code{confidence}, \code{reasoning}, \code{conditions_to_verify} & Modelio verdiktas: \code{applies}, \code{not_applies} arba \code{uncertain}; pasitikėjimas, apribotas intervalu 0–1; jo pagrindimas; tikslintini faktai. \\
+\code{applies_from} & Data, nuo kurios aktas įmonei privalomas, jei ji vėlesnė už vykdymo dieną. \\
+\code{assessment} & Ką ataskaita padarė su aktu: \code{assessed}, \code{upcoming}, \code{unconfirmed}, \code{indirect}, \code{none}. Apskaičiuoja kodas iš verdikto; apimties peržiūra gali jį pakeisti, verdikto --- niekada. \\
+\code{citations} & JSON: taikymo srities nuostatos, kuriomis remiasi verdiktas, \code{[{unitId, path, documentTitle}]}. \\
+\code{screened_out}, \code{order} & Teigiama reikšmė aktui, kurį katalogo atranka atmetė be modelio iškvietimo; rodymo tvarka. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_findings}: vienos pareigos įvertinimas}\label{tab:data:rf}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{act}, \code{obligation}, \code{source_kind} & Nuorodos į ataskaitos akto eilutę ir į pareigą; \code{legal}, \code{standard} arba \code{internal}. \\
+\code{document_title}, \code{short_title}, \code{obligation_title}, \code{obligation_text}, \code{category}, \code{deadline} & Akto pavadinimų ir pareigos kopijos (ataskaitos kalba, jei pareiga turi tekstą anglų kalba). \\
+\code{obligation_reviewed} & Ar ataskaitos vykdymo metu žmogus buvo patvirtinęs pareigą. \\
+\code{status} & Modelio verdiktas: \code{met}, \code{partial}, \code{missing}, \code{unknown} (neįrodyta), \code{not_applicable}. \\
+\code{severity} & Nukopijuotas pareigos reikšmingumas. \\
+\code{analysis}, \code{recommendation} & Modelio vertinimas ir rekomendacija. \\
+\code{evidence}, \code{citations}, \code{consequence} & JSON (žr. toliau). \\
+\code{override_status}, \code{reviewer_note}, \code{reviewed_by}, \code{reviewed_at} & Peržiūrėtojo nustatyta būsena ir pastaba; jos viršų ima kiekviename rodinyje ir eksporte. \\
+\code{cause} & Kodėl spraga atsirado, peržiūrėtojo žodžiais; rašo tik žmogus. \\
+\code{order} & Pirmiausia neatitinkančios, tada iš dalies, neįrodytos, atitinkančios, netaikomos; kiekvienoje grupėje pirmiausia reikšmingesnės; įmonės vidaus reikalavimai po visų kitų (indeksuota kartu su \code{report}). \\
+\end{xltabular}
+
+\begin{codeblock}
+evidence    = [{kind: "passage",    id: document id,   title, quote, start}
+               {kind: "credential", id: credential id, title, quote}
+               {kind: "profile",    id: company id,    title, quote}]
+citations   = the obligation's citations, with documentTitle and url added
+              (legal, standard); copied as they are (internal)
+consequence = [{act, path, where, condition, maxFineEur, maxFinePercent,
+                benefitMultiple, persons, measures, measuresFrom: [paths],
+                via: {act, path}}]      (via: under a level 2 act only)
+\end{codeblock}
+
+Citata sąraše \code{evidence} sutrumpinama iki 600 simbolių, o \code{start} yra simbolis, nuo kurio
+ji prasideda dokumento tekste, arba tuščia, kai dokumente ji pažodžiui neužrašyta: tada
+skaitytojas mato, ką teigė modelis, ir kad citatos nepavyko rasti tekste. Ataskaita,
+parengta tuo metu, kai ištraukos buvo indeksuoti fragmentai, vietoj to išsaugojo fragmento
+eilės numerį (\code{chunk}), ir API jį išsprendžia pateikdama ataskaitą
+(\file{analysis/serializers.py}). \code{consequence} laiko sankcijų pakopas, kurios apima
+nuostatą, tokias, kokias teisės aktų bazė turėjo ataskaitos vykdymo metu
+(\code{Consequences.of} faile \file{corpus/sanctions.py}): pirmiausia paties akto, tada vieno
+kito akto. Jis tuščias aktui, kuris įmonei dar neprivalomas, standarto ar pačios įmonės
+reikalavimui, aktui, kurio sankcijos niekada nebuvo perskaitytos, ir nuostatai, kurios
+nepasiekia jokia pakopa. 2~lygio akto atveju įrašai yra pagrindinio akto straipsnio, pagal
+kurį tas aktas priimtas, įrašai, kiekvienas su \code{via} --- tuo aktu ir straipsniu
+(\cref{ch:obligations}); iki 2026~m. lapkričio 16~d. parengta ataskaita tokiam aktui jų
+neturi.
+
+\paragraph{Veiksmai ir nuorodų patikros eilutės.} \code{report_actions} eilutė yra vienas
+plano žingsnis (\cref{tab:data:rx}); \code{report_citations} eilutė (\cref{tab:data:rc}) yra
+viena įmonės dokumento nuoroda į nuostatą su patikros verdiktu. Nuoroda, kurią daro keli
+dokumentai, įvertinama vieną kartą, bet kiekvienas dokumentas vis tiek turi savo eilutę.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_actions}: vienas veiksmų plano žingsnis}\label{tab:data:rx}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{title}, \code{description}, \code{owner_role}, \code{category} & Ką daryti ir kuri rolė už tai atsakinga. \\
+\code{priority} & Jo vieta plane, apskaičiuota kodo --- pagal tai, ką jis uždaro (šiandienos spragos pirmiau už pasiruošimą dar netaikomiems aktams, tada pagal reikšmingumą ir būseną), tada pagal jo laikotarpį ---, niekada neklausiant modelio. \\
+\code{effort}, \code{timeframe} & \code{low}, \code{medium}, \code{high}; \code{immediate}, \code{30_days}, \code{90_days}, \code{12_months}. \\
+\code{finding_ids} & JSON sąrašas išvadų, kurias jis uždaro, identifikatorių; veiksmas, kuris neuždaro jokios išvados (nuorodų taisymas, faktų patvirtinimas), turi tuščią sąrašą. \\
+\code{order} & Rodymo tvarka. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_citations}: viena dokumento nuoroda ir patikros verdiktas}\label{tab:data:rc}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company_document}, \code{document_title} & Dokumentas, kuriame yra nuoroda (saitas ir kopija). \\
+\code{act}, \code{article}, \code{paragraph}, \code{point}, \code{claim}, \code{quote} & Nuoroda tiksliai taip, kaip ją užrašė dokumentas, ir ką, anot jo, nuostata apima. \\
+\code{status} & \code{found}, \code{not_found}, \code{act_not_in_corpus}. \\
+\code{heading_match} & Rastai nuostatai: \code{match}, \code{mismatch}, \code{unknown}; kitais atvejais tuščia. \\
+\code{judged_by} & \code{model} arba \code{overlap}, kai vertintojas buvo nepasiekiamas ir sprendė žodžių sutapimas; tuščia, kai nieko nelyginta. \\
+\code{legal_document}, \code{unit} & Nuorodos į aktą ir rastą nuostatą. \\
+\code{short_title}, \code{unit_path}, \code{heading}, \code{note}, \code{excerpt}, \code{citation_url} & Rastos nuostatos kopijos, vertintojo pastaba, nuostatos ištrauka ir oficiali jos nuoroda. \\
+\code{order} & Pirmiausia problemos (neatitinka, nerasta, neaišku, akto nėra bazėje, atitinka), tada dokumentų tvarka. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{company_actions}: vienas įmonės registro veiksmas}\label{tab:data:ca}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company}, \code{report}, \code{plan_action_id} & Įmonė; patvirtinta ataskaita, kurios planas jį įtraukė; to plano veiksmo identifikatorius. Unikalu pagal įmonę ir \code{plan_action_id}, todėl dukart įtraukus planą nieko nepridedama. \\
+\code{title}, \code{description}, \code{category}, \code{priority}, \code{effort} & Nukopijuota iš plano veiksmo. \\
+\code{owner}, \code{due_date} & Kas jį vykdo (iš pradžių --- plane nurodyta atsakinga rolė) ir iki kada (patvirtinimo data plius 14, 30, 90 arba 365 dienos keturiems laikotarpiams); žmogus gali pakeisti abu. \\
+\code{status} & \code{open}, \code{in_progress}, \code{done} (atsakingo asmens žodis), \code{closed}. Būsena \enquote{Vėluojantis} nesaugoma: tai atviras arba vykdomas veiksmas, kurio terminas praėjo. \\
+\code{items} & JSON: atviros išvados, kurias jis turi uždaryti (žr. toliau). \\
+\code{note}, \code{closed_at}, \code{closed_by}, \code{closed_from}, \code{confirmed_report} & Kaip jis uždarytas: žmogaus, nurodžiusio priežastį \code{note}, arba vėlesnės patvirtintos ataskaitos (\code{confirmed_report}); \code{closed_from} --- būsena, iš kurios uždarytas, kad atšaukus patvirtinimą jį būtų galima grąžinti. \\
+\code{done_at} & Kada atsakingas asmuo paskutinį kartą pažymėjo jį atliktu: tik po to parengta ataskaita gali jį grąžinti vykdyti. \\
+\end{xltabular}
+
+\begin{codeblock}
+items = [{obligationId, findingId, title, act, path, sourceKind, status,
+          confirmed: null | {reportId, at}}]
+\end{codeblock}
+
+\section{Programos dokumentai}\label{sec:data:programme}
+
+Programėlė \code{programme} turi vieną lentelę. \code{work_products} eilutė yra viena įmonės
+programos dokumento versija --- atitikties politikos, valdymo struktūros su atitikties procesu
+ir RACI arba rizikos registro (\cref{ch:programme}). Jos \code{kind} yra \code{policy},
+\code{governance} arba \code{risks}, be apribojimo; \code{version} didėja kiekvienai įmonei ir
+rūšiai (kartu unikalūs); \code{language} yra \code{lt} arba \code{en}; \code{status} yra
+\code{queued}, \code{running}, \code{draft} (sugeneruotas ar redaguojamas, laukia žmogaus),
+\code{approved} (užfiksuotas: pakeitimas yra nauja versija), \code{failed} arba
+\code{cancelled}. Be \code{job}, \code{title} ir \code{error}, ji turi keturis JSON stulpelius
+ir tris žymas, kas ką padarė: \code{created_by}, \code{edited_by} su \code{edited_at} ir
+\code{approved_by} su \code{approved_at} bei \code{approval_note}.
+
+\begin{codeblock}
+content (policy)     = {title,
+                        parts: [{key, heading, text, decisions, sources,
+                                 legalBasis}],
+                        hierarchy: [{documentId, document, level, topic, note}],
+                        missing: [{level, title, purpose, supports, priority,
+                                   legalBasis, partlyCoveredBy}]}
+content (governance) = {title, positions, gaps, structure, process, raci}
+content (risks)      = {title, criteria: {likelihood, impact, calibration},
+                        appetite, scenarios}
+checks = [{rule, ok, blocking, detail}]
+basis  = {reportId, products: {<kind>: {id, version, status}},
+          documents: [{id, title, sha256}]}
+stats  = {tokens, costUsd, provenance: {prompts: [{slug, version, model}],
+                                        models}}
+\end{codeblock}
+
+\code{content} yra dokumentas tokios išsaugomos struktūros, kokią jam suteikia jo rūšies
+\code{validate} (\file{programme/policy.py}, \file{governance.py}, \file{risks.py});
+\code{checks} --- rūšies taisyklės taip, kaip turinys jas paskutinį kartą atitiko ar pažeidė,
+o pažeista \code{blocking} taisyklė neleidžia dokumento patvirtinti; \code{basis} įvardija, ką
+vykdymas skaitė, --- ataskaitą, ankstesnius programos dokumentus, įmonės dokumentus su jų maišomis ---, kad
+skaitytojas matytų, kuo dokumentas remiasi.
+
+\section{Lentelės, kuriomis sistema veikia}\label{sec:data:ops}
+
+Likusios lentelės, pavaizduotos \cref{fig:data:ops}, yra paskyros ir sesijos, instrukcijos,
+eilė, modelio iškvietimų įrašai, pokalbiai ir veiksmų žurnalas.
+
+
+\paragraph{Naudotojai ir sesijos.} \code{users} eilutė yra paskyra, ir kiekviena kita
+lentelė, kuri įvardija asmenį, rodo į ją.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{users} ir \code{sessions}}\label{tab:data:us}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{users}} \\
+\code{email}, \code{display_name} & El. pašto adresas unikalus, ir unikalus nepaisant raidžių dydžio (funkcinis indeksas pagal jo mažąsias raides). \\
+\code{password_hash} & Slaptažodžio maiša; niekada ne pats slaptažodis. \\
+\code{role} & \code{admin} arba \code{user}. \\
+\code{active} & Išjungiklis, kurį iš naujo tikrina kiekviena autentifikuota užklausa; paprastas paskyros trynimas ją išjungia, ir tik administratoriaus galutinis ištrynimas ją ištrina su jos duomenimis (\cref{tab:data:ondelete}). \\
+\code{daily_budget_usd} & Kiek paskyra per UTC parą gali išleisti modelio iškvietimams: tuščia reiškia diegimo numatytąją reikšmę (\code{LLM_DAILY_BUDGET_USD}), 0 --- neribota (\cref{ch:models}). \\
+\code{created_at}, \code{updated_at}, \code{last_login_at} & \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{sessions}} \\
+\code{user}, \code{token_hash} & Paskyra ir kliento turimo prieigos rakto SHA-256 (unikalus); pats raktas niekada nesaugomas. \\
+\code{expires_at}, \code{created_at}, \code{user_agent}, \code{ip} & Galiojimo pabaiga ir iš kur atėjo sesija; indeksuota pagal naudotoją ir galiojimo pabaigą. Prisijungiant išlaikoma tik \code{SESSIONS_PER_USER = 10} naujausių paskyros sesijų (\file{users/auth.py}). \\
+\end{xltabular}
+
+\paragraph{Instrukcijos.} Nurodymai, kuriuos gauna modelis, saugomi kaip instrukcijos su
+nekeičiamomis versijomis (\cref{tab:data:pr}); redaguojant instrukciją pridedama versija, o
+aktyvinant versiją perkeliamas \code{active_version}. Kaip pristatomos numatytosios
+instrukcijos tampa versijomis, aprašyta \cref{ch:prompts}. 2026 m. lapkričio 13 d. lentelėse
+buvo 23 instrukcijos ir 85 versijos, ir kiekviena aktyvi versija buvo pristatyta numatytoji instrukcija;
+nauja numatytoji pokalbio instrukcijos versija buvo įkelta 2026~m. lapkričio 16~d. ir dar kartą
+lapkričio 17~d., naujos numatytosios sankcijų instrukcijos (dukart) ir inventoriaus
+instrukcijos versijos --- lapkričio 19~d., o dar viena sankcijų instrukcijos versija ---
+lapkričio 20~d., todėl jose yra 91 versija, ir kiekviena aktyvi
+versija tebėra pristatyta
+numatytoji instrukcija.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{prompts} ir \code{prompt_versions}}\label{tab:data:pr}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{prompts}} \\
+\code{slug}, \code{name}, \code{description} & Unikalus pavadinimas, kuriuo ją kviečia kodas (\prompt{report.gap_analysis}). \\
+\code{kind} & \code{chat}, \code{pipeline} arba \code{corpus}. \\
+\code{variables}, \code{output_schema} & JSON: kintamieji, kuriuos ji gali naudoti, ir JSON schema, kurią turi atitikti jos atsakymas. \\
+\code{active_version} & Naudojama versija. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{prompt\_versions}} \\
+\code{prompt}, \code{version_no} & Kartu unikalūs. \\
+\code{text}, \code{model}, \code{temperature}, \code{max_tokens} & Tekstas ir modelio parametrai; \code{model} yra \code{provider:model} formos eilutė. \\
+\code{source}, \code{default_hash} & \code{default} --- tekstui, pristatytam faile \file{prompts/defaults/*.yaml} (maiša įvardija tikslų pristatytą tekstą); \code{user} --- redaktoriuje parašytam tekstui. \\
+\code{note}, \code{created_by}, \code{created_at} & \\
+\end{xltabular}
+
+\paragraph{Užduotys ir etapai.} Eilę sudaro dvi lentelės, o \cref{ch:arch} aprašo, kaip jos
+veikia kaip viena: užduoties paėmimas, užrakinimas, gyvybės signalai, pakartojimai ir
+atšaukimas. \Cref{tab:data:jobs} išvardija jų stulpelius; tarp jų esantys JSON stulpeliai yra
+tokios struktūros:
+
+\begin{codeblock}
+jobs.progress   = {step, percent, message}
+jobs.result     = what the handler returned; report.analyze:
+                  {reportId, findings, actions} or {reportId, waiting: "scope"};
+                  programme.generate: {productId, checks: how many broken}
+job_steps.input_ref, job_steps.output
+                = what the step was given and what it counted; the
+                  gap_analysis output, for instance: {met, partial, missing,
+                  unknown, not_applicable, documents: "all" | "nearest",
+                  quotesPlaced, quotesUnplaced}
+job_steps.usage = {calls, inputTokens, outputTokens, costUsd,
+                   models: [{model, calls, inputTokens, outputTokens, costUsd}]}
+\end{codeblock}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{jobs} ir \code{job_steps}}\label{tab:data:jobs}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{jobs}} \\
+\code{kind}, \code{payload}, \code{subject} & Apdorojimo funkcija, jos JSON įvestis ir tai, ką užduotis liečia (\code{report:<id>}; indeksuota). \\
+\code{status} & \code{queued}, \code{running}, \code{done}, \code{failed}, \code{cancelled}. \\
+\code{priority}, \code{run_after} & Paėmimo tvarka ir anksčiausias momentas; paėmimą aptarnauja vienas indeksas (būsena, \code{run_after}, prioritetas, sukūrimas). \\
+\code{attempts}, \code{max_attempts}, \code{cancel_requested}, \code{locked_by}, \code{heartbeat_at} & Pakartojimai, atšaukimas ir ją laikančio užduočių vykdytojo užraktas. \\
+\code{progress}, \code{result}, \code{error} & JSON eiga ir rezultatas; klaidos tekstas. \\
+\code{created_by}, \code{created_at}, \code{started_at}, \code{finished_at} & Kas ją sukėlė (tuščia planuoklio užduotims) ir jos momentai. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{job\_steps}} \\
+\code{job}, \code{ordinal}, \code{name} & Etapo vieta užduotyje (indeksuota): ataskaitai \code{profile}, \code{documents}, \code{citations}, \code{applicability}, … \\
+\code{status} & \code{running}, \code{done}, \code{failed}, \code{skipped}. \\
+\code{prompt_version_id}, \code{model} & Jo iškvietimų instrukcijos versija ir modelis, tekstu: etapo įrašas pergyvena versijos eilutę. \\
+\code{input_ref}, \code{output}, \code{usage} & JSON, kaip nurodyta aukščiau; \code{usage} etapui pasibaigus nuskaitomas iš jo \code{llm_calls} eilučių. \\
+\code{duration_ms}, \code{error}, \code{started_at}, \code{finished_at} & \\
+\end{xltabular}
+
+\paragraph{Modelio iškvietimų įrašai.} \code{llm_calls} eilutė yra vienas modelio
+iškvietimas, ir iš šios lentelės skaičiuojamas sąnaudų puslapis, dienos biudžetas ir
+kiekvienas šios knygos kainos skaičius (\cref{ch:models,ch:control}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{llm_calls}: vienas modelio iškvietimas}\label{tab:data:lc}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{kind}, \code{purpose} & \code{chat}, \code{job_step}, \code{embed}, \code{prompt_test}; trumpa laisva žyma (ne daugiau kaip 80 simbolių). \\
+\code{user} & Apmokestinama paskyra; tuščia darbui, kuris niekam nepriskiriamas, pavyzdžiui, teisės aktų bazės pareigų išskyrimui ataskaitos viduje. \\
+\code{thread_id}, \code{job_step_id}, \code{prompt_version_id} & Kam skirtas iškvietimas, tekstiniais identifikatoriais be išorinio rakto; \code{job_step_id} indeksuotas, nes per jį nuskaitomos etapo sąnaudos ir ataskaitos kaina. \\
+\code{model} & Modelis taip, kaip jį vadina DI tinklų sąsaja. \\
+\code{input_tokens}, \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens}, \code{reasoning_tokens} & Žetonų skaičiai; iš įvesties --- iš tiekėjo instrukcijų podėlio nuskaityti ir į jį įrašyti, už kuriuos mokama kitomis kainomis. \\
+\code{cost_usd} & Kaina JAV doleriais, šeši skaitmenys po kablelio, apskaičiuojama pagal DI tinklų sąsajos kainoraštį įrašant eilutę. \\
+\code{duration_ms}, \code{tool_calls}, \code{outcome} & Trukmė, JSON sąrašas įrankių, kuriuos iškvietė pokalbio ėjimas, ir rezultatas (numatytasis \code{ok}; laisvas tekstas iki 40 simbolių). \\
+\code{transcript} & JSON pokalbio ėjimui: \code{{user, assistant}}, klausimo ir atsakymo tekstas --- įrašas, ką asistentas kam pasakė. Ištrinamas, kai paskyra galutinai ištrinama (\file{users/purge.py}); pati eilutė lieka, atsieta. \\
+\code{created_at} & Indeksuota atskirai ir kartu su \code{user}. \\
+\end{xltabular}
+
+Šalia stovi dvi mažos tos pačios programėlės lentelės. \code{model_prices}, kurios raktas yra
+modelio identifikatorius, laiko paskutinę žinomą kiekvieno modelio kainą JAV doleriais už
+žetoną --- įvesties, išvesties ir, kai DI tinklų sąsaja jas nurodo, iš podėlio nuskaitytos ir
+į jį įrašytos įvesties ---, atnaujinamą iš sąsajos kainoraščio ir naudojamą, kai kainoraštis
+nepasiekiamas. \code{mcp_servers} laiko išorinį MCP serverį, kurio įrankius gali kviesti
+pokalbių asistentas: unikalų \code{name} (jo įrankių priešdėlį), \code{url},
+\code{transport} (\code{http} arba \code{sse}), \code{headers} su jo prisijungimo duomenimis,
+\code{allowed_tools} (tuščia reiškia visus įrankius), \code{enabled} ir paskutinį sėkmingą jo
+įrankių sąrašą (\code{tools}, \code{[{name, description}]}).
+
+\paragraph{Pokalbiai.} Pokalbis yra vieno naudotojo gija su jos žinutėmis
+(\cref{tab:data:ct}). Konsolė prideda naudotojo žinutes, o asistento paslauga --- savo
+atsakymus, abi per \file{chat/store.py}, kuris atmeta žinutę, kurios turinyje nėra lygiai
+vienos rolės, ir išsaugotą žinutę, kuri pakeistų savo rolę (\cref{ch:chat}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{chat_threads} ir \code{chat_messages}}\label{tab:data:ct}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{chat\_threads}} \\
+\code{user} & Vienintelis naudotojas, kuriam priklauso pokalbis. \\
+\code{company}, \code{role} & Pasirinktinai --- įmonė, apie kurią jis vyksta, ir rolė (\code{company_roles}), kurios kontekstą jis perima. \\
+\code{title} & Pavadinimą suteikia pirmoji žinutė, modelis arba naudotojas. \\
+\code{model} & Naudotojo pasirinktas DI tinklų sąsajos modelis (\code{gateway:azure/…}); tuščia reiškia pačios pokalbio instrukcijos modelį. \\
+\code{message_count}, \code{archived}, \code{created_at}, \code{updated_at} & Indeksuota pagal naudotoją, archyvavimą ir paskutinį atnaujinimą. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{chat\_messages}} \\
+\code{id} & Identifikatorius, kurį žinutei suteikė pokalbio klientas (žr. \cref{sec:data:conventions}). \\
+\code{thread}, \code{parent_id} & Pokalbis ir žinutė, po kurios ji eina, tekstu. \\
+\code{format} & Formato pavadinimas, kurį nurodo rašantysis; konsolė ir asistento paslauga rašo \code{ai-sdk/v6}. \\
+\code{role} & Vienintelė žinutės rolė, išsaugant nuskaitoma iš jos turinio. \\
+\code{content} & JSON: žinutė tokia, kokią ją laiko pokalbio klientas, ne daugiau kaip \code{MAX_CONTENT_CHARS = 400000} simbolių. \\
+\code{created_at} & Išlaikoma, kai žinutė siunčiama dar kartą, kad istorija niekada nepersirikiuotų (indeksuota kartu su pokalbiu). \\
+\end{xltabular}
+
+\paragraph{Veiksmų žurnalas ir užklausų ribotuvas.} \code{audit_log} eilutė įrašo vieną
+pakeitimą, kurį administratoriui gali prireikti pamatyti, --- prisijungimą, naudotojo
+pakeitimą, instrukcijos aktyvinimą, teisės aktų bazės pakeitimą, ataskaitos patvirtinimą
+(\cref{tab:data:au}). Ji rašoma tik per \code{audit()} faile \file{audit/log.py}.
+\code{rate_limit_windows} eilutė yra vienas fiksuotas ribotuvo langas: jo \code{key}, jame
+gautų užklausų skaičius \code{count} ir \code{reset_at}; jį bendrai naudoja visi API
+žiniatinklio procesai (\file{common/ratelimit.py}, \cref{ch:security}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{audit_log}: vienas užfiksuotas veiksmas}\label{tab:data:au}\\
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{user} & Kas tai padarė; tuščia veiksmui be prisijungusio naudotojo. \\
+\code{action} & Pavadinimas su taškais: \code{reports.approve}, \code{reports.approve_scope}, \code{corpus.delete}, \dots \\
+\code{target_type}, \code{target_id} & Su kuo tai padaryta, tekstu (indeksuota kartu). \\
+\code{details} & JSON: kas pasikeitė, taip, kaip tai užfiksuoja veiksmas, --- apimties patvirtinimo atveju kiekvienas aktas, kurio traktavimą žmogus pakeitė. \\
+\code{ip}, \code{created_at} & Iš kur ir kada (indeksuota, pirmiausia naujausi). \\
+\end{xltabular}
+
+\section{Ką ataskaita nusikopijuoja ir ko ne}\label{sec:data:snapshots}
+
+Atitikties ataskaita yra įrodymas, kas rasta tam tikrą dieną, ir vėliau ji turi skaitytis
+taip pat, kai teisės aktų bazėje atsiranda nauja akto redakcija, pareiga performuluojama,
+dokumentas pakeičiamas ar pasikeičia įmonės profilis. Modelių failai šią taisyklę įtvirtina:
+ataskaita \enquote{išsaugo kiekvieno rodomo pavadinimo ir teksto kopiją (aktų pavadinimų,
+pareigų tekstų, nuorodų kelių, nuostatų antraščių), todėl ji skaitosi taip pat ir pasikeitus
+teisės aktų bazei, pareigoms, dokumentams ar profiliui; išoriniai raktai laikomi tik
+naršymui} (\file{analysis/models.py}).
+
+\begin{codebox}{Kas nukopijuojama į ataskaitą jos vykdymo metu}
+\begin{itemize}
+  \item Įmonė: \code{reports.profile_snapshot}, visas profilis su leidimais, taikomais
+    standartais, rolėmis ir dokumentų sąrašu su jų inventorių santraukomis. Ataskaita, sustojusi
+    apimties peržiūrai, jį nukopijuoja dar kartą, kai prasideda jos antroji dalis.
+  \item Kiekvienas aktas: jo pavadinimas, trumpasis pavadinimas, jurisdikcija, tipas ir
+    nuoroda (\code{report_acts}) bei perskaityta redakcija (saitas, o jos numeris ir data ---
+    \code{stats.provenance.corpus}).
+  \item Kiekviena įvertinta pareiga: jos pavadinimas ir tekstas ataskaitos kalba, kategorija,
+    reikšmingumas ir terminas, ar žmogus ją buvo patvirtinęs, ir nuostatos, kurias ji cituoja,
+    su jų keliais ir oficialiomis nuorodomis (\code{report_findings}).
+  \item Kiek gali kainuoti pažeidimas: sankcijų pakopos, kurios tą dieną apėmė nuostatą
+    (\code{report_findings.consequence}).
+  \item Įrodymai: kiekviena modelio pateikta citata su vieta, kurioje ji tą dieną buvo savo
+    dokumente (\code{start}).
+  \item Teisės aktų nuorodų patikra: kiekviena nuoroda taip, kaip užrašyta, rasta nuostata,
+    jos antraštė, ištrauka ir nuoroda (\code{report_citations}).
+  \item Kuri instrukcijos versija ir modelis atliko kiekvieną etapą ir kiek kainavo vykdymas
+    (\code{stats.provenance}, \code{tokens}, \code{costUsd}).
+\end{itemize}
+\end{codebox}
+
+Tai, kas nenukopijuojama, taip pat apgalvota. Visas akto ir įmonės dokumento tekstas lieka
+savo lentelėje: ataskaita laiko citatas, ištraukas ir poslinkius į juos, ne pačius tekstus.
+Citatos \code{start} yra poslinkis į dokumento tekstą tokį, koks jis buvo; ištrynus dokumentą,
+nuoroda išvaloma, o citata lieka. Instrukcijos įvardijamos, bet nekopijuojamos: kilmė nurodo
+trumpąjį pavadinimą, versijos numerį ir modelį, o pati versija išlieka, nes instrukcijų
+versijos nekeičiamos ir jokio maršruto, kuris versiją ištrintų, nėra. Užduoties etapai, kuriuose saugomas kiekvieno etapo įrašas, neišvalomi, kol ataskaita
+rodo į užduotį (\cref{ch:arch}). Du dalykai pateikiamoje ataskaitoje sąmoningai
+apskaičiuojami iš naujo: \code{outdatedActs} --- aktai, kurie gavo naujesnę redakciją po to,
+kai ataskaita juos perskaitė (kad skaitytojas žinotų, jog ją reikia vykdyti iš naujo), ir
+kiekvienos išvados \code{history} --- kaip jos pareiga atrodė ankstesnėse įmonės ataskaitose
+(\file{analysis/serializers.py}).
+
+Veiksmų registras kopijuoja taip pat: \code{company_actions.items} elementas laiko išvados
+pavadinimą, aktą ir nuostatos kelią tokius, kokie jie buvo patvirtinimo metu, o pareigą
+įvardija identifikatoriumi. Niekada nepatvirtinta pareiga pakeičiama, kai jos aktas
+perskaitomas iš naujo, todėl jos identifikatorius gali išnykti; tada API pateikia elementą be
+jo pareigos, kaip tokį, kurio jokia vėlesnė ataskaita negali patvirtinti (\code{standing}
+faile \file{analysis/register.py}).
+
+\section{Kas rašo kuriuos stulpelius}\label{sec:data:writers}
+
+Lentelėse sumaišytos trys turinio rūšys, o riba tarp jų yra ta pati, kurią ši knyga brėžia
+visur: ką parašė modelis, ką apskaičiavo kodas ir ką nusprendė žmogus. Kodas apdorojimo
+grandinės instrukcijos atsakymą išsaugo tik tada, kai jis patikrintas pagal griežtąją
+instrukcijos JSON schemą, jo reikšmės patikrintos pagal leistinas, o kiekviena modelio
+pateikta nuoroda (nuostata \code{P3}, pareiga \code{O7}, dokumentas \code{D4}) susieta su tikra
+eilute; nuoroda, kuri su niekuo nesusiejama, atmetama.
+
+\begin{aibox}{Stulpeliai, kuriuose saugoma tai, ką atsakė modelis}
+\code{legal_document_versions.scope} ir \code{.sanctions}; išskirtos \code{obligations}
+eilutės tekstiniai laukai (pavadinimas, tekstas, adresatas, sąlygos, terminas, įrodymai,
+kategorija, reikšmingumas, \code{applies_to}) ir jos \code{verification};
+\code{company_documents.inventory}; ataskaitoje --- \code{report_acts.applicability},
+\code{confidence}, \code{reasoning}, \code{conditions_to_verify} ir \code{applies_from},
+\code{report_findings.status}, \code{analysis}, \code{recommendation} ir \code{evidence}
+citatos, \code{report_citations.heading_match} ir \code{note}, kai \code{judged_by} yra
+\code{model}, \code{report_actions} tekstas ir tai, kurie parengti veiksmų projektai
+sujungiami į vieną (\prompt{report.plan_merge}), bei \code{reports.title} ir \code{summary};
+\code{work_products.content}, kol jo neredagavo žmogus; \code{chat_threads.title}, kai
+pokalbiui pavadinimą suteikė modelis, ir asistento žinutės.
+\end{aibox}
+
+\begin{codebox}{Stulpeliai, kuriuos apskaičiuoja kodas}
+\code{report_acts.assessment} (iš verdikto, akto tipo ir ataskaitos apimties);
+\code{report_findings.consequence}, \code{order} ir kiekvienos citatos \code{start};
+\code{report_actions.priority} ir \code{finding_ids} (sujungtas veiksmas uždaro tai, ką
+uždarė jo projektai, o išvada, kuriai planavimo iškvietimas nepaskyrė veiksmo, prijungiama
+prie artimiausio, \code{_nearest_action} faile \file{analysis/pipeline.py});
+\code{reports.stats}; \code{legal_document_versions.changes}; \code{work_products.checks};
+\code{company_actions} elementai, terminai ir jų patvirtinimas vėlesne ataskaita; kiekvienas
+kiekis, raktas, maiša ir kaina.
+\end{codebox}
+
+\begin{humanbox}{Stulpeliai, kuriuose užfiksuotas žmogaus sprendimas}
+\code{obligations.status} (patvirtinimas ar atmetimas), \code{reviewed_by} ir \code{notes};
+\code{company_credentials.status} reikšmė \code{verified}; apimties peržiūra
+(\code{reports.scope_approved_by} ir jos pakeistų aktų \code{assessment}); išvados
+\code{override_status}, \code{reviewer_note} ir \code{cause}; patvirtinimas
+(\code{reports.approved_by}, \code{approval_note}); registro veiksmo atsakingas asmuo,
+terminas, būsena ir uždarymo pastaba; programos dokumento redagavimas ir patvirtinimas
+(\code{edited_by}, \code{approved_by}); šaltinio \code{user} instrukcijos versija. Nė vieno
+iš jų nenustato jokia apdorojimo grandinė. Tris iš jų galima nustatyti ir per pokalbį, kai modelis
+naudotojo vardu ir su naudotojo teisėmis iškviečia įrankį (\cref{ch:chat}): ataskaitos
+apimties patvirtinimas (\code{approveReportScope}, naudotojui priėmus sąrašą ir jo kainą),
+išvados būsenos pakeitimas (\code{overrideFinding}, su naudotojo nurodyta priežastimi) ir
+leidimo pažymėjimas patikrintu (\code{updateCredential} arba \code{addCredential} su ta
+būsena, naudotojui pasakius, kad leidimas buvo patikrintas). Tada eilutėje įvardijamas naudotojas, lyg būtų naudotasi konsole. Joks įrankis
+nerašo išvados \code{cause}.
+\end{humanbox}
+
+\section{Kaip atsirado schema}\label{sec:data:history}
+
+Lenteles kuria ir keičia Django migracijos, po vieną aplanką kiekvienai programėlei. Jų
+pavadinimai yra trumpa modelio istorija (\cref{tab:data:migrations}). 2026 m. lapkričio 13 d.
+veikianti duomenų bazė buvo pasiekusi paskutinę čia išvardytą migraciją programėlėse
+\code{analysis}, \code{assistant}, \code{corpus}, \code{companies}, \code{programme},
+\code{prompts}, \code{users}, \code{chat}, \code{audit}, \code{jobs} ir \code{ops}.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}Y@{}}
+\caption{Kiekvienos programėlės migracijos pagal failų pavadinimus}\label{tab:data:migrations}\\
+\toprule
+\hd{Programėlė} & \hd{Migracijos po \code{0001_initial}} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Programėlė} & \hd{Migracijos po \code{0001_initial}} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{corpus} & 0002 \code{obligations_extracted_at} · 0003 pakeistos šaltinių rūšys · 0004 \code{obligation_embedding_en} · 0005 \code{standards} · 0006 redakcijos \code{scope} · 0007 pareigos \code{verification} · 0008 redakcijos \code{sanctions} · 0009 redakcijos \code{changes} \\
+\code{companies} & 0002 dokumento \code{indexed_at}, \code{inventory} ir kt. · 0003 \code{companyrole}, leidimo įrodymų dokumentas ir kt. · 0004 \code{companystandard} · 0005 dokumento \code{requirements_key} \\
+\code{analysis} & 0002 \code{initial} · 0003 \code{finding_obligation_reviewed} · 0004 ataskaitos patvirtinimo pastaba ir laikas · 0005 \code{recount_effective_findings} · 0006 \code{reportcitation} · 0007 akto \code{doc_type} · 0008 akto \code{assessment} · 0009 ataskaitos \code{scope_review} · 0010 išvados \code{consequence}, \code{cause} · 0011 \code{companyaction} \\
+\code{assistant} & 0002 iškvietimo kaina ir paskirtis · 0003 pakeistos iškvietimų rūšys · 0004 \code{mcpserver} · 0005 \code{modelprice} · 0006 iškvietimų indeksas pagal užduoties etapą · 0007 \code{prompt_cache_accounting} \\
+\code{users} & 0002 naudotojo žetonų biudžetas · 0003 žetonų biudžetą pakeitė \code{daily_budget_usd} \\
+\code{chat} & 0002 \code{initial} · 0003 pokalbio \code{role} · 0004 pokalbio \code{model} \\
+\code{prompts} & 0002 versijos \code{default_hash}, \code{source} \\
+\code{programme}, \code{jobs}, \code{audit}, \code{ops} & nėra \\
+\end{xltabular}

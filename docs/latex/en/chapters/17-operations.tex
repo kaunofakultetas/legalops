@@ -1,0 +1,1008 @@
+% STATUS: verified
+\chapter{Deployment and operations}\label{ch:ops}
+
+This chapter is for whoever installs the \product{} and keeps it running: the operator. It
+follows the order in which an operator meets the system --- what runs and what the host must
+offer, a fresh installation, the two modes of the compose file, updates --- and then
+turns to the work that is particular to this product: keeping the legal corpus current,
+starting the three paid readings of the whole corpus, which only an operator starts, looking after the
+prompts, and watching the budgets. It ends with the scheduled work, the health probe and the
+common failures. The commands are quoted exactly and kept few; every one runs in the project
+folder on the host, and nothing but Docker is installed there. The settings and constants the
+chapter names are listed in \cref{app:config}.
+
+Two repository documents cover the same ground in more detail and were the map for this
+chapter: \file{docs/markdown/en/deployment.md} and \file{docs/markdown/en/operations.md}. The scripts and the
+compose file are the last word, and the chapter was checked against them.
+
+
+\section{What runs and what the host needs}\label{sec:ops:runs}
+
+The whole system is one Docker Compose project described by \file{docker-compose.yml}: eight
+containers on one host (\cref{tab:ops:services,fig:ops:host}). \Cref{ch:arch} explains what the
+services do for each other; here they are listed as an operator sees them in
+\texttt{docker compose ps}.
+
+Every container has a read-only root filesystem and the restart policy \code{unless-stopped}.
+The endpoint, the exit, the API and the database run as user 1000; the console and the
+assistant service run as their image's default user (the line \texttt{user: 1000:1000} is
+commented out for them); the database tool and the worker container run as root. The worker
+container needs root because it holds the host's Docker socket --- which makes it root on the
+host --- and for that reason it has no network at all and runs nothing but that one command.
+The compose file sets no resource limits, no health checks and no start order: the services
+start together, and the endpoint answers 502 until the service behind a path is up.
+
+\begin{table}[H]
+\caption{The containers of the stack, as \file{docker-compose.yml} defines them}\label{tab:ops:services}
+\begin{tabularx}{\textwidth}{@{}L{35mm}L{33mm}Y@{}}
+\toprule
+\hd{Container} & \hd{Image} & \hd{What it does} \\
+\midrule
+\code{legalops-endpoint} & \code{caddy:2.11-alpine} & The only way in, on host port 80. Sends \code{/api/assistant/*} to the assistant service, \code{/api/*} to the API, \code{/dbgate/*} to the database tool after asking the API whether the caller is an administrator, and everything else to the console and the public site. Writes a JSON access log. \\
+\code{legalops-exit} & \code{vuknf/caddy-l4:2.11} & The only way out: forwards TLS connections to a fixed list of host names (\cref{sec:ops:secrets}). \\
+\code{legalops-vite} & built from \file{vite/} & The public site and the console: the Vite development server, or in production mode the built files served by Caddy. \\
+\code{legalops-django} & built from \file{django/} & The API (Django). The worker's loop runs inside this container too. \\
+\code{legalops-worker} & \code{docker:27-cli} & Nothing but one command, \texttt{docker exec legalops-django python3 manage.py run\_worker}: it starts the worker loop in the API's container and restarts it when it ends. \\
+\code{legalops-assistant} & built from \file{assistant/} & The assistant service: the chat and every model call. \\
+\code{legalops-postgres} & built from \file{postgres/} & PostgreSQL 17.11 with the pgvector extension 0.8.6 compiled in. \\
+\code{legalops-dbgate} & \code{dbgate/dbgate:7.3.3-alpine} & A database administration tool for administrators, reached at \code{/dbgate/}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm, y=1cm]
+  \node[ext]   (proxy)    at (0,1.2)     {outer proxy\\TLS};
+  \node[svc]   (endpoint) at (2.75,1.2)  {endpoint\\port 80};
+  \node[svc]   (vite)     at (6.1,2.45)  {vite\\site and console};
+  \node[svc]   (asst)     at (6.1,1.2)   {assistant\\model calls};
+  \node[svc]   (django)   at (6.1,-0.15) {django\\API + worker loop};
+  \node[svc]   (worker)   at (6.1,-1.75) {worker\\Docker CLI only};
+  \node[svc]   (exit)     at (9.75,1.2)  {exit\\allowlist};
+  \node[store] (pg)       at (9.75,-0.15) {postgres};
+  \node[svc]   (dbgate)   at (9.75,-1.75) {dbgate};
+  \node[ext]   (gw)       at (12.75,1.75) {the gateway};
+  \node[ext]   (src)      at (12.75,0.65) {sources of\\the acts};
+
+  \draw[flow] (proxy) -- (endpoint);
+  \draw[flow] (endpoint) -- (asst);
+  \draw[flow] (endpoint.east) -- ++(0.55,0) |- (vite.west);
+  \draw[flow] (endpoint.east) -- ++(0.55,0) |- (django.west);
+  \draw[flow] (endpoint.south) -- (2.75,-2.75) -| node[lbl, pos=.25] {/dbgate/, administrators only} (dbgate.south);
+  \draw[flow] (asst) -- (exit);
+  \draw[flow] (django) -- (pg);
+  \draw[flow] (dbgate) -- (pg);
+  \draw[flow] ([yshift=2.5mm]django.east) -- ++(0.45,0) |- ([yshift=-2mm]exit.west);
+  \draw[flow] (exit.east) -- ++(0.45,0) |- (gw.west);
+  \draw[flow] (exit.east) -- ++(0.45,0) |- (src.west);
+  \draw[call, <->] (django) -- node[lbl, right=1mm] {internal door} (asst);
+  \draw[call] (worker) -- node[lbl, right=1mm] {docker exec} (django);
+
+  \node[store] (d1) at (1.7,-4.9)   {\_DATA/postgres\\the database};
+  \node[store] (d2) at (5.55,-4.9)  {\_DATA/django/uploads\\uploaded files};
+  \node[data]  (envf) at (9.3,-4.9) {.env\\secrets};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(endpoint)(vite)(django)(asst)(dbgate)(pg)(exit)(worker), inner ysep=9pt] (stack) {};
+    \node[lane, fit=(d1)(d2)(envf), fill=codebg] (disk) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (stack.north west) {one Docker Compose project: eight containers};
+  \node[lanelabel, anchor=south west] at (disk.north west) {on the host's disk, in the project folder};
+\end{tikzpicture}
+\caption{The stack on its host. Requests come in through the endpoint only, and connections to
+the outside leave through the exit only. The worker container starts the worker loop inside
+the API's container and has no network of its own. Everything the system remembers lies in
+folders of the host that are mounted into the database and the API.}\label{fig:ops:host}
+\end{figure}
+
+\paragraph{Networks.} The compose file defines \code{isolated}, an internal bridge network on
+172.28.10.0/24 that carries every container except the worker and has no route out, and joins
+a second network, \code{external}, which it expects to exist already: the update script
+creates it with \texttt{docker network create}, on the subnet 172.18.0.0/24, when the host has
+no network of that name; a host that has one keeps it as it is, and the stack joins it. On the
+live host the network was there before the stack, and other containers of the hosting are
+attached to it too (seen on 16~November 2026). The endpoint and
+the exit are on both; in development mode the console and the assistant service are on
+\code{external} as well, so that they can install their packages.
+
+\paragraph{State.} Everything the system remembers is in two folders that
+\file{runUpdateThisStack.sh} creates and gives to user 1000: \file{_DATA/postgres}, the
+database cluster, and \file{_DATA/django/uploads}, the files users and administrators upload.
+The secrets are in \file{.env}, which Compose reads when it creates a container. None of the
+three is in the repository.
+
+\paragraph{What the host must offer.} According to \file{docs/markdown/en/deployment.md}:
+\begin{itemize}
+  \item Linux with Docker Engine (tested on 27.3.1) and both front ends of Compose: the update
+    script calls \code{docker-compose}, the other scripts \texttt{docker compose}. The update
+    script also uses \code{sudo} and \code{openssl}.
+  \item Four processor cores and 8~GB of memory are comfortable. No container has a memory
+    limit; the peaks are the sandboxed children that extract text from uploaded files (1.5~GB
+    of address space each, \code{CHILD_MEMORY_MB} in \file{common/sandbox.py}) and the
+    rendering of a report as PDF.
+  \item About 3~GB of disk for the images, plus the data.
+  \item Host port 80 free, and the two subnets above unused.
+  \item Outbound HTTPS to the gateway (\code{ai.knf.vu.lt}) and to the three sources of the
+    acts (\code{publications.europa.eu}, \code{www.e-tar.lt}, \code{www.lb.lt}); while images
+    are built, also to the package registries.
+  \item A reverse proxy in front that terminates TLS, because the endpoint speaks plain HTTP.
+    It must pass on the \code{Host} header as the browser sent it, since the endpoint compares
+    a request's \code{Origin} with it, and put the visitor's address, and only that, into
+    \code{X-Forwarded-For}, which the endpoint copies into \code{X-Real-IP} (what the live
+    proxy sends is in \cref{ch:security}). It must not buffer \code{text/event-stream} (the
+    chat streams its answer), must wait at
+    least 330~s for an answer (a report export is one long request, and a prompt test run may
+    wait up to fifteen minutes: a proxy that cuts it earlier shows an error in the prompt
+    editor while the call still completes and is recorded),
+    must let through request bodies of 62~MiB (the API accepts an uploaded act of up to
+    60~MiB) and must leave the endpoint's two security headers in place.
+\end{itemize}
+
+\paragraph{Capacity.} In production mode the API runs under gunicorn with
+\code{GUNICORN_WORKERS} processes of \code{GUNICORN_THREADS} threads each (3 and 8 by
+default, \file{django/gunicorn.conf.py}), so 24 requests are served at once. One worker loop
+runs one job at a time; inside a job up to four model calls are in flight
+(\cref{app:config}). The queue is claimed with \texttt{SELECT … FOR UPDATE SKIP LOCKED}
+(\code{claim} in \file{jobs/runner.py}), so a second loop would be safe; it needs its own
+\code{WORKER_PID_FILE}, because a loop that finds another loop's PID file takes over from it
+instead of running beside it. \file{docs/markdown/en/operations.md} names the real ceiling: the gateway's
+budget, not the host.
+
+
+\section{A fresh installation}\label{sec:ops:install}
+
+An installation is four things in this order: the two local files, one run of the update
+script, the first administrator, and one re-embedding of the corpus. The legal corpus itself
+is not fetched and not read by a model again: it arrives with the database's bootstrap dump.
+
+\subsection{The local files and the update script}
+
+\begin{codeblock}
+git clone <repository> /apps/aplikacijos/comp-assistant
+cd /apps/aplikacijos/comp-assistant
+cp docker-compose.sample.yml docker-compose.yml
+touch .env && chmod 600 .env      # then add the line  AI_GATEWAY_KEY=<the gateway key>
+./runUpdateThisStack.sh
+\end{codeblock}
+
+The repository versions \file{docker-compose.sample.yml}; \file{docker-compose.yml} is the
+local copy an installation runs and is ignored by git, as \file{.env} is.
+
+\begin{notebox}{Two lines of the compose file an installation depends on}
+The copy is the installation's own: no script makes it, and \texttt{git pull} never changes it,
+so a later change of the sample reaches it only when someone carries it over. Two lines of the
+sample matter most to a new installation: the read-only mount of
+\file{postgres/bootstrap.sql.gz} into the database container's
+\file{/docker-entrypoint-initdb.d}, and the variable \code{DBGATE_AUTH_HEADER} on the
+endpoint. Without the first, a new installation starts with an empty database: the update
+script's \code{migrate} then creates the schema, and the operator has to load the prompts
+(\code{seed_prompts}, \cref{sec:ops:prompts}) and the catalogue (\code{seed_corpus},
+\cref{sec:ops:corpus}) and pay for every reading of the corpus again. Without the second, the
+endpoint cannot sign in to the database tool. The repository holds no sample of \file{.env}:
+the file starts as the one line with the gateway key, and the update script appends the
+secrets it mints.
+\end{notebox}
+
+\file{runUpdateThisStack.sh} does the same six things on every run, the first one included:
+
+\begin{enumerate}
+  \item Creates \file{_DATA/django/uploads} and \file{_DATA/postgres} and gives \file{_DATA}
+    to user 1000.
+  \item Mints \code{DJANGO_SECRET_KEY} (32 random bytes as hexadecimal, from
+    \texttt{openssl rand}) and appends it to \file{.env} --- only when \file{.env} has no line
+    that begins with that name. A line that is there, even an empty one, is left alone.
+  \item Mints \code{ASSISTANT_INTERNAL_SECRET} the same way. It is the shared secret of the
+    internal door between the API and the assistant service; with an empty value both sides
+    refuse every internal call.
+  \item Mints \code{DBGATE_PASSWORD}, the password of the database tool's own login, and
+    \code{DBGATE_AUTH_HEADER}, the same login encoded for an HTTP header, which the endpoint
+    adds to every request it passes to the tool.
+  \item Creates the Docker network \code{external} (an error whenever a network of that name
+    exists --- on every later run, or from the start on a host where something else made it
+    --- and harmless), takes the stack down and starts it again from freshly built images:
+    \texttt{docker-compose down}, then \texttt{docker-compose up -d -{}-build}.
+  \item Waits five seconds and runs \texttt{manage.py migrate -{}-noinput} in the API's
+    container.
+\end{enumerate}
+
+The script never writes \code{AI_GATEWAY_KEY}: the key of the faculty's gateway is the one
+value a person supplies. Without it the stack starts, but the assistant service reports its
+model as not configured, the chat answers 503 and every job step that needs a model fails.
+
+\subsection{The bootstrap dump}\label{sec:ops:bootstrap}
+
+When the database container starts on an empty \file{_DATA/postgres}, the official PostgreSQL
+entrypoint initialises a cluster and loads every file it finds in
+\file{/docker-entrypoint-initdb.d} --- here one file, \file{postgres/bootstrap.sql.gz}, about
+11~MB of gzipped plain SQL. A cluster that already exists is never touched by it. The file is
+written by \file{scripts/db_bootstrap_dump.sh} from a running installation
+(\cref{fig:ops:bootstrap}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm and 6mm]
+  \node[store] (live) {the live\\database};
+  \node[svc, right=of live] (copy) {a throwaway\\postgres\\no network};
+  \node[chk, right=of copy] (cut) {the cut: keep\\eight tables,\\clear the rest};
+  \node[data, right=of cut] (file) {bootstrap\\.sql.gz};
+  \node[store, below=13mm of live] (new) {an empty\\data folder};
+  \node[svc, right=of new] (load) {the entrypoint\\loads the file};
+  \node[man, right=of load] (admin) {the first\\administrator};
+  \node[ai, right=of admin] (embed) {one\\re-embedding};
+  \draw[flow] (live) -- node[lbl, above] {read} (copy);
+  \draw[flow] (copy) -- (cut);
+  \draw[flow] (cut) -- (file);
+  \draw[flow] (new) -- (load);
+  \draw[flow] (load) -- (admin);
+  \draw[flow] (admin) -- (embed);
+  \draw[opt] (file.south) |- ([yshift=6mm]load.north) -- (load.north);
+  \node[note, anchor=west] at ([xshift=3mm]file.east) {made on the\\running system};
+  \node[note, anchor=west] at ([xshift=3mm]embed.east) {on the new\\installation};
+\end{tikzpicture}
+\actorlegend
+\caption{How a new installation gets its corpus. Above: \file{scripts/db_bootstrap_dump.sh}
+copies the live database into a throwaway container, cuts it down there and dumps the
+result; the live database is only read. Below: a new installation loads that file once,
+creates its first administrator, who then starts the one paid step --- the vectors, which the
+file leaves out.}\label{fig:ops:bootstrap}
+\end{figure}
+
+\paragraph{What the file holds.} The script keeps an allow-list of eight tables (the array
+\code{keep} in its SQL): \code{django_migrations}, \code{legal_documents},
+\code{legal_document_versions}, \code{legal_units}, \code{legal_chunks}, \code{obligations},
+\code{prompts} and \code{prompt_versions}. A new installation therefore starts with
+\begin{itemize}
+  \item the schema, with every migration recorded as applied;
+  \item the legal corpus: the acts of the catalogue, the current version of each act that has
+    one, its provisions and its chunks, and whatever was read into the version rows (the scope
+    and sanction readings of \cref{ch:obligations} are columns of
+    \code{legal_document_versions});
+  \item the register of obligations with the judge's verdicts and the review statuses ---
+    5,960 obligations of 68 acts in the file shipped on 19~November 2026;
+  \item the prompts with their versions, as they stood on the day of the dump: the file of
+    20~November 2026 holds 91 versions, the chat's prompt in its seventeenth.
+\end{itemize}
+
+\paragraph{What it leaves out.} Every other table is emptied: accounts, sessions, companies
+and everything under them, reports, chats, work products, jobs, the audit log, the record of
+model calls, the price cache. Because the list names what stays, a table added to the system
+later ships empty until someone adds it to that list --- nothing leaks by default. Inside
+the kept tables the script removes what belongs to people or to one installation: a company's
+own requirements (obligations with a company), the links from kept rows to accounts
+(\code{created_by}, \code{reviewed_by}), superseded versions of acts with their units and
+chunks, and every embedding. The embeddings go because of their size --- as SQL text they
+were three quarters of a 156~MB file, by \file{docs/markdown/en/operations.md} --- and
+\code{embed_model} is cleared with them, so the console shows which versions still wait for
+their vectors. The raw source files of the acts are not included either; nothing reads them
+once a version is ready. The cut runs in one transaction with all foreign keys deferred, so a
+kept row that still points at an emptied table fails the dump on the running system and not
+the installation that would load it.
+
+The load takes about ten seconds by \file{docs/markdown/en/deployment.md},
+longer than the update script's five-second wait. On a first run the script's \code{migrate}
+can therefore fail with \enquote{connection refused}; the dump is already migrated, so the
+failure is harmless then.
+
+\subsection{The first administrator}\label{sec:ops:admin}
+
+Nobody can register themselves, and every route that creates an account needs an
+administrator. The way into an empty installation is the management command
+\code{create_admin} (\file{users/management/commands/create_admin.py}):
+
+\begin{codeblock}
+read -rsp 'Admin password: ' ADMIN_PASSWORD; echo; export ADMIN_PASSWORD
+docker compose exec -T -e ADMIN_PASSWORD legalops-django \
+    python3 manage.py create_admin --email <address> --password-env ADMIN_PASSWORD
+unset ADMIN_PASSWORD
+\end{codeblock}
+
+\file{runCreateAdmin.sh} in the repository's root asks for the address and the password and
+runs exactly this. The password travels in an environment variable named by \code{--password-env}, never on the
+command line, where a process listing would show it. Unlike a password set in the console,
+it has no minimum length: whoever runs a command on the server chooses it, and the command
+refuses only an empty one and one past bcrypt's 72 bytes (\code{PASSWORD_MAX_BYTES}). The
+command does nothing to an account that exists. With \code{--reset} it makes the account an
+active administrator again and, when a password is given, sets it and ends every session of
+the account; that is the recovery from a lock-out, and it is written to the audit log
+(\code{users.reset_password}, or \code{users.update} when no password is given) with no actor.
+
+\subsection{The one re-embedding}
+
+The administrator signs in, opens the corpus page (\ui{Teisės aktų bazė}, \enquote{legal
+acts}) and chooses \ui{Perskaičiuoti visus vektorius} (\enquote{re-embed everything}) in its
+menu. That queues one job, \code{corpus.reembed}, through
+\route{POST}{/api/corpus/reembed}. The job (\code{reembed} in \file{corpus/ingest.py}) sends
+the chunks of every act's current version to the embedding model in batches of 64
+(\code{EMBED_BATCH}), then the Lithuanian and the English text of every obligation, then the
+chunks of whatever company documents exist --- none on a new installation. It is charged to
+nobody. On 13~November 2026 the corpus held 4,059 chunks and 5,960 obligations;
+\file{docs/markdown/en/deployment.md} puts the job, for about 4,100 chunks and 11,900 obligation
+texts, at several minutes and under one dollar, which is its estimate and not a dated
+measurement. \Cref{ch:models} describes the embedding call.
+
+Until the job has run, three things are visibly wrong, and an operator should know them as
+the signs of a skipped step and not as faults: the search of the corpus finds keyword matches
+only, a report on a library too large to be sent whole finds no evidence for its obligations
+(a library that fits is read whole and needs no vectors; \cref{ch:report}), and the table of an
+act's versions
+shows a dash where the embedding model's name belongs.
+
+The same job is the answer whenever \code{AI_EMBED_MODEL} changes. Vectors of two models
+cannot be compared, so the job renews all three sets together; the variable is set in two
+places (the API's copy is written in \file{docker-compose.yml} itself, the assistant
+service's comes from \file{.env}, with the same model as its default) and both must name the same model.
+
+\subsection{Checking the result}
+
+\begin{codeblock}
+docker compose ps                       # every container Up
+curl -s http://127.0.0.1/api/health     # {"status": "ok", "service": "legalops-django", ...}
+\end{codeblock}
+
+The bootstrap is
+as current as its last dump: when the repository's prompt defaults or its catalogue are newer
+than the file, \code{seed_prompts} and \code{seed_corpus} add what is missing, and the weekly
+refresh brings the acts up to date.
+
+
+\section{Development and production modes}\label{sec:ops:modes}
+
+\file{docker-compose.yml} holds both modes in one file. Lines that belong to one mode carry a
+trailing comment, \texttt{\# Dev} or \texttt{\# Prod}; the file as shipped has the development
+lines active. To switch to production an operator comments out every line tagged
+\texttt{\# Dev}, removes the comment sign from every line tagged \texttt{\# Prod}, and runs
+\file{runUpdateThisStack.sh}. \Cref{tab:ops:modes} lists what changes.
+
+\begin{table}[H]
+\caption{What the two modes of the compose file run}\label{tab:ops:modes}
+\begin{tabularx}{\textwidth}{@{}L{27mm}YY@{}}
+\toprule
+\hd{Service} & \hd{Development (as shipped)} & \hd{Production} \\
+\midrule
+Console and public site & \file{vite/Dockerfile.dev}: \texttt{npm install} and the Vite development server on the bind-mounted \file{vite/app}; also on the \code{external} network. & \file{vite/Dockerfile}: the page and its scripts are built in the image (\texttt{npm ci}, the translation guard, \texttt{vite build}) and served by Caddy; no source mount, isolated network only. \\
+API & \code{DJANGO_RUNSERVER} is \code{True}: Django's \code{runserver} on the bind-mounted \file{django}, after waiting for the database. & The variable is unset: gunicorn from the code baked into the image, tuned by \file{django/gunicorn.conf.py}. \\
+Assistant service & \file{assistant/Dockerfile.dev}: \texttt{npm install} and \code{nodemon} on the bind-mounted \file{assistant/app}; also on the \code{external} network. & \file{assistant/Dockerfile}: \texttt{npm ci -{}-omit=dev} and \texttt{node server.js}; a 64~MB temporary filesystem, isolated network only. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two consequences matter to an operator. In development mode a saved source file reloads the
+console, the assistant service and the API at once, but not the worker loop:
+\texttt{docker compose restart legalops-worker} starts a loop on the new code. And in
+development mode the assistant service has a second network with a route out, so its traffic
+is not held to the exit's allowlist; production mode ends that. In production a code change
+reaches the containers only through the update script. \Cref{ch:security} weighs what the
+development mode costs in protection.
+
+
+\section{Updating}\label{sec:ops:update}
+
+\begin{codeblock}
+git pull
+./runUpdateThisStack.sh
+docker compose exec legalops-django python3 manage.py seed_prompts
+\end{codeblock}
+
+The script is the one of the installation: it takes the whole stack down, rebuilds the
+images (cached layers make a change of code alone a matter of seconds), starts everything
+and migrates the database. The site is unreachable from the \code{down} until the containers
+are back; building first with \texttt{docker compose build} keeps the build out of that window.
+The third line is not optional when the update changed a file under
+\file{prompts/defaults/}: nothing runs \code{seed_prompts} on its own
+(\cref{sec:ops:prompts}). The test suites are not run by the script either
+(\cref{ch:testing}).
+
+Docker gives a stopping container ten seconds, since the compose file sets no
+\code{stop_grace_period}. What that means for work in flight:
+
+\begin{itemize}
+  \item \textbf{A chat turn.} The assistant service stops taking connections at once, refuses
+    a request on a connection kept open from before with 503 \code{SHUTTING_DOWN}, and lets
+    running turns finish --- its own patience,
+    \code{SHUTDOWN_GRACE_MS}, is 190~s --- but Docker ends the process after ten seconds, and
+    a turn still streaming then loses its answer.
+  \item \textbf{A request to the API.} Requests still running after ten seconds are cut.
+  \item \textbf{A job.} The worker loop is a second process in the API's container and dies
+    with it. The job it was running stays marked as running until the next loop finds its
+    heartbeat older than \code{STALE_S} (120~s, \file{jobs/runner.py}); it is then queued
+    again if its kind allows another attempt, and marked failed with \enquote{The worker
+    running this job stopped unexpectedly} if not.
+\end{itemize}
+
+\Cref{tab:ops:jobs} shows which kinds get a second attempt. Most of the paid kinds do not, on
+purpose: a job that has spent money is not silently run twice. An operator therefore looks at
+the jobs page of the console (\cref{ch:console}) before an update, and does not update while
+a report or a reading of the corpus is running. A report whose job ends this way is marked
+failed by the kind's \code{on_abandon} hook; what a failed report keeps is in
+\cref{ch:report}.
+
+\begin{table}[H]
+\caption{The kinds of job, how many attempts each is registered with (\code{max_attempts})
+and what starts it}\label{tab:ops:jobs}
+\begin{tabularx}{\textwidth}{@{}L{48mm}C{16mm}Y@{}}
+\toprule
+\hd{Kind} & \hd{Attempts} & \hd{Started by} \\
+\midrule
+\code{report.analyze} & 1 & A user who starts a compliance report, and again when its scope is approved. \\
+\code{programme.generate} & 1 & A user who asks for a work product. \\
+\code{documents.index} & 3 & Every upload of a document that has text. \\
+\code{corpus.ingest} & 2 & \code{seed_corpus}, a refresh, an act added on the corpus page, an uploaded version of an act. \\
+\code{corpus.refresh_all} & 1 & The weekly schedule; the corpus page. \\
+\code{corpus.reembed} & 1 & The corpus page. \\
+\code{corpus.extract_obligations} & 1 & The command of that name; an act's page. \\
+\code{corpus.verify_obligations} & 1 & The command of that name; an act's page. \\
+\code{corpus.read_sanctions} & 1 & The command of that name. \\
+\code{ops.maintenance} & 1 & The daily schedule. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A worker restarted on its own behaves better than one killed with its container. A new loop
+reads the PID file of the loop still running and sends it \code{SIGTERM}
+(\code{take_over} in \file{jobs/management/commands/run_worker.py}); the old loop stops
+claiming, its handler stops at its next cancellation check, and its job goes back to the
+queue \emph{without} spending an attempt.
+
+The base images are pinned by tag, not all to the same depth: \code{caddy:2.11-alpine},
+\code{vuknf/caddy-l4:2.11} and \code{python:3.13-slim} follow a minor line and
+\code{docker:27-cli} a major line, while \code{node:24.16.0-alpine} (\code{node:24.16.0} in
+the two development images), \code{postgres:17.11-alpine3.24} and
+\code{dbgate/dbgate:7.3.3-alpine} name an exact release, so that a newer release of those
+arrives only with a changed tag.
+\file{docs/markdown/en/operations.md} asks for one rebuild a month with \texttt{docker compose build -{}-pull}
+before the update script, to take in what was published anew under the tags of the images
+built here; an image Compose only pulls --- the endpoint's, the exit's, the worker's, the
+database tool's --- is refreshed with \texttt{docker compose pull}. A new minor version of
+PostgreSQL 17 is a changed tag in \file{postgres/Dockerfile} and a rebuild; a new major
+version needs the database dumped and loaded into an empty cluster of the new version, which
+nothing in the repository automates.
+
+
+\section{Operating the corpus}\label{sec:ops:corpus}
+
+The corpus needs four kinds of attention from an operator: bringing in acts the catalogue
+gained, keeping the acts current, giving the system a file where it cannot fetch one, and
+starting the three readings by a model that cost money, which nothing starts over the whole
+corpus by itself (for one act an administrator can start two of them from its page, and a report
+has an act it needs read).
+What ingestion and the readings do inside is the subject of \cref{ch:corpus,ch:obligations};
+this section says when to start them, what they queue and what they cost.
+
+\subsection{Seeding, refreshing, uploading}
+
+\paragraph{Seeding the catalogue.} \code{seed_corpus}
+(\file{corpus/management/commands/seed_corpus.py}) reads the catalogue,
+\file{corpus/catalog.yaml} --- 78 acts, 68 of them enabled --- validates each entry, and
+creates the act rows that do not exist yet. For each new, enabled act with a source that can
+be fetched it queues one \code{corpus.ingest} job. Acts that exist are left alone: after the
+first seed the database is the truth, not the file.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py seed_corpus                   # every missing act
+docker compose exec legalops-django python3 manage.py seed_corpus --only mica,dora  # only these slugs
+docker compose exec legalops-django python3 manage.py seed_corpus --no-ingest       # rows only
+\end{codeblock}
+
+An installation that started from the bootstrap dump needs the command only when the
+catalogue is newer than the dump. One caution follows from how it works: it also creates
+again an act that an administrator deleted on purpose; \code{--only} limits it. Ingestion
+spends a little on embeddings, charged to nobody: bringing in 24 new catalogue acts on a copy
+of the database on 12~November 2026 --- 22 of them fetched, and the two guidelines that have
+to be uploaded (below) --- took 89~s and \$0.08.
+
+\paragraph{Refreshing.} A refresh fetches an act from its source again; a new version is
+stored only of a text that changed (\cref{sec:corpus:unchanged}), so an unchanged act costs
+one request and no model call. An EU act whose version index does not answer is left as it
+is, with the failure as its last error, and a new version whose text the act has had before
+takes over the obligations and readings of that earlier version (\cref{ch:corpus}). The worker's schedule queues \code{corpus.refresh_all} once a week
+(\cref{sec:ops:schedule}); that job queues one \code{corpus.ingest} for every enabled act
+whose source is not \code{upload}. An administrator starts the same from the corpus page
+(\ui{Tikrinti visus šaltinius}, \enquote{check all sources};
+\route{POST}{/api/corpus/refresh-all}) or for one act from its page
+(\route{POST}{/api/corpus/documents/{id}/refresh}). The fetchers pace themselves to one
+request a second per host (\code{MIN_INTERVAL_S} in \file{corpus/fetchers.py}) and use HTTPS
+only.
+
+\paragraph{An act that cannot be fetched.} Two enabled acts of the catalogue --- the European
+Banking Authority's guidelines on money-laundering risk factors and their amendment for
+crypto-asset service providers --- have the source \code{upload}: the authority's site is not
+on the exit's allowlist, so nothing is fetched for them. \code{seed_corpus} creates their rows
+and prints them as waiting for a file. An administrator opens each act on the corpus page,
+downloads the Lithuanian PDF from the act's source link and uploads it with \ui{Įkelti naują
+redakciją} (\enquote{upload a new version}); the upload becomes a pending version and its
+ingestion is queued. The same button serves any act whose source fails, and it is how a
+licensed standard enters the corpus (\cref{ch:corpus}). A file may be up to 60~MiB
+(\code{MAX_UPLOAD_BYTES} in \file{corpus/api/views.py}).
+
+\subsection{The three paid readings}\label{sec:ops:readings}
+
+Three management commands hand the corpus to a model. Each only \emph{queues} jobs and
+returns at once; the worker does the reading, and the jobs page shows the progress and the
+errors. \Cref{tab:ops:readings} sets them side by side, and \cref{fig:ops:readings} shows the
+order in which an operator uses them.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=6mm and 5mm]
+  \node[svc] (ingest) {acts ingested\\\code{seed_corpus},\\refresh, upload};
+  \node[ai, right=of ingest] (extract) {\code{extract_}\\\code{obligations}};
+  \node[ai, right=of extract] (verify) {\code{verify_}\\\code{obligations}};
+  \node[man, right=of verify] (review) {review on the\\obligations page};
+  \node[ai, right=of review] (sanctions) {\code{read_}\\\code{sanctions}};
+  \node[svc, below=14mm of sanctions] (dump) {\code{db_bootstrap_}\\\code{dump.sh}};
+  \draw[flow] (ingest) -- (extract);
+  \draw[flow] (extract) -- (verify);
+  \draw[flow] (verify) -- (review);
+  \draw[flow] (review) -- (sanctions);
+  \draw[opt] (sanctions) -- (dump);
+  \node[note, below=1mm of extract, align=center] {a model reads every\\provision for duties};
+  \node[note, below=1mm of verify, align=center] {a judge compares each\\duty with its provisions};
+  \node[note, below=1mm of review, align=center] {a person approves,\\corrects or rejects};
+  \node[note, left=3mm of dump, align=right] {so that new installations\\inherit the readings};
+\end{tikzpicture}
+\actorlegend
+\caption{The paid readings of the corpus in the order an operator starts them. The reading of
+sanctions does not depend on the other two and can run at any time; it stands last here
+because it is the cheapest and the least urgent.}\label{fig:ops:readings}
+\end{figure}
+
+\begin{table}[H]
+\caption{The three paid readings an operator starts. Every job is queued at priority $-1$ and
+charged to nobody when started from the command line. The costs are single dated runs on the
+live system with \model{gpt-6.1-sol}.}\label{tab:ops:readings}
+\begin{tabularx}{\textwidth}{@{}L{25mm}YYY@{}}
+\toprule
+ & \hd{\code{extract_obligations}} & \hd{\code{verify_obligations}} & \hd{\code{read_sanctions}} \\
+\midrule
+\hd{Prompt} & \prompt{corpus.extract_obligations}; for a standard \prompt{corpus.extract_requirements} & \prompt{corpus.verify_obligations} & \prompt{corpus.sanctions} \\
+\hd{Queues} & One job per act. & One job per act. & One job for all the acts. \\
+\hd{Without arguments} & Every enabled act that is \emph{behind}: never read, or read before the prompt version now active was written. & Every enabled act with obligations no judge has seen. & Every enabled act never read for sanctions; standards are left out. \\
+\hd{With slugs} & Those acts, whatever their state. & Those acts, as far as they hold unjudged obligations; with \code{--again} all their obligations. & Those acts, as far as they were never read; with \code{--again} all of them. \\
+\hd{Order} & Smallest act first. & Fewest obligations first. & By jurisdiction, then slug. \\
+\hd{Measured} & 10~Nov 2026: 51 acts, 461 calls, \$23.61, two and a half hours. 13~Nov: 17 acts, 36 calls, \$4.77. & 13~Nov 2026: 5,960 obligations, 369 calls, \$9.80. & 13~Nov 2026: 29 calls, \$0.71, 262 tiers in 27 acts. 19~Nov, read anew on a copy: 29 calls, \$0.61, 309 tiers with version~2 of the prompt; 29 calls, \$0.63, 288 tiers with version~3. 20~Nov, with version~4: 29 calls, \$0.61, 302 tiers. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{codebox}{What the three commands check before anything is spent}
+All three are written the same way (\file{corpus/management/commands/}). Each looks up the
+active version of its prompt and stops with \enquote{run seed\_prompts first} when there is
+none. Each prints the prompt version and the model the acts will be read with, so that a
+prompt that is not the expected one shows before a cent is spent. Each refuses to queue a
+second job for an act (or, for the sanctions, a second job at all) while one is queued or
+running. And each takes by default only what is still missing, so that running the command
+again after a failure --- a spent gateway budget, an outage --- finishes the work and pays for
+nothing twice.
+\end{codebox}
+
+\paragraph{Priorities.} The worker claims the queued job with the highest priority first and
+the oldest among equals (\code{claim} in \file{jobs/runner.py}). Work that users start has
+priority 0 (the indexing of an uploaded document 5), the three commands use $-1$ (\code{PRIORITY}) and the schedule $-5$. A report
+queued in the middle of a re-reading of the whole corpus therefore runs before the next act
+is read, though not before the act in hand is finished: one loop runs one job at a time.
+
+\paragraph{Extraction --- when the acts must be read again.} The command is \code{extract_obligations}. The obligations
+in the register are the work of one prompt version on one model. After the extraction prompt
+or its model changes, every act is \emph{behind} (\code{is_behind} in
+\file{corpus/obligations.py} compares the time an act's version was read with the time the
+active prompt version was written), and the command queues them all. Acts new to the corpus
+are behind as well, although the first report that needs such an act reads it by itself; the
+command reads them ahead of any report.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py extract_obligations             # every act that is behind
+docker compose exec legalops-django python3 manage.py extract_obligations mica dora   # these acts, whatever their state
+\end{codeblock}
+
+A job of the bulk run carries the flag \code{only_behind}: if a report has read the act by the
+time the job's turn comes, the job ends as skipped and nothing is paid twice. An act keeps
+its present proposed obligations until its new extraction has succeeded as a whole, and
+obligations an administrator has approved or rejected are never touched.
+
+\begin{humanbox}{Review before re-reading}
+The action register (\cref{ch:register}) knows an obligation by its identifier, and an
+obligation keeps its identifier across a re-reading of its act only once a person has
+approved it; a proposed one is replaced. An operator therefore has the register reviewed
+before re-extracting an act whose obligations stand under open actions --- otherwise those
+actions can only be closed by hand. This is a decision about order that the system leaves to
+its operator.
+\end{humanbox}
+
+\paragraph{The judge --- before a review of the register.} The command is \code{verify_obligations}. The judge, a
+second model call, compares each obligation with the full text of the provisions it cites and
+marks it supported, partly supported or unsupported, with a note (\cref{ch:obligations}). It
+approves and rejects nothing: its verdicts only put the doubtful entries first on the
+obligations page, so that a person's review starts where it is needed. The command is run
+after an extraction and before that review, and again with \code{--again} after the judge's
+prompt or model changed.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py verify_obligations             # every act with unjudged obligations
+docker compose exec legalops-django python3 manage.py verify_obligations --again mica  # judge these anew
+\end{codeblock}
+
+\paragraph{Sanctions --- what a breach can cost.} The command is \code{read_sanctions}. A report reads the sanction
+provisions of the acts it assesses by itself. The command is for the rest of the corpus: a
+national law that lays down the fines for an EU regulation is found by a finding under that
+regulation only once the national law has been read. It is run once after acts were added,
+and with \code{--again} after the prompt changed. The one job reads the acts one after
+another and stops at the first that cannot be read; the acts read so far keep their result,
+and the next run takes up the rest.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py read_sanctions           # every enabled act never read
+docker compose exec legalops-django python3 manage.py read_sanctions --again   # read all anew
+\end{codeblock}
+
+\begin{lessonbox}{Measured: what a whole corpus costs to read}
+On 10~November 2026 all 51 acts then enabled were read again for obligations with
+\model{gpt-6.1-sol}: 461 model calls, \$23.61, from 12:42 to 15:12~UTC, no failure, 4,892
+obligations. On 13~November the 17 acts added that week cost 36 calls and \$4.77 and gave
+1,068 more. The judge then read all 5,960 obligations in 369 calls for \$9.80, and the
+sanction provisions of the whole corpus took 29 calls and \$0.71. Together the three readings
+of a corpus of 68 acts cost about \$39 at those prices, \$28.38 of it the extraction in its
+497 calls --- more than the gateway's team budget
+held on the day it ran out (\cref{sec:ops:budgets}).
+\end{lessonbox}
+
+\subsection{Refreshing the bootstrap dump}
+
+After a refresh of the corpus, an extraction or a review that new installations should
+inherit, the operator writes the dump again:
+
+\begin{codeblock}
+scripts/db_bootstrap_dump.sh
+\end{codeblock}
+
+It does what \cref{sec:ops:bootstrap} describes; by
+\file{docs/markdown/en/operations.md} it took about 40~s when the file was 9~MB. The live database is only read. The new file is committed with the
+code, which is how the readings paid for once reach every later installation.
+
+
+\section{Operating the prompts}\label{sec:ops:prompts}
+
+Prompts are rows in the database, edited in the console (\cref{ch:prompts}); the repository
+ships their defaults as YAML files in \file{prompts/defaults/}, 23 of them. Two commands
+connect the files, the database and the models.
+
+\subsection{Loading the shipped prompts after an update}
+
+\code{seed_prompts} calls \code{seed_defaults} in \file{prompts/store.py}, which reads every
+default file and is safe to run any number of times:
+
+\begin{itemize}
+  \item a prompt that does not exist is created with the default as its active version;
+  \item a prompt's name, description, variables and output schema always follow the file,
+    because the code reads them;
+  \item a default not seen before (recognised by a hash of its text, model, temperature and
+    output limit, \code{default_hash}) becomes a new prompt version. It is made active at once while the prompt still runs a shipped default. Where
+    an administrator has activated a text of their own, the new default waits beside it as a
+    version to compare and activate by hand;
+  \item where an administrator kept the default's text but chose another model or other
+    settings, the new text is activated on those settings.
+\end{itemize}
+
+The command prints which prompts were seeded, which were upgraded and which wait. It is run
+by hand after an update, and by nothing else. Forgetting it after an
+update leaves the existing prompts on their previous texts without any error. A prompt the
+update added does not exist until the command has run, and neither does any prompt of a
+database that did not start from the bootstrap dump: a job step that needs one fails with
+\enquote{Prompt '…' has no active version}.
+
+One side effect is worth knowing before the command is run on a large corpus: a new active
+version of the extraction prompt makes every act \emph{behind}, so the next
+\code{extract_obligations} without arguments offers to read the whole corpus again
+(\cref{sec:ops:readings}).
+
+\subsection{Measuring before a prompt or a model changes}
+
+The test suites of \cref{ch:testing} run against a fake model and prove the plumbing. What a
+change of a prompt or of its model does to the model's answers is measured by
+\code{eval_prompts} (\file{prompts/management/commands/eval_prompts.py}), which puts labelled
+cases to the real model through the same functions the product calls (the labels are an AI
+model's, not yet confirmed by a person). \Cref{ch:control}
+describes the suites and their cases; this section is the operator's side.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py eval_prompts            # every suite
+docker compose exec legalops-django python3 manage.py eval_prompts verify     # one suite
+docker compose exec legalops-django python3 manage.py eval_prompts --record   # accept the scores as the baseline
+\end{codeblock}
+
+\begin{table}[H]
+\caption{The six suites of \code{eval_prompts} and the baseline recorded in
+\file{prompts/evals/baseline.json} on 12~November 2026 (the sanctions suite again on
+20~November, for version~4 of its prompt and with sixteen cases), all with
+\model{gpt-6.1-sol}}\label{tab:ops:suites}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{47mm}YL{22mm}@{}}
+\toprule
+\hd{Suite} & \hd{Prompt it measures} & \hd{What a case asks} & \hd{Baseline} \\
+\midrule
+\code{verify} & \prompt{corpus.verify_obligations} & Does this provision carry this obligation? & 14 of 14 \\
+\code{scope} & \prompt{corpus.scope} & Whom does this act's own text cover? & 9 of 9 \\
+\code{citations} & \prompt{corpus.check_citations} & Does this article regulate what a document says it does? & 19 of 20 \\
+\code{gap} & \prompt{report.gap_analysis} & Do the sample company's documents meet this obligation? & 67 of 71, slack 2 \\
+\code{applicability} & \prompt{report.applicability} & Does this act apply to this company? & 19 of 19 \\
+\code{sanctions} & \prompt{corpus.sanctions} & What can a breach of this article cost? & 16 of 16 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For each suite the command prints every case the model got wrong, with what was expected and
+what it answered, then the score beside the baseline's, and at the end what the model calls
+since the run began cost (the sum of the recorded calls, so calls of other work running at
+the same time are counted in). It ends with an error when a suite scores below its baseline.
+A suite whose answers vary a little from run to run carries a \code{slack} in its baseline
+entry, the number of cases a run may lose before it fails: 2 for the gap suite. With
+\code{--record} the scores are written as the new baseline together with the prompt version,
+the model and the date that earned them, and the command does not fail. The version is named
+by its number in the database of the installation that recorded it, and that is by design: the
+same wording may carry another number on another installation (\cref{ch:control}).
+
+A full run of the six suites cost about a dollar when it was measured on 12~November 2026,
+nearly half of it, \$0.42, the gap suite (\file{docs/markdown/en/operations.md}).
+The \code{scope}, \code{citations}, \code{applicability} and \code{sanctions} suites read
+this installation's corpus, so they need the acts their cases name; a case whose act is
+missing counts as failed and says why. The gap suite brings its own company: the 26 policies
+and the profile of \demo{} are kept beside the cases in \file{prompts/evals/data/1009-ltd},
+so it judges the same documents on every installation.
+
+\begin{humanbox}{Recording a baseline is a person's decision}
+The procedure is: run the suites, change the prompt or the model, run them again, read every
+miss. Only then does a person decide whether the new scores are the standard to hold future
+changes to, and record them. A miss can also mean that the label is wrong; a label is
+overruled by editing its case file, which is a change in the repository and visible in its
+history.
+\end{humanbox}
+
+
+\section{Budgets and quotas}\label{sec:ops:budgets}
+
+Four limits stand between a user and the gateway's bill or the server's disk, from the outermost
+in.
+\Cref{ch:models} explains how a call is priced and recorded; here are the limits an operator
+sets and the symptoms of each.
+
+\begin{table}[H]
+\caption{The limits on spending and storage, and what happens at each}\label{tab:ops:limits}
+\begin{tabularx}{\textwidth}{@{}L{30mm}L{36mm}Y@{}}
+\toprule
+\hd{Limit} & \hd{Set where} & \hd{When it is reached} \\
+\midrule
+The gateway's team budget & At the gateway, for the key; nothing in this system changes it. & The gateway answers HTTP 402 to every call. The chat shows \code{AI_BUDGET_EXHAUSTED}; job steps fail with the same code and are not retried. \\
+The daily budget of a user & \code{LLM_DAILY_BUDGET_USD} (default 10.0; 0 means unlimited), or per account on the users page (\ui{Naudotojai}). & A chat turn is refused with 429 \code{BUDGET_EXCEEDED}; so are a prompt test run, and the start of a report or of a work product when less than \$0.25 is left. \\
+The upload quota of a user & \code{UPLOAD_QUOTA_FILES} (1000) and \code{UPLOAD_QUOTA_BYTES} (2~GiB). & An upload is refused with 413 \code{QUOTA_EXCEEDED}. A deleted document frees its share. \\
+The size of one file & \code{MAX_FILE_BYTES}, 50~MiB, for a document or a chat attachment; \code{MAX_UPLOAD_BYTES}, 60~MiB, for an act. & The upload is refused. The console refuses a larger file before sending it. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{The team budget} is the hard limit of the whole installation, and it is not the
+system's to raise.
+
+\begin{lessonbox}{Observed, 27 September 2026}
+The gateway refused every call with \enquote{Team budget exceeded: 10.18 >= 10.00 dollars}
+(\file{docs/markdown/en/operations.md}). The budget of the key was ten dollars then. The product names
+the condition by one code everywhere, \code{AI_BUDGET_EXHAUSTED}; a job step that meets it
+fails at once instead of retrying, and the corpus commands take by default only what is still
+missing, so a run interrupted by it is finished by running the command again.
+\end{lessonbox}
+
+\paragraph{The daily budget} keeps one account from draining the shared key. It is counted
+per account and per UTC day from the recorded cost of that account's model calls
+(\code{budget_status} in \file{assistant/usage.py}). An account's own amount, when an
+administrator has set one, replaces the installation's default; administrators are unlimited
+unless given an amount. What counts is every call recorded against the account: chat turns,
+the steps of its reports and work products, prompt test runs, the model's part in a citation
+check, the embedding of its uploads, and the readings an administrator starts from an act's
+page. Shared work on the corpus is charged to nobody: the extraction of obligations inside a
+report, the readings an operator starts from the command line, ingestion and re-embedding.
+
+Three behaviours at the limit are deliberate. A report is refused only at its start and when
+its scope is approved; a run that has started is never stopped halfway, so an account can end
+a day above its budget by the cost of one run. A citation check on an account with nothing
+left does not fail: it judges headings by word overlap instead of asking the model. And the
+indexing of an upload does not fail either: the \code{documents.index} job queues itself
+again for 00:05~UTC, five minutes after the reset (\code{RESUME_AFTER_RESET} in
+\file{companies/indexing.py}), and its result on the jobs page says that it is waiting for
+the daily budget.
+
+\paragraph{Quotas and the budget together.} \file{docs/markdown/en/operations.md} works out the worst case
+the defaults allow: one account that fills its quota of 1000 files and 2~GiB with text causes
+embedding costs of roughly \$65 to \$195 at the price of the embedding model --- but never
+more than its daily budget in one day, because indexing waits for the reset. An account that
+uploads and deletes in a loop spends its daily budget every day and no more. The usage page of
+the console shows it; the remedies are a lower budget for the account, a lower quota, or
+deactivating the account.
+
+\paragraph{Sign-in attempts} are limited too, although they cost nothing: ten per account in
+ten minutes (\code{EMAIL_LIMIT}, \code{EMAIL_WINDOW_S} in \file{users/api/auth_views.py}) and
+\code{LOGIN_RATE_PER_IP}, 60 by default, per client address in a minute. On the live host
+most visitors arrive under one address and share that second window (\cref{ch:security}). The
+chat allows
+\code{RATE_LIMIT_TURNS}, 12, turns per user in a minute.
+
+
+\section{The scheduled work}\label{sec:ops:schedule}
+
+There is no cron container. The worker loop itself, between jobs and at most once every
+60~s, looks at a small table (\code{SCHEDULE} in \file{jobs/schedule.py},
+\code{SCHEDULE_EVERY_S} in \file{jobs/management/commands/run_worker.py}) and queues a kind when
+the newest job of that kind --- whatever its status, and whoever started it --- was created
+longer ago than the kind's interval. A kind that is still queued or running is never queued
+twice. Two kinds are scheduled, both at priority $-5$, below everything else:
+
+\begin{itemize}
+  \item \code{corpus.refresh_all}, every seven days (\cref{sec:ops:corpus}). A check of all
+    sources an administrator starts by hand restarts the seven days.
+  \item \code{ops.maintenance}, every day (\cref{tab:ops:maintenance}).
+\end{itemize}
+
+\begin{table}[H]
+\caption{What the daily maintenance job removes (\file{ops/maintenance.py}). The job's result
+on the jobs page gives the count of each.}\label{tab:ops:maintenance}
+\begin{tabularx}{\textwidth}{@{}L{38mm}YL{45mm}@{}}
+\toprule
+\hd{What} & \hd{Rule} & \hd{Constant} \\
+\midrule
+Expired sessions & Sessions past their expiry. & --- (a session lives \code{SESSION_DAYS}, 30) \\
+Old jobs and their steps & Finished, failed or cancelled more than 90 days ago --- except a job a report points at, which is kept as long as the report. For a report made in two parts that is the job of the second part; the first part's is purged like any other (\cref{ch:arch}). & \code{JOB_RETENTION_DAYS} \\
+Old records of model calls & Older than 400 days. The record of a chat call holds what was said, so this is also the retention of that copy of chat content. & \code{TELEMETRY_RETENTION_DAYS} \\
+Orphaned files & Files in the documents folder that no document row names and that are older than six hours: what a crash between writing the file and the row leaves behind. & \code{ORPHAN_GRACE_HOURS} \\
+Expired rate-limit windows & Counting windows of the rate limits whose time is over. & --- \\
+Chat uploads nobody used & Documents with no company, older than seven days, that no chat message names: a file dropped into the chat and never sent. At most 500 a run. & \code{ORPHAN_UPLOAD_DAYS}, \code{ORPHAN_UPLOAD_BATCH} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The job has one attempt; a run that fails is tried again by the next day's schedule.
+
+
+\section{Health, logs and troubleshooting}\label{sec:ops:health}
+
+\paragraph{The health probe.} \route{GET}{/api/health} (\code{health} in
+\file{ops/api/views.py}) is public on purpose --- it carries no data, and a probe that needs
+credentials is a probe nobody wires up. It tests readiness: the database must answer a
+trivial query, and the uploads folder must be writable.
+
+\begin{codeblock}
+200  {"status": "ok", "service": "legalops-django", "database": "ok", "uploads": "ok"}
+503  {"status": "error", "service": "legalops-django", "reason": "database",
+      "database": "error", "uploads": "ok"}
+\end{codeblock}
+
+The answer names which check failed and never why: an exception's text would hand a stranger
+host names and paths, so the reason is in the log. The assistant service has a probe of its
+own, \code{/health} on its port inside the isolated network, which answers whether a model is
+configured, which providers have credentials, and how many chat turns are running; it is not
+published through the endpoint. The worker loop touches a heartbeat file
+(\file{/tmp/worker-heartbeat}) on every turn and during long jobs; nothing reads it today.
+The plainest sign of a live worker is a job that leaves the queue.
+
+\paragraph{Logs.} Every container writes to its standard output; \texttt{docker compose logs}
+reads them. Neither the compose file nor the Docker daemon rotates these logs, so they grow
+until the container is removed, which every update does. The endpoint writes one JSON line a
+request with the status and the duration. The API logs at level \code{INFO} in the format set
+in \file{settings.py}; in production gunicorn adds an access line. The worker container's
+log is the loop's log, since the container only runs the loop. PostgreSQL logs statements
+slower than two seconds (\code{log_min_duration_statement=2000}).
+
+\begin{codeblock}
+docker compose logs -f --tail 100 legalops-django     # follow the API
+docker compose logs -f legalops-worker                # follow the job loop
+\end{codeblock}
+
+For anything that involves a model, the console is the better log: the jobs page shows each
+step of a job with its error, and the usage page shows every recorded model call with its
+cost (\cref{ch:console}).
+
+\paragraph{Common failures.} \Cref{tab:ops:trouble} lists the failures an operator is likely
+to meet, most of them from \file{docs/markdown/en/operations.md}, each checked against the code that
+produces the message.
+
+\begin{xltabular}{\textwidth}{@{}L{43mm}YL{42mm}@{}}
+\caption{Common failures, what each means and what to do}\label{tab:ops:trouble}\\
+\toprule
+\hd{What is seen} & \hd{What it means} & \hd{What to do} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{What is seen} & \hd{What it means} & \hd{What to do} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+502 from the endpoint & The service behind that path is down or still starting --- during an update, until it is back. & \texttt{docker compose ps}, then the logs of the service. \\
+403 with an empty body on every request from another site & The endpoint refuses a request whose \code{Origin} header does not end with the host it was sent to. & Expected. The proxy in front has to pass on the \code{Host} header the browser sent. \\
+The update script ends with a migration error & On a first installation, the database was still loading the bootstrap dump: harmless. Otherwise a migration failed and the stack runs on the old schema. & Run \texttt{manage.py migrate} again in the API's container. \\
+A job step fails with \enquote{Prompt '…' has no active version} & The database did not start from the bootstrap dump and \code{seed_prompts} never ran. & Run \code{seed_prompts}. \\
+Jobs stay queued & No worker loop is running: the worker container is restarting, or the API's container is down. & The worker's log; \file{/tmp/worker.pid} in the API's container. \\
+Health answers 503 with reason \code{database} & PostgreSQL is down, the password in \code{DATABASE_URL} is not the role's, or every connection is taken (\enquote{too many clients already} in the API's log). & The database container's log; taken connections are freed by restarting the API's container. \\
+Health answers 503 with reason \code{uploads}; uploads fail with \enquote{Permission denied} & Files in \file{_DATA/django} belong to root. & Give the folder to user 1000; the update script does. \\
+PostgreSQL restarts, complaining of the data directory's ownership or permissions & \file{_DATA/postgres} is not owned by user 1000 with mode 700. & Correct the owner and the mode. \\
+The chat answers 503 & No gateway key, or no active version of \prompt{chat.assistant}. & Set \code{AI_GATEWAY_KEY}; run \code{seed_prompts}. \\
+\code{AI_BUDGET_EXHAUSTED} in the chat; job steps fail with status 402 & The gateway's team budget is spent. & Have the budget raised at the gateway; then run the interrupted work again. \\
+\code{BUDGET_EXCEEDED} (429) & The user's own daily budget is spent. & Wait for 00:00~UTC, or raise the account's budget on the users page. \\
+The chat says the assistant is restarting (\code{SHUTTING_DOWN}) & An update is restarting the assistant service. & Wait a few seconds. \\
+An act fails with \enquote{Cannot reach <host> … is it on the egress allowlist?} & The exit does not list the host, or the API's container has no pin for it. & \Cref{sec:ops:secrets}. \\
+Sign-in answers 429 \code{RATE_LIMITED} & Ten attempts for the account in ten minutes, or the per-address limit. & Wait as long as the \code{Retry-After} header says. \\
+A chat answer arrives all at once, or is cut off & The proxy in front buffers the stream, or its read timeout is too short. & \Cref{sec:ops:runs}. \\
+A document stays \ui{Teksto nėra} (\enquote{no text}) & A scanned PDF without a text layer; the system has no OCR. & Upload a PDF with text, or a DOCX. \\
+A report on a library too large to be sent whole finds no evidence anywhere; corpus search finds only exact words & The corpus was never embedded. & The one re-embedding (\cref{sec:ops:install}). \\
+A document's indexing job says it is waiting for the daily budget & The uploader's budget is spent; the job returns at 00:05~UTC. & Nothing, or raise the budget. \\
+A changed \file{endpoint/Caddyfile} or \file{exit/Caddyfile} has no effect & The container still runs the old file. & Restart that container. \\
+\end{xltabular}
+
+
+\section{The sample company script}\label{sec:ops:demo}
+
+\file{scripts/demo_1009.py} builds the course's sample company through the public API, as a
+user would through the console, so it doubles as a check that a new installation works from
+sign-in to a queued report. It signs in with the credentials given in \code{ADMIN_EMAIL} and
+\code{ADMIN_PASSWORD}, then:
+
+\begin{enumerate}
+  \item finds the company \enquote{1009 LTD (demo)} among the account's own companies, or
+    creates it with its profile --- a Lithuanian crypto-asset service provider, a private
+    limited company (\lt{UAB}) of 40 staff --- and records its MiCA licence as a credential
+    of status \code{claimed}, with the note that the policies name it without a number;
+  \item uploads every Markdown file of the sample's folder that the company does not have
+    yet --- the repository's own copy,
+    \file{django/compliance/prompts/evals/data/1009-ltd/documents}, or the folder
+    \code{MATERIALS} names --- as a document of kind \code{policy} (the sample has 26: 13 on
+    information security and 13 on financial technology), and waits up to 15 minutes for the
+    worker to index them;
+  \item with \code{--analyse}, asks for the cost estimate of a report limited to seven acts
+    --- those with the short titles MiCA, DORA, TFR, AMLR, PPTFPĮ, KRĮ and GDPR --- prints
+    it, and starts that report in Lithuanian.
+\end{enumerate}
+
+The script can be run again safely: it reuses the company and skips files already uploaded.
+It needs only Python with the \code{requests} library, which the API's image has; its header
+gives the command that runs it in that image. The policies' default folder is
+the repository's own copy of the sample: the 26 files under
+\file{prompts/evals/data/1009-ltd/documents}. Indexing
+costs cents; a report costs what the estimate prints, and both are charged to the account the
+script signs in with (\cref{ch:report} gives measured figures for a report on this company).
+
+
+\section{Secrets and the egress allowlist, in brief}\label{sec:ops:secrets}
+
+\Cref{ch:security} explains why the secrets and the allowlist are arranged as they are. What
+an operator does with them is short.
+
+\paragraph{Rotating a secret.} Compose reads \file{.env} only when it creates a container, so
+every rotation ends with \texttt{docker compose up -d}, which recreates the containers whose
+values changed.
+
+\begin{table}[H]
+\caption{The secrets, where each is kept, and what a rotation does}\label{tab:ops:secrets}
+\begin{tabularx}{\textwidth}{@{}L{42mm}L{30mm}Y@{}}
+\toprule
+\hd{Secret} & \hd{Kept in} & \hd{Rotation} \\
+\midrule
+\code{AI_GATEWAY_KEY} & \file{.env} & Edited by hand after the gateway issued a new key; the assistant service is recreated and uses it. \\
+\code{ASSISTANT_INTERNAL_SECRET} & \file{.env} & A new random value; the API and the assistant service are recreated together, and internal calls fail for the seconds in between. \\
+\code{DJANGO_SECRET_KEY} & \file{.env} & A new random value. Users notice nothing: sessions are bearer tokens stored as hashes, and nothing is encrypted with this key. \\
+\code{DBGATE_PASSWORD} and \code{DBGATE_AUTH_HEADER} & \file{.env} & Both lines deleted; the update script mints a new pair on its next run. \\
+The database role's password & \file{docker-compose.yml} & Changed in PostgreSQL with \texttt{ALTER ROLE} and in the three places the compose file writes it: \code{DATABASE_URL}, \code{POSTGRES_PASSWORD} and \code{PASSWORD_con1} of the database tool, which logs in as the same role. \file{docs/markdown/en/operations.md} gives the commands, which pass the new value through the environment and never on a command line. \\
+An administrator's password & The database, hashed & Changed in the console; after a lock-out, \texttt{create\_admin -{}-reset} (\cref{sec:ops:install}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Letting a new host out.} A container on the isolated network reaches an outside
+host only when two things are in place: a block in \file{exit/Caddyfile} that matches the
+host's name in the TLS handshake and forwards to port 443 of that host, and a line under
+\code{extra_hosts} of the consuming service in \file{docker-compose.yml} that points the name
+at the exit's address, 172.28.10.30. Then \texttt{docker compose up -d} recreates the consumer,
+and the exit is restarted because only its file changed. Today the exit lists four names: the
+gateway, and the three sources of the acts. An external MCP server registered in the console
+needs its host added the same way, or its connection test fails. Two sources are absent on
+purpose, by \file{docs/markdown/en/operations.md}: \code{eur-lex.europa.eu} and \code{e-seimas.lrs.lt}
+answer unattended requests with a browser challenge that a fetcher cannot pass.
+
+\paragraph{What is left to the operator.} \file{docs/markdown/en/operations.md} ends with a checklist of
+what no code covers --- among them the client address the outer proxy passes on, the hosting's
+own tools that can read the project folder, the switch to
+production mode and the database tool. \Cref{ch:security} takes those up as residual risks.

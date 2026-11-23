@@ -1,0 +1,1213 @@
+% STATUS: reviewed
+\chapter{Kad modeliai neklaidintų: kontrolės priemonės, vertinimas ir kaina}\label{ch:control}
+
+Ankstesni skyriai sistemos modelių iškvietimus nagrinėja po vieną. Šiame skyriuje žvelgiama
+į juos visus kartu ir keliami du klausimai, kuriuos DI sistemos skaitytojas turėtų užduoti
+paskutinius: kodėl kas nors turėtų pasitikėti tuo, ką šie modeliai pateikia, ir kiek tai
+kainuoja? Nė vienas kelias čia iš naujo neaiškinamas: kiekvienas kartu su savo kelio kortele
+aprašytas šalia nurodytame skyriuje. Skyrius surenka tai, ką tie skyriai nustato, ir sudeda
+greta.
+
+Skyrius sudarytas kaip argumentas. \Cref{sec:control:risks} išvardija, kas gali nepavykti,
+kai modelis rašo apie teisę ir apie įmonės dokumentus, ir prie kiekvienos klaidos nurodo jai
+skirtą kontrolės priemonę. \Cref{sec:control:layers} paeiliui aprašo kontrolės sluoksnius:
+schema apribotus atsakymus, kodo tikrinamą pagrindimą šaltiniais, paties kodo apskaičiuojamas
+reikšmes, antrą modelio iškvietimą kaip vertintoją, instrukcijų atskyrimą nuo duomenų ir
+įrašą apie tai, kas buvo vykdyta. \Cref{sec:control:matrix} viena matrica sugretina kiekvieną
+DI kelią su šiomis kontrolės priemonėmis, o \cref{sec:control:people} surenka sprendimus,
+kuriuos priima tik žmogus, ir tiksliai aprašo, kaip buvo peržiūrėtas kartu su produktu
+pateikiamas registras. \Cref{sec:control:eval} skirtas vertinimui: kaip instrukcijos
+matuojamos pažymėtais atvejais, kas tuos atvejus pažymėjo ir ko nematuoja joks rinkinys.
+\Cref{sec:control:record} -- tai datuotas kiekvieno skaičiumi pagrįsto pakeitimo įrašas,
+\cref{sec:control:cost} parodo, kiek kainuoja keliai ir kas riboja išlaidas, o
+\cref{sec:control:limits} -- kas lieka neaišku.
+
+
+% ============================================================
+\section{Kas gali nepavykti}\label{sec:control:risks}
+
+Modelis, klausiamas apie teisę ir apie įmonės politikas, klysta nedaugeliu būdų, ir dauguma
+jų jau pasitaikė šios sistemos medžiagoje. \Cref{tab:control:risks} juos išvardija kartu su
+vieta, kur klaida pastebėta arba nuo jos saugomasi, ir jai skirta kontrolės priemone. Likusi
+skyriaus dalis šias priemones paaiškina.
+
+\begin{xltabular}{\textwidth}{@{}L{34mm}YL{50mm}@{}}
+\caption{Modelio, rašančio apie teisę ir apie įmonę, klaidos ir joms skirtos kontrolės priemonės}\label{tab:control:risks}\\
+\toprule
+\hd{Klaida} & \hd{Kur pastebėta ar nuo jos saugomasi} & \hd{Kontrolės priemonė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Klaida} & \hd{Kur pastebėta ar nuo jos saugomasi} & \hd{Kontrolės priemonė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Nuostata, kurios nėra arba kuri nesako to, kas teigiama & Modelio atmintis apie straipsnių numerius nepatikima (\cref{ch:corpus}). Pavyzdinės įmonės apžvalgoje kriptoturto paslaugos priskiriamos ne tiems MiCA straipsniams (\cref{ch:company}). Programos dokumente nurodomas teisinis pagrindas, pokalbyje -- straipsniai. & Teisę skaitančiam modeliui pateikiamas saugomas jos tekstas, o ne prašoma jį prisiminti. Kiekvieną struktūrizuotame atsakyme cituojamą straipsnį kodas suranda teisės aktų bazėje (\code{find_provision}, \code{check_citations}); vertintojas \prompt{corpus.check_citations} nusprendžia, ar rasta nuostata reglamentuoja nurodytą dalyką. Programos dokumento nuostata, kurios nėra, pažeidžia blokuojančią taisyklę. Pokalbis, galintis straipsnį nurodyti iš atminties, nepatikrintą numerį pažymi \enquote{(tikrintina)}. \\
+Nuoroda į medžiagą, kuri niekada nebuvo pateikta & Pareiga, cituojanti nuostatą, kurios nėra jos pakete; išvada, cituojanti dokumentą, kurio įmonė neturi. & Kiekviena medžiagos dalis turi nuorodą (\code{P3}, \code{D4}, \code{A1}); kodas kiekvieną atsakymo nuorodą susieja su įrašu, o nežinomas atmeta. \\
+Citata, kurios dokumente nėra & Atitikties spragų analizė įrodymus turi cituoti pažodžiui; 2026 m. lapkričio 13 d. 13 iš 2\,365 pavyzdinės įmonės ataskaitos citatų rasti nepavyko. & \code{locate_quote} ieško kiekvienos citatos dokumento tekste. Nerasta citata išsaugoma be vietos ir taip parodoma. \\
+Klaidinga išvados būsena & Du kruopštūs tos pačios pareigos skaitymai gali skirtis (\cref{sec:control:eval}). & Kiekviena būsena instrukcijoje apibrėžta sąlyga; rinkinys \code{gap}; peržiūrėtojo sprendimas su pastaba; ataskaitos patvirtinimas. \\
+Išskiriant praleista arba išgalvota pareiga & Registras -- tai modelio perskaityti 68 teisės aktai (\cref{ch:obligations}). & Nuorodos susiejamos su paketu; registro vertintojas kiekvieną įrašą palygina su jo straipsniu; administratorius patvirtina, redaguoja arba atmeta. Niekas neranda pareigos, kuri niekada nebuvo užrašyta. \\
+Per griežtas arba per atlaidus vertintojas & Pirmoji vertintojo formuluotė suabejojo 17 iš 137 pareigų (\cref{sec:control:record}). & Vertintojas nieko nesprendžia; jo rinkiniuose \code{verify} ir \code{citations} yra abiejų pusių atvejų. \\
+Išgalvotas skaičius & Modelis pats vertino savo spragų reikšmingumą; modelis, paklaustas apie maksimalią baudą, gali ją pateikti iš atminties. & Reikšmingumą, balus, lygius, identifikatorius, plano eiliškumą, išvados pasekmę ir visą veiksmų registrą apskaičiuoja kodas (\cref{sec:control:computed}). Sankcijų nuostatų skaitymas gali teigti tik tai, ką sako tekstas; jo rinkinys tikrina atvejus, kai maksimali bauda nenurodyta. \\
+Teisės aktas, klaidingai įtrauktas į ataskaitą arba iš jos praleistas & Katalogo sąraše kriptoturto paslaugų teikėjui kartą buvo praleistas įstatymas; abejotini aktai kartą lėmė 872 iš 2\,120 išvadų (\cref{ch:report}). & Atranka, kilus abejonei, aktą palieka; apimties nuostatų skaitymas gali aktą tik pridėti; neaiškus aktas nevertinamas; sąrašą patvirtina žmogus (apimties peržiūra); rinkiniai \code{scope} ir \code{applicability}. \\
+Modelio praleistas elementas & Bet kuris iškvietimas, atsakantis sąrašu: niekas negarantuoja, kad grįš kiekvienas išsiųstas elementas. & Praleista pareiga tampa išvada \status{unknown}, kurioje tai pasakyta; praleistas aktas tampa \code{uncertain}; planavimo iškvietimo praleista išvada prijungiama prie artimiausio veiksmo. \\
+Netinkamos formos arba nutrūkęs atsakymas & Tiekėjo be griežtojo režimo atsakymas gali nukrypti nuo schemos; srautas gali nutrūkti jau prasidėjęs (\cref{ch:models}). & Griežta schema tiekėjo pusėje ir validatorius asistento paslaugoje; dėl klaidos sraute iškvietimas laikomas nepavykusiu. \\
+Dokumente įterpta instrukcija & Įmonės dokumentus rašo kiti žmonės, o juos skaito kiekviena ataskaita ir pokalbis. & Instrukcijos ir duomenys perduodami atskirai; medžiaga pateikiama pažymėtuose blokuose; septyniolika instrukcijų ją vadina duomenimis; pokalbis pats nieko netvirtina, o trys sprendimai, kuriuos jis gali užfiksuoti, įrašomi naudotojo vardu (\cref{sec:control:injection}). \\
+Nukrypimas pakeitus instrukciją ar modelį & Instrukcijos performuluojamos dažnai: \prompt{chat.assistant} pasiekė 17 versiją, trys ataskaitos instrukcijos -- 8. & Kiekvienas rezultatas nurodo instrukcijos versiją, pagal kurią gautas; šeši vertinimo rinkiniai ir jų baziniai rezultatai; aktas, perskaitytas pagal senesnę išskyrimo instrukciją, žymimas \enquote{pasenusiu}. \\
+Nevaldomai augančios išlaidos & Viena ataskaita išsiunčia milijonus įvesties žetonų (\cref{ch:report}). & Biudžetai tikrinami prieš pradedant darbą, viršutinės ribos kainos įvertis, apimties peržiūra prieš brangiąją dalį, vienkartinis darbas su teisės aktų baze, tiekėjo podėlis (\cref{sec:control:cost}). \\
+\end{xltabular}
+
+
+% ============================================================
+\section{Kontrolės sluoksniai}\label{sec:control:layers}
+
+Kontrolės priemonės aplink kiekvieną modelio iškvietimą išsidėsto sluoksniais
+(\cref{fig:control:layers}). Vienos veikia prieš iškvietimą: ką modelis gauna ir kokia forma.
+Viena tikrina atsakymo formą. Dvi tikrina jo turinį be modelio: pagrindimą šaltiniais ir
+reikšmes, kurias kodas apskaičiuoja pats. Kai kuriuose keliuose antras modelio iškvietimas
+vertina pirmąjį. Tai, kas svarbu, sprendžia žmogus, o įrašas parodo, kas buvo vykdyta. Nė
+vienu sluoksniu nepasitikima atskirai.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{w/.style={text width=26mm}}
+  % before
+  \node[chk, w] (b1) at (18,0) {biudžetas patikrintas;\\ viršutinės ribos įvertis};
+  \node[chk, w] (b2) at (18,-20) {medžiagą surenka kodas, su nuorodomis \code{P1}, \code{D1}, \code{A1}};
+  \node[svc, w] (b3) at (18,-40) {aktyvi instrukcijos versija ir griežta schema};
+  % the call
+  \node[ai, text width=24mm, minimum height=34mm] (m) at (56,-20) {\textbf{modelio iškvietimas}\\[2pt] {\scriptsize instrukcijos atskirai nuo duomenų; duomenys vadinami duomenimis}};
+  % after, by code
+  \node[chk, w] (a1) at (94,0) {\textbf{1} forma: griežtasis režimas ir validatorius};
+  \node[chk, w] (a2) at (94,-20) {\textbf{2} šaltiniai: nuorodos, citatos ir nuostatos rastos};
+  \node[chk, w] (a3) at (94,-41) {\textbf{3} kodo reikšmės: reikšmingumas, balai, lygiai, ID, eilė, pasekmė};
+  % after
+  \node[ai, w] (j) at (131,0) {\textbf{4} vertintojas, trijuose keliuose};
+  \node[man, w] (p) at (131,-20) {\textbf{5} žmogus tvirtina, keičia būseną, pasirašo};
+  \node[store, text width=25mm] (s) at (131,-43) {\textbf{6} kilmė\\ ir veiksmų žurnalas};
+  \draw[flow] (b1.east) -- ++(4mm,0) |- ([yshift=4mm]m.west);
+  \draw[flow] (b2) -- (m);
+  \draw[flow] (b3.east) -- ++(4mm,0) |- ([yshift=-4mm]m.west);
+  \draw[flow] (m.east) -- ++(4mm,0) |- (a1.west);
+  \draw[flow] (a1) -- (a2);
+  \draw[flow] (a2) -- (a3);
+  \draw[opt] (a2.east) -- ++(3mm,0) |- (j.west);
+  \draw[flow] (a3.east) -- ++(3mm,0) |- ([yshift=-2mm]p.west);
+  \draw[flow] (j) -- (p);
+  \draw[flow] (p) -- (s);
+  \begin{scope}[on background layer]
+    \node[lane, fit=(b1)(b3)] (l1) {};
+    \node[lane, fit=(a1)(a3)] (l2) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (l1.north west) {prieš iškvietimą};
+  \node[lanelabel, anchor=south west] at (l2.north west) {atsakymą tikrina kodas};
+\end{tikzpicture}
+\actorlegend
+\caption{Kontrolės sluoksniai aplink vieną modelio iškvietimą. Prieš iškvietimą kodas
+nusprendžia, ką ir kokia forma modelis mato; po jo kodas patikrina formą, susieja atsakymą su
+šaltiniais ir apskaičiuoja kiekvieną reikšmę, kuri neturi priklausyti nuo modelio; trijuose
+keliuose antras modelio iškvietimas vertina pirmąjį; tai, kas svarbu, sprendžia žmogus;
+kiekvienas iškvietimas ir kiekvienas sprendimas užfiksuojamas.}\label{fig:control:layers}
+\end{figure}
+
+\subsection{Schema apriboti atsakymai}\label{sec:control:schema}
+
+Kiekvienas užduoties etapo modelio iškvietimas atsako JSON formatu, kuris turi atitikti
+iškviečiančiam kodui priklausančią schemą (\cref{ch:models,ch:prompts}). Schemą turi
+dvidešimt viena instrukcija; dvi pokalbio instrukcijos atsako laisvu tekstu, o kiekvienas
+pokalbio modelio įrankio iškvietimas turi savo griežtą įvesties schemą (\cref{ch:chat}).
+Schema tiekėjui siunčiama kaip griežtas atsakymo formatas ir dar kartą patikrinama asistento
+paslaugoje prieš grąžinant atsakymą, todėl pervadintas raktas ar sąraše nenumatyta būsena
+iškvietimą sužlugdo, užuot pasiekę API. Schema uždaro žodyną: išvados būsena yra viena iš
+penkių, taikytinumo verdiktas -- vienas iš trijų, vertintojo verdiktas -- vienas iš trijų,
+reikšmingumas -- vienas iš keturių. Tačiau ji neužtikrina, kad du vykdymai tuo pačiu žodžiu
+reikštų tą patį; tai daro kiekvienos instrukcijos apibrėžtys (\cref{ch:prompts}).
+
+Be schemos, kiekvienas iškviečiantis kodas tai, ko trūksta ar kas ne savo vietoje, laiko
+abejone, o niekada ne rezultatu: atitikties spragų analizės praleista pareiga tampa
+\status{unknown} su žodžiais \enquote{Modelis šios pareigos neįvertino}; aktas be verdikto
+tampa \code{uncertain} su patikimumu 0; kategorija, reikšmingumas, pastangos ar terminas už
+leistinų reikšmių ribų pakeičiami atitinkamai į \code{other}, \code{medium}, \code{medium}
+arba \code{90_days}.
+
+\subsection{Kodo tikrinamas pagrindimas šaltiniais}\label{sec:control:grounding}
+
+Modelio niekada neprašoma savais žodžiais įvardyti dokumento, nuostatos ar pareigos, jei
+kodui reikia ją vėl surasti. Medžiaga jam pateikiama su trumpomis nuorodomis, ir jis atsako
+nuorodomis; nuorodų ir įrašų atitikmenų lentelę laiko kodas. Iš to išplaukia keturios patikros,
+ir kartu jos neleidžia išgalvotam šaltiniui patekti į jokį saugomą rezultatą.
+
+\begin{codebox}{Ką kodas be modelio tikrina atsakymo šaltiniuose}
+\begin{description}
+  \item[Nuorodos susiejamos.] Išskyrimas pareigą išsaugo tik tada, kai bent viena jos
+    \code{provisionRefs} nurodo paketo nuostatą; taikytinumo etapas išsaugo tik nuorodas į
+    nuostatas, kurias parodė; vertintojas, apimties nuostatų skaitymas, sankcijų nuostatų
+    skaitymas, planavimas ir sujungimas savo atsakymus sutikrina su tuo, ką išsiuntė, o visa
+    kita ignoruoja; atitikties spragų analizė atmeta nežinomą įrodymo nuorodą
+    (\cref{ch:obligations,ch:report}).
+  \item[Citatos surandamos.] \code{locate_quote} kiekvienos atitikties spragų analizės,
+    įmonės vidaus reikalavimų ir programos dokumento įrodymo citatos ieško jos nurodyto
+    dokumento tekste; sutapimas turi būti tikslus, išskyrus kabutes, daugtaškį pabaigoje ir
+    tarpų sekas. Nerasta citata išlaiko savo dokumentą, bet negauna vietos ir rodoma kaip
+    nerasta (\cref{ch:report,ch:programme}). Inventoriaus kontrolės priemonių citatų
+    neieškoma (\cref{ch:company}).
+  \item[Nuostatos patikrinamos.] Nuoroda į teisės aktą ir straipsnį -- įmonės dokumente,
+    programos dokumento teisiniame pagrinde, pokalbio atsakyme per
+    \code{getLegalProvision} -- teisės aktų bazėje susiejama per \code{find_provision} ir
+    \code{check_citations}; ar ji egzistuoja, nusprendžia paieška, dar prieš klausiant bet
+    kurio modelio, ar ji tinka (\cref{ch:corpus,ch:company}).
+  \item[Standarto antraštės patikrinamos.] Kiekviena antraštė, kurią modelis pažymi
+    standarte, turi būti ištraukos eilutė, prasidedanti modelio nurodytu identifikatoriumi;
+    identifikatoriaus simboliai paimami iš dokumento, kad kiekviena dokumento eilutė medyje
+    būtų lygiai vieną kartą (\cref{ch:corpus}).
+\end{description}
+\end{codebox}
+
+Pavyzdinės įmonės 2026 m. lapkričio 13 d. ataskaitoje atitikties spragų analizė surado
+2\,352 citatas, o 13 surasti nepavyko; įmonės vidaus reikalavimų citatos rastos visos 575.
+2026 m. lapkričio 12 d. politikos programos dokumentas surado 23 iš 23 citatų ir 24 iš 24
+nuostatų.
+
+\subsection{Kodo apskaičiuojamos, o ne iš modelio paimamos reikšmės}\label{sec:control:computed}
+
+\file{docs/markdown/en/architecture.md} šią taisyklę įrašo tarp savo sprendimų: \enquote{Balus, lygius
+ir identifikatorius apskaičiuoja kodas; jie niekada nepaimami iš modelio.} Schemos tai
+užtikrina tiesiog neturėdamos šių laukų, todėl modelis šių reikšmių negali net pasiūlyti.
+
+\begin{codebox}{Ką apskaičiuoja kodas ir ko modelio neklausiama}
+\begin{itemize}
+  \item \textbf{Išvados reikšmingumas} nukopijuojamas iš jos pareigos registre; atitikties
+    spragų analizės schemoje reikšmingumo lauko nėra (\cref{ch:report}). Pačios pareigos
+    reikšmingumas -- tai išskyrimo suteiktas pareigos įvertinimas (vidaus reikalavimo --
+    jį perskaičiusio iškvietimo), kurį administratorius peržiūrėdamas gali pataisyti: tai
+    pareigos savybė, o ne įmonės vertinimas.
+  \item \textbf{Išvados pasekmė} prijungiama per \code{Consequences.of} iš sankcijų pakopų,
+    kurios perskaitomos vieną kartą kiekvienai akto redakcijai: straipsnio numeris, jį
+    apimančios pakopos, aktas, pagal kurį už pažeidimą gali būti skiriama bauda
+    (\cref{ch:obligations}).
+  \item \textbf{Akto traktavimas} ataskaitoje -- vertinamas, dar netaikomas, tikslintinas,
+    taikomas netiesiogiai -- išvedamas per \code{assessment_of} iš verdikto, akto tipo ir to,
+    ar aktas nurodytas ataskaitos apimtyje; taikymo pradžios
+    data išsaugoma tik tada, kai ji dar ateityje, o patikimumas apribojamas intervalu 0--1
+    (\cref{ch:report}).
+  \item \textbf{Veiksmų plano aprėptis ir eiliškumas}: kiekviena atvira išvada gauna lygiai
+    vieną veiksmą, iškvietimo praleista išvada prijungiama prie artimiausio veiksmo, o plano
+    eiliškumą nustato kodas (\code{rank}) (\cref{ch:report}).
+  \item \textbf{Rizikos registro skaičiai}: tikimybė (keturių lygių vidurkis, pusė
+    apvalinama į didesnę pusę), poveikis (didžiausias iš keturių), balas, lygis ir
+    identifikatoriai \code{LR-01}, \ldots; schemoje jiems laukų nėra (\cref{ch:programme}).
+  \item \textbf{Visas veiksmų registras}: plano perkėlimas, išvados patvirtinimas, veiksmo
+    uždarymas, požymio \code{late} nustatymas -- tai saugomų identifikatorių, būsenų ir datų
+    palyginimai be jokio modelio iškvietimo (\cref{ch:register}).
+  \item \textbf{Skaičiai ir kainos įvertis}: ataskaitos statistika, kainos įvertis ir
+    apimties pasirinkimo kaina (\cref{ch:report}).
+\end{itemize}
+\end{codebox}
+
+\begin{lessonbox}{Nesėkmė, 2026 m. lapkričio 10 d.: modelis pats vertino savo spragas}
+Tos dienos pavyzdinės įmonės ataskaitoje 23 iš 42 atvirų išvadų, kurias modelis pavadino
+kritinėmis, buvo ataskaitų teikimo pareigos, iš jų keturios -- pareigos, kurių reikšmingumą
+registras vertina kaip žemą. Nuo tada reikšmingumas imamas iš pačios pareigos
+(\cref{ch:report}).
+\end{lessonbox}
+
+\subsection{Antras modelio iškvietimas kaip vertintojas}\label{sec:control:judges}
+
+\term{Vertintojas} -- tai antras modelio iškvietimas, kuris pirmojo rezultatą palygina su jo
+šaltiniu ir pateikia verdiktą. Sistema vertintojus naudoja trijose vietose, visur su
+\model{gpt-6.1-sol}.
+
+\begin{description}
+  \item[Nuorodų vertintojas] (\prompt{corpus.check_citations}; \cref{ch:company}). Gavęs
+    nuostatą, kurią paieška jau rado, jos antraštę ir pirmuosius 600 jos teksto simbolių bei
+    dalyką, kurį jai priskiria dokumentas, jis atsako \code{match}, \code{mismatch} arba
+    \code{unclear}. Jis aptarnauja tikrinimo maršrutą, pokalbio įrankį \code{checkCitations}
+    ir kiekvienos ataskaitos teisės aktų nuorodų patikrą.
+  \item[Registro vertintojas] (\prompt{corpus.verify_obligations}; \cref{ch:obligations}).
+    Gavęs visą straipsnį aplink kiekvieną pareigos cituojamą nuostatą ir pareigos turinį,
+    adresatą, sąlygą, terminą bei įstaigų rūšis, jis atsako \code{supported}, \code{partly}
+    arba \code{unsupported} ir prideda pastabą, pagal kurią peržiūrėtojas gali veikti.
+  \item[Nuorodų patikra programos dokumentuose] (\cref{ch:programme}). Parengtos politikos
+    ar rizikos registro nurodytas teisinis pagrindas surandamas teisės aktų bazėje, o jo
+    \code{why} vieną kartą pateikiamas tam pačiam nuorodų vertintojui programos dokumento
+    etape \code{references}; \code{mismatch} pažeidžia įspėjamąją taisyklę, nerasta
+    nuostata -- blokuojančią.
+\end{description}
+
+\begin{aibox}{Ką vertintojas gali ir ko negali nustatyti}
+Vertintojas atsako į siauresnį klausimą nei jo tikrinamas modelis: ne \enquote{ko reikalauja
+teisė?}, o \enquote{ar šiame tekste yra šis teiginys?}, ir tekstą turi prieš akis. Būtent
+todėl jo verta klausti. Jis gali nustatyti įrašo ir jo šaltinio nesutapimą -- platesnį nei
+nuostatoje adresatą, praleistą sąlygą, straipsnį apie kitą dalyką. Visko kito jis nustatyti
+negali:
+\begin{itemize}
+  \item jis mato tik esamus įrašus, todėl pareigos, kurios išskyrimas niekada neužrašė, jis
+    nemato;
+  \item jis irgi yra modelis, matuojamas savo rinkiniu ir klystantis savu dažnumu; be to,
+    veikiančioje sistemoje registro vertintojas veikia tuo pačiu modeliu,
+    \model{gpt-6.1-sol}, kaip ir jo tikrinamas išskyrimas, todėl klaidingas skaitymas,
+    pasirodęs teisingas vienam, gali pasirodyti teisingas ir kitam;
+  \item jo verdiktas susijęs su perskaitytais žodžiais: pakeitus pareigos pavadinimą ar
+    tekstą, verdiktas prarandamas, o pakeitus kitus jos laukus -- išlieka;
+  \item nuorodų vertintojas mato nuostatos pradžią, o ne visą nuostatą.
+\end{itemize}
+Dėl šių priežasčių vertintojas nieko nesprendžia. Registro verdiktas nustato peržiūros eilės
+tvarką ir rodomas kaip žymelė; jo pagrįsta pareiga lieka \code{proposed}, kol ją patvirtina
+žmogus (\enquote{vertintojas nieko netvirtina}, kaip sakoma jo teste). Nuorodų vertintojo
+verdiktas -- tai signalas šalia tikrosios antraštės ir nuorodos į oficialų tekstą; jis
+nekeičia jokio dokumento. Kai nuorodų vertintojo paklausti neįmanoma, jį pakeičia palyginimas
+pagal sutampančius žodžius, ir kiekvienas verdiktas užfiksuoja, kuris iš jų jį pateikė
+(\code{judgedBy}).
+\end{aibox}
+
+\subsection{Instrukcijos atskirai nuo duomenų ir dokumente įterpta instrukcija}\label{sec:control:injection}
+
+Įmonės įkeltame dokumente gali būti sakinys, skirtas jo skaitytojui. Sistema saugomas
+instrukcijas ir medžiagą laiko skirtingose užklausos dalyse, kiekvieną medžiagos dalį
+pateikia pažymėtame bloke su nuoroda, o septyniolikoje iš 23 instrukcijų žodžiais pasakyta,
+kad medžiaga yra duomenys, o ne instrukcijos (\cref{ch:prompts}). Už šios formuluotės
+stovi ribos, kurios nepriklauso nuo to, ar modelis jai paklūsta: ką gali padaryti pokalbio
+ėjimas, lemia tai, kokie įrankiai yra; kiekvienas įrankis veikia su paties naudotojo
+prieigos raktu, ir nė vienas įrankis netvirtina pareigos, programos dokumento ar ataskaitos.
+Vis dėlto keturi įrankiai naudotojo vardu užfiksuoja vieną iš trijų \cref{tab:control:people}
+nurodytų sprendimų -- \code{approveReportScope}, \code{overrideFinding} ir
+\code{updateCredential} arba \code{addCredential}, kuriais galima pažymėti leidimą patikrintu,
+-- ir iš jų kodas riboja tik pirmąjį:
+naudotojo patvirtinta kaina; būsenos pakeitimui ir patikrintam leidimui instrukcija ir įrankių
+aprašai prašo paties naudotojo žodžio, ir niekas netikrina, ar jis duotas (\cref{ch:chat}).
+Todėl lieka rizika, kad nukreiptas modelis be
+naudotojo sutikimo atliks vieną iš šių įrašų ar kitą, kuris remiasi naudotojo žodžiu; ji
+aprašyta \cref{ch:chat,ch:security}.
+
+\subsection{Žmogui paliekami sprendimai}
+
+Projektavimo taisyklė visuose keliuose ta pati: sistema rengia ir tikrina, žmogus tvirtina.
+\Cref{sec:control:people} išvardija kiekvieną sprendimą: kas jį priima, kur, kas
+užfiksuojama ir ką sistema daro, kai niekas jo nepriima.
+
+\subsection{Kilmė ir veiksmų žurnalas}\label{sec:control:provenance}
+
+Rezultatu, kurio negalima susieti su jį sukūrusiomis instrukcijomis, negalima pasitikėti, ir
+jo negalima atkurti. Kiekvienas modelio iškvietimas yra viena \code{llm_calls} eilutė su
+modeliu, penkiais žetonų skaičiais, kaina ir instrukcijos versijos, pagal kurią jis vykdytas,
+identifikatoriumi; instrukcijos versija niekada nekeičiama, todėl šis identifikatorius visam
+laikui įvardija vieną formuluotę su vienu modeliu (\cref{ch:prompts}). Identifikatorius
+perkeliamas ir į tai, ką iškvietimai sukuria: į kiekvieną pareigą (išskyrimo versija ir
+modelis), kiekvieną vertintojo verdiktą, kiekvieną apimties ir sankcijų nuostatų skaitymą,
+dokumento inventoriaus ir reikalavimų podėlio raktus ir kiekvieną užduoties etapą, kurio visi
+iškvietimai vykdyti pagal vieną versiją.
+
+Kai ataskaita baigta, \code{report_stats} (\file{analysis/pipeline.py}) surenka visų
+ataskaitai priskirtų užduoties etapų iškvietimus ir išsaugo jos \code{provenance}: vykdytas
+\code{prompts}, kiekvieną kaip trumpąjį pavadinimą, versijos numerį ir modelį; \code{models},
+kurie iš tikrųjų atsakė; ir \code{corpus} -- kiekvieno akto, kurio katalogo atranka
+nepašalino, redakcijos numerį ir datą. Šalia jos statistikoje laikomi visų šių iškvietimų
+žetonai ir doleriai bei \code{reviewedObligations} -- skaičius išvadų, kurios remiasi
+pareigomis, kurių būsena registre buvo \code{approved}. Abu eksportai kilmę spausdina;
+programos dokumentas tokį pat savo vykdymo įrašą saugo pats. Kilmė įvardija vykdytą
+formuluotę, bet ne tai, ar ji buvo gera, o rezultatas, kurį ataskaita panaudojo pakartotinai
+-- prieš kelias savaites išskirta pareiga, podėlyje laikomas inventorius, -- savo versiją
+turi savo eilutėje.
+
+Sprendimai užfiksuojami \code{audit_log} (\file{audit/models.py}), į kurį rašoma tik per
+\code{audit} faile \file{audit/log.py}: viena eilutė kiekvienam veiksmui su veikusiu
+naudotoju, veiksmu, jo objektu, detalėmis ir kliento adresu. Įrašas daromas atskirame
+išsaugojimo taške ir fiksuojamos užklausos niekada nesužlugdo. Tarp veiksmų yra
+\code{prompts.activate}, \code{prompts.version_create} ir \code{prompts.test};
+\code{obligations.review} ir \code{obligations.update}; \code{reports.approve_scope},
+\code{reports.review_finding}, \code{reports.approve} ir \code{reports.unapprove};
+\code{programme.approve} ir \code{programme.edit}; \code{actions.update}; taip pat
+administratoriaus atlikti teisės aktų bazės pakeitimai. Žurnalą skaito tik administratorius
+(\route{GET}{/api/audit}). Pokalbio, kuris kito savo turinio įrašo nesaugo, kiekvieno ėjimo
+sąnaudų eilutėje laikoma pokalbio ištrauka -- ko naudotojas klausė ir ką asistentas atsakė;
+savo iškvietimų ištraukas gali skaityti naudotojas, visų -- administratorius
+(\cref{ch:models}).
+
+
+% ============================================================
+\section{Kiekvienas DI kelias ir jo kontrolės priemonės}\label{sec:control:matrix}
+
+\Cref{tab:control:matrix} kiekvieną kelią, kuriame kviečiamas modelis -- 23 instrukcijas,
+keturių rūšių vektorizavimo iškvietimus ir instrukcijų redaktoriaus bandomąjį vykdymą, --
+sugretina su \cref{sec:control:layers} kontrolės priemonėmis. Kiekviena eilutė apibendrina
+skyriaus, kurio numeris nurodytas stulpelyje \enquote{Sk.}, kelio kortelę; jei eilutė ir kortelė nesutampa,
+teisingas skyrius. \enquote{Schema} parodo, ar atsakymas apribotas JSON schema; \enquote{Kodo
+patikros} įvardija taikomas \cref{sec:control:grounding,sec:control:computed} patikras;
+\enquote{Žmogaus sprendimas} -- ką apie rezultatą sprendžia žmogus; \enquote{Rinkinys}
+įvardija vertinimo rinkinį ir jo 2026 m. lapkričio 12 d. bazinį rezultatą
+(\cref{sec:control:eval}). Visos instrukcijos, išskyrus dvi pokalbio, vykdomos su
+\model{gpt-6.1-sol} (lentelėje -- \enquote{sol}). \enquote{Užduoties naudotojas} -- tai
+naudotojas, kuriam priklauso iškvietimo užduotis: ataskaitą pradėjęs naudotojas arba, jei
+ataskaita pradėta su apimties peržiūra, antrajai jos daliai -- asmuo, patvirtinęs jos
+apimtį.
+
+\begin{landscape}
+\setlength{\tabcolsep}{3pt}
+\begin{xltabular}{\linewidth}{@{}>{\scriptsize}L{31mm}>{\scriptsize}L{6mm}>{\scriptsize}L{36mm}>{\scriptsize}L{15mm}>{\scriptsize}L{9mm}>{\scriptsize}Y>{\scriptsize}L{38mm}>{\scriptsize}L{19mm}>{\scriptsize}L{25mm}@{}}
+\caption{Kiekvienas DI kelias ir jo kontrolės priemonės (2026 m. lapkričio 16 d.)}\label{tab:control:matrix}\\
+\toprule
+\hd{Kelias} & \hd{Sk.} & \hd{Paleidimas} & \hd{Modelis} & \hd{Schema} & \hd{Kodo patikros} & \hd{Žmogaus sprendimas} & \hd{Rinkinys} & \hd{Kieno sąskaita} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Kelias} & \hd{Sk.} & \hd{Paleidimas} & \hd{Modelis} & \hd{Schema} & \hd{Kodo patikros} & \hd{Žmogaus sprendimas} & \hd{Rinkinys} & \hd{Kieno sąskaita} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{9}{@{}l}{\scriptsize\hd{Pokalbis}} \\
+\prompt{chat.assistant} & \ref{ch:chat} & Naudotojo žinutė; iki 12 modelio žingsnių per ėjimą & \model{gpt-6-astra} arba naudotojo pasirinktas & ne; įrankių įvestys griežtos & Įrankių įvestys patikrinamos; prieigą prie duomenų riboja API; analizės ir apimties kainos patvirtinimo patikros. Atsakymo tekstas netikrinamas. & Naudotojas kiekvieną įrankio iškvietimą mato kaip kortelę; analizė ar apimtis -- tik už naudotojo patvirtintą kainą; pokalbis nieko netvirtina & nėra & naudotojo \\
+\prompt{chat.title} & \ref{ch:chat} & Pirmasis pokalbio ėjimas, kol pavadinimas automatinis & \model{gpt-5.6-luna} & ne & Pavadinimas išvalomas ir sutrumpinamas iki 80 simbolių & Naudotojas pervadina pokalbį & nėra & naudotojo \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Teisės aktų bazė ir registras}} \\
+\prompt{corpus.standard_outline} & \ref{ch:corpus} & Įkeliamas standartas, kurio punktų taisyklės neperskaito, arba punktas, kurį jos palieka per ilgą & sol & taip & Kiekvienos antraštės eilutė ir identifikatorius patikrinami pagal dokumentą; medis testuojamas; kitaip -- puslapiai & Administratorius gali liepti standartą perskaityti kitu būdu; medžio peržiūra neprivaloma & nėra & niekieno \\
+\prompt{corpus.extract_obligations} & \ref{ch:obligations} & Administratoriaus mygtukas, operatoriaus komanda arba ataskaita, aptikusi niekada neskaitytą aktą & sol & taip & Nuorodos susiejamos su paketu; patvirtintų ir atmestų įrašų dublikatai atmetami; sąrašų reikšmės užtikrinamos & Administratorius kiekvieną pareigą patvirtina, redaguoja arba atmeta; neperžiūrėtos naudojamos, ir išvada tai nurodo & nėra & niekieno arba mygtuką paspaudusio administratoriaus \\
+\prompt{corpus.extract_requirements} & \ref{ch:obligations} & Kaip aukščiau, standartui (veikiančioje sistemoje dar nevykdyta) & sol & taip & Kaip aukščiau; \code{applies_to} reikšmę \code{all} nustato kodas & Kaip aukščiau & nėra & kaip aukščiau \\
+\prompt{corpus.scope} & \ref{ch:obligations} & Ataskaitos taikytinumo etapas, aktams, kuriuos atranka pašalintų ir kurių niekas neskaitė & sol & taip & Nuorodos; rūšys iš uždaro sąrašo; skaitymas gali aktą tik palikti & Skaitymo niekas netvirtina; vėliau -- apimties peržiūra & \code{scope} 9/9 & niekieno \\
+\prompt{corpus.sanctions} & \ref{ch:obligations} & Ataskaitos pareigų etapas arba operatoriaus komanda & sol & taip & Nuorodos; straipsniai perskaitomi kaip intervalai; maksimalios baudos -- tik kaip teigiami skaičiai; devynios priemonės; susiejimą su išvada atlieka kodas & Nėra: akto puslapis rodo tik tai, kiek pakopų perskaityta & \code{sanctions} 13/13 & niekieno \\
+\prompt{corpus.verify_obligations} & \ref{ch:obligations} & Administratoriaus mygtukas arba operatoriaus komanda, kiekvienam aktui & sol & taip & Nuorodos; nežinomi verdiktai ignoruojami; įrašas, kurio nuostatų nebėra, pažymimas be modelio & Verdiktas nieko nesprendžia; peržiūri žmogus & \code{verify} 14/14 & administratoriaus arba niekieno \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Įmonė}} \\
+\prompt{report.inventory} & \ref{ch:company} & Ataskaitos ar programos dokumento dokumentų etapas, dokumentui, kurio inventorius podėlyje pasenęs & sol & taip & Nuorodos išvalomos, vėliau jas patikrina nuorodų patikra; kontrolės priemonių citatų neieškoma & Nėra: konsolėje tik peržiūrai & nėra & ataskaitą ar dokumentą pradėjusio naudotojo \\
+\prompt{corpus.check_citations} & \ref{ch:company} & Tikrinimo maršrutas ir pokalbio įrankis; ataskaitos nuorodų etapas; programos dokumento nuorodų etapas & sol & taip & Ar nuostata egzistuoja, nusprendžia paieška prieš iškvietimą; antraštė, ištrauka ir nuoroda -- iš teisės aktų bazės; kai modelio paklausti neįmanoma, -- žodžių sutapimas & Verdiktas -- signalas; žmogus jį perskaito ir pataiso dokumentą & \code{citations} 19/20 & kviečiančiojo; ataskaitą pradėjusio; programos dokumente -- niekieno \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Ataskaita}} \\
+\prompt{report.applicability} & \ref{ch:report} & Kiekvienos ataskaitos 4 etapas & sol & taip & Išsaugomos tik parodytų nuostatų nuorodos; patikimumas apribojamas; pradžios data -- tik jei ateityje; traktavimą nustato kodas & Apimties peržiūra, nebent vykdoma be priežiūros & \code{applicability} 19/19 & ataskaitą pradėjusio naudotojo \\
+\prompt{report.gap_analysis} & \ref{ch:report} & Atitikties spragų analizės etapas, penkiolika pareigų per iškvietimą & sol & taip & Reikšmingumas iš registro; kiekviena citata ieškoma; nuorodos susiejamos; praleista pareiga -- \status{unknown}; pasekmė prijungiama & Peržiūrėtojo sprendimas su pastaba ir priežastimi; ataskaitos patvirtinimas & \code{gap} 67/71 & užduoties naudotojo \\
+\prompt{company.internal_requirements} & \ref{ch:report} & Etapas \code{internal}, pasirinktinai, kiekvienam politikos lygmens dokumentui & sol & taip & Išsaugoma ne daugiau kaip 20; kiekvieno reikalavimo citata ieškoma; sąrašų reikšmės užtikrinamos & Nėra: vidaus reikalavimų neperžiūri joks ekranas & nėra & užduoties naudotojo \\
+\prompt{report.internal_gap} & \ref{ch:report} & Etapas \code{internal} & sol & taip & Kaip atitikties spragų analizėje; pasekmė neprijungiama & Peržiūrėtojo sprendimas & nėra & užduoties naudotojo \\
+\prompt{report.action_plan} & \ref{ch:report} & Veiksmų plano etapas & sol & taip & Nuorodos tik į iškvietimo išvadas; kiekvienai atvirai išvadai -- vienas veiksmas, trūkumus taiso kodas; eiliškumą nustato kodas & Patvirtinant ataskaitą planas perkeliamas į veiksmų registrą; atsakingą asmenį ir terminą nustato žmogus & nėra & užduoties naudotojo \\
+\prompt{report.plan_merge} & \ref{ch:report} & Veiksmų plano etapas, kai prireikė daugiau nei vieno iškvietimo & sol & taip & Sujungtas veiksmas uždaro lygiai savo projektų išvadas; išgalvotos nuorodos ignoruojamos & Kaip plano & nėra & užduoties naudotojo \\
+\prompt{report.summary} & \ref{ch:report} & Paskutinis etapas & sol & taip & Pavadinimas sutrumpinamas; tekstas su įvestimi nelyginamas & Patvirtinantis asmuo pareiškia, kad išvados ir planas peržiūrėti; santrauka neredaguojama & nėra & užduoties naudotojo \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Programos dokumentai}} \\
+\prompt{programme.policy} & \ref{ch:programme} & Naudotojas arba pokalbis, naudotojui sutikus & sol & taip & Aštuonios nustatytos dalys; citatos ieškomos; nuostatos patikrinamos ir vieną kartą įvertinamos & Žmogus redaguoja ir patvirtina; nepatvirtintas lieka projektu & nėra & pradėjusio naudotojo \\
+\prompt{programme.documents} & \ref{ch:programme} & Antrasis politikos dokumento iškvietimas & sol & taip & Nuorodos į dokumentus; lygmenys užtikrinami; nuostatos patikrinamos & Kaip aukščiau & nėra & pradėjusio naudotojo \\
+\prompt{programme.structure} & \ref{ch:programme} & Pirmasis valdymo dokumento iškvietimas & sol & taip & Citatos ieškomos; mazgai ir jų tėviniai mazgai tikrinami; blokuojančios struktūros taisyklės & Kaip aukščiau & nėra & pradėjusio naudotojo \\
+\prompt{programme.raci} & \ref{ch:programme} & Antrasis valdymo dokumento iškvietimas & sol & taip & Langeliai tik žinomiems etapams ir mazgams; viena atskaitinga rolė kiekvienam etapui (blokuojanti taisyklė) & Kaip aukščiau & nėra & pradėjusio naudotojo \\
+\prompt{programme.risk_criteria} & \ref{ch:programme} & Pirmasis rizikos dokumento iškvietimas & sol & taip & Lentelės perkuriamos 1--5 lygiams; rizikos lygius ir atsako būdus nustato kodas & Kaip aukščiau & nėra & pradėjusio naudotojo \\
+\prompt{programme.risk_scenarios} & \ref{ch:programme} & Antrasis rizikos dokumento iškvietimas & sol & taip & Tikimybė, poveikis, balas, lygis ir identifikatoriai apskaičiuojami; nuostatos patikrinamos ir įvertinamos & Kaip aukščiau; lygiai -- projektas peržiūrėtojui & nėra & pradėjusio naudotojo \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Vektorizavimas ir bandomasis vykdymas}} \\
+\code{corpus.embed} & \ref{ch:corpus} & Akto įkėlimas; vektorių perskaičiavimo užduotis & \texttt{text-\allowbreak embedding-\allowbreak 3-large} & --- & Tiek vektorių, kiek tekstų; stulpelio dimensija & Nėra & nėra; 2026-09-28 palyginimas & niekieno \\
+\code{obligations.embed} & \ref{ch:obligations} & Naujos pareigos; administratoriaus pataisymas; ataskaitai reikalingas angliškas vektorius & kaip aukščiau & --- & Stulpelio dimensija & Nėra & nėra & niekieno \\
+\code{documents.embed} & \ref{ch:company} & Įkelto dokumento indeksavimas; ataskaita, aptikusi neindeksuotą dokumentą & kaip aukščiau & --- & Stulpelio dimensija & Nereikia: vektoriai tik rikiuoja ištraukas & nėra & įkėlusio naudotojo arba ataskaitą pradėjusio; perskaičiuojant -- niekieno \\
+paieškos užklausa & \ref{ch:corpus} & Kiekviena paieška teisės aktų bazėje ar įmonės dokumentuose & kaip aukščiau & --- & Nėra; nepavykus grįžtama prie raktinių žodžių paieškos & Nėra & nėra & neužfiksuojama \\
+\code{prompt_test} & \ref{ch:prompts} & Administratoriaus atliekamas bet kurios instrukcijos bandomasis vykdymas & versijos modelis & etapo & API -- jokių & Visas kelias -- administratoriaus įrankis & nėra & administratoriaus \\
+\end{xltabular}
+\end{landscape}
+
+Skaitant matricą pagal stulpelius, matyti trys dalykai. Kiekvienas struktūrizuotas kelias
+apribotas schema ir kodu susietas su savo šaltiniais; laisvas tekstas atsakymo viduje --
+išvados analizė, veiksmo aprašymas, politikos dalis -- netikrinamas, o du atsakymai yra vien
+laisvas tekstas: pokalbio ir santraukos. Kiekvienas kelias, kurio rezultatas patenka į
+ataskaitą, registrą ar programos dokumentą, pereina per žmogaus sprendimą -- išskyrus
+apimties ir sankcijų nuostatų skaitymus, kuriuos rodo akto puslapis, bet patvirtinti niekieno
+neprašoma, įmonės vidaus
+reikalavimus, kurių neperžiūri joks ekranas, ir inventorių bei standarto medį, kuriuos žmogus
+gali perskaityti, bet jo neprašoma jų taisyti. Ir šešios iš 23 instrukcijų matuojamos
+pažymėtais atvejais, o septyniolika -- ne (\cref{sec:control:unmeasured}).
+
+
+% ============================================================
+\section{Ką sprendžia žmogus}\label{sec:control:people}
+
+\file{docs/markdown/en/architecture.md} šią taisyklę įrašo kaip sprendimą: \enquote{Sistema rengia ir
+tikrina; žmogus tvirtina. Ataskaitos apimtį, registro pareigą, išvados būsenos pakeitimą,
+programos dokumentą tvirtina įvardytas asmuo, tai įrašoma į veiksmų žurnalą, ir sistema
+nieko nepažymi patvirtintu.} \Cref{tab:control:people} išvardija kiekvieną tokį sprendimą ir
+tai, ką sistema daro, kai niekas jo nepriima. Paskutinis stulpelis svarbus ne mažiau nei kiti:
+sistema nelaukia žmogaus ten, kur laukimas sustabdytų darbą, bet tai aiškiai pasako.
+
+\begin{xltabular}{\textwidth}{@{}L{25mm}L{18mm}L{24mm}YL{31mm}@{}}
+\caption{Sprendimai, kuriuos priima tik žmogus}\label{tab:control:people}\\
+\toprule
+\hd{Sprendimas} & \hd{Kas} & \hd{Kur konsolėje} & \hd{Kas užfiksuojama} & \hd{Kai niekas jo nepriima} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Sprendimas} & \hd{Kas} & \hd{Kur konsolėje} & \hd{Kas užfiksuojama} & \hd{Kai niekas jo nepriima} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Pradėti ataskaitą už įvertintą kainą & Naudotojas, kuriam matoma įmonė & Langas \ui{Pradėti atitikties analizę}; arba sutikimas pokalbyje & Ataskaita ir jos parinktys; \code{reports.create} & Niekas nevykdoma. \\
+Patvirtinti ataskaitos apimtį & Naudotojas, kuriam matoma įmonė & Ataskaitos aktų skiltis su juosta \ui{Patvirtinkite teisės aktų sąrašą}; arba pokalbis & \code{scope_approved_by}, \code{scope_approved_at} (per pokalbį -- įrankiu \code{approveReportScope}, su naudotojo patvirtinta kaina); \code{reports.approve_scope} su kiekvienu aktu, kurio traktavimą asmuo pakeitė, prieš ir po & Su peržiūra pradėta ataskaita laukia; pradėta be jos įrašo laiką be asmens, o eksportuose rašoma \enquote{Niekas}. \\
+Patvirtinti, redaguoti ar atmesti pareigą & Administratorius & \ui{Pareigų peržiūra} & \code{reviewed_by}, \code{reviewed_at}, pastabos; \code{obligations.review}, \code{obligations.update} & Pareiga lieka \code{proposed}, naudojama ataskaitose, o jos išvados nurodo, kad ji neperžiūrėta. \\
+Pakeisti išvados būseną, įrašyti priežastį & Naudotojas, kuriam matoma ataskaita & Skiltis \ui{Išvados}, \ui{Peržiūrėti}; būsenos pakeitimas, bet ne priežastis, -- ir pokalbyje & \code{override_status}, pastaba, priežastis, kas ir kada; \code{reports.review_finding}; ataskaitos patvirtinimas atšaukiamas (per pokalbį -- įrankiu \code{overrideFinding}) & Lieka modelio būsena; jokia išvada neturi priežasties. \\
+Patvirtinti ataskaitą & Naudotojas, kuriam matoma ataskaita & \ui{Patvirtinti ataskaitą} & \code{approved_by}, \code{approved_at}, \code{approval_note}; \code{reports.approve} & PDF viršelyje nurodyta, kad jo nepatvirtino joks asmuo; veiksmų registras nepasikeičia. \\
+Paskirti veiksmui atsakingą asmenį, terminą, jį perkelti ar uždaryti & Naudotojas, kuriam matoma įmonė & Įmonės skiltis \ui{Veiksmai} & Pakeisti laukai; uždarymas rankiniu būdu su pastaba ir \code{closed_by}; \code{actions.update} & Veiksmas išlaiko plano nurodytą atsakingo asmens rolę ir terminą, skaičiuojamą nuo ataskaitos patvirtinimo. \\
+Patvirtinti programos dokumentą & Įmonės savininkas arba administratorius & Dokumento puslapis, \ui{Patvirtinti} & \code{approved_by}, laikas ir pastaba; \code{programme.approve} & Lieka projektas; tai nurodo jo PDF ir politikos Word failas. \\
+Pažymėti leidimą patikrintu & Naudotojas, kuriam matoma įmonė & \ui{Pažymėti patikrintu}; arba pokalbis, naudotojui aiškiai pasakius, kad jis patikrintas & \code{verified_by}, \code{verified_at} (per pokalbį -- įrankiu \code{updateCredential} arba \code{addCredential}); \code{companies.credential_update} arba, kai leidimas įrašomas kaip patikrintas, \code{companies.credential_add} & Lieka deklaruotas, ir atitikties spragų analizė gali juo remtis tik su išlyga. \\
+Pasirinkti instrukcijos formuluotę ir modelį & Administratorius & \ui{DI instrukcijos} & Nauja versija; \code{prompts.version_create}, \code{prompts.activate} & Vykdoma kartu su produktu pateikta numatytoji versija; nauja numatytoji niekada nepakeičia administratoriaus parašyto teksto. \\
+Priimti naują rinkinio bazinį rezultatą & Tas, kas vykdo vertinimą & Ne konsolėje: komanda \code{eval_prompts --record} & \file{prompts/evals/baseline.json} su instrukcijos versija ir modeliu & Lieka senasis bazinis rezultatas, o mažesnis balas vykdymą sužlugdo. \\
+Nustatyti paskyros dienos biudžetą & Administratorius & \ui{Naudotojai} & \code{daily_budget_usd} naudotojo įraše & 10,00~\$ per dieną (\code{LLM_DAILY_BUDGET_USD}); paties administratoriaus paskyrai -- neribotas. \\
+\end{xltabular}
+
+\begin{humanbox}{Ko sistema niekada nesprendžia}
+Jokia kodo šaka pati nepažymi pareigos, apimties, programos dokumento ar ataskaitos
+patvirtintais, ir joks pokalbio įrankis apskritai netvirtina pareigos, programos dokumento ar
+ataskaitos. Trys lentelės sprendimai, kuriuos gali užfiksuoti pokalbis, -- apimtis, būsenos
+pakeitimas, patikrintas leidimas -- įvardija naudotoją, kurio prieigos raktą pokalbis turi;
+instrukcija kiekvienam iš jų prašo naudotojo sutikimo arba aiškaus žodžio, bet, išskyrus
+apimties kainą, kodas netikrina, ar jis
+duotas.
+Vertintojo verdiktas, įvykdyta taisyklė, didelis patikimumas ar būsena \enquote{atitinka}
+nė vieno iš šių sprendimų nepakeičia. Žmogaus priimti sprendimai pažymimi jo vardu ir laiku,
+įrašomi į veiksmų žurnalą ir spausdinami eksportuose, todėl ataskaitos skaitytojas gali
+atskirti, ką parašė modelis ir ką priėmė žmogus.
+\end{humanbox}
+
+\subsection{Kaip buvo peržiūrėtas kartu su produktu pateikiamas registras}\label{sec:control:shipped}
+
+Pagal projektą kiekvieną pareigą tvirtina žmogus. Kartu su produktu pateikiamas registras
+taip peržiūrėtas nebuvo, ir skaitytojas turėtų tiksliai žinoti, kaip jis buvo peržiūrėtas.
+
+\begin{notebox}{2026 m. lapkričio 13 d. peržiūra}
+2026 m. lapkričio 13 d. registrą, pateikiamą \file{postgres/bootstrap.sql.gz}, -- 5\,960
+pareigų iš 68 aktų -- visą įvertino vertintojas (\prompt{corpus.verify_obligations}, apie
+10~\$), o paskui administratoriaus nurodymu jį peržiūrėjo DI programavimo asistentas;
+\textbf{žmogus jo neperskaitė įrašas po įrašo}. 5\,777 įrašai, kuriuos vertintojas rado
+pagrįstus, patvirtinti visi iš karto, prieš tai patikrinus 25 įrašų imtį pagal aktų tekstą ir radus
+ją teisingą. 183 įrašai, kuriais vertintojas suabejojo arba kurie turėjo tą patį trūkumą kaip
+abejotinas įrašas, perskaityti po vieną pagal jų cituojamas nuostatas: 75 patvirtinti
+nepakeisti, 86 pataisyti (kam pareiga taikoma, praleista sąlyga ar terminas; 38 performuluotus
+vertintojas perskaitė dar kartą), 10 atmesti (dublikatas, cituojantis formą ar straipsnį,
+kuris tik paskelbia sąrašą, arba pareiga, kurią aktas nustato valstybei narei), 12 palikti
+pasiūlyti su pastaba žmogui. Kiekvienas rankomis išspręstas įrašas turi tai nurodančią
+pastabą. Tą patį aprašo \file{docs/markdown/en/operations.md} §6 (\enquote{Kaip buvo peržiūrėtas
+pateikiamas registras}).
+\end{notebox}
+
+Ką tai reiškia skaitytojui: pagal projektą pareigas ir toliau tvirtina žmogus, o ši
+peržiūra yra aiškiai įvardyta išimtis ir priežastis registrą laikyti \emph{peržiūrėtu
+mašininiu būdu}. \code{approved} pateikiamame įraše reiškia, kad vertintojas ir peržiūrėjęs
+asistentas rado įrašą pagrįstą jo nuostatomis, o ne tai, kad jį perskaitė teisininkas.
+Išvada tėra tokia gera, kokia jos pareiga, todėl tas, kas remiasi išvada priimdamas
+sprendimą, vis tiek turi perskaityti nuostatą, kurią kiekviena išvada cituoja ir į kurią
+pateikia nuorodą. Kiekviena ataskaita suskaičiuoja išvadas, kurios remiasi patvirtintomis
+pareigomis (\code{reviewedObligations}); pateikiamame registre į šį skaičių patenka ir šios
+peržiūros metu patvirtinti įrašai, todėl jis matuoja patvirtinimą, o ne tai, ar žmogus įrašą
+perskaitė.
+
+
+% ============================================================
+\section{Vertinimas}\label{sec:control:eval}
+
+Kontrolės priemonės atsakymą tikrina pagal jo šaltinius. Jos negali pasakyti, ar atsakymas
+teisingas: išvada su surasta citata ir leistina būsena vis tiek gali turėti klaidingą būseną.
+Ar instrukcija priverčia modelį atsakyti gerai, yra matavimo klausimas, ir sistema šešias
+savo instrukcijas matuoja pažymėtais atvejais, laikomais saugykloje (\file{prompts/evals/}).
+Šiame poskyryje aprašoma, kas matuojama, kaip, kas pažymėjo atsakymus ir kas visai
+nematuojama.
+
+\subsection{Kodėl testai su modelio imitacija negali išmatuoti instrukcijos}
+
+Sistema turi tūkstančius testų (\cref{ch:testing}). Įprastai juos vykdant, kiekvienas su
+modeliu susijęs testas veikia su pakaitalu. API šis pakaitalas yra \code{FakeModel} faile
+\file{tests/fakes.py}: jis perskaito nuorodas, kurias konvejeris įdėjo į instrukciją, ir
+kiekvienai schemai atsako tikėtinu turiniu -- kiekvienas aktas taikomas, nebent testas
+nurodo kitaip, atitikties spragų analizė savo išvadoms paeiliui priskiria \code{missing},
+\code{partial}, \code{met} ir \code{unknown}, kiekviena išvada cituoja pirmąją jai parodyto
+pirmojo dokumento eilutę ir dar sakinį, kurio nėra jokiame dokumente, kiekvienas planavimo
+iškvietimas uždaro pirmąsias tris savo išvadas. Jo vektorizatorius žodžius maišos funkcija
+paverčia vektoriumi. Konvejerio atsakymų apdorojimas, susiejimas ir saugojimas tada vykdomi
+iš tikrųjų.
+
+Toks testas įrodo, kad veikia techninė grandinė: kad citata, kurios dokumente nėra,
+negauna vietos, kad praleista pareiga tampa \status{unknown}, kad reikšmingumas
+imamas iš registro. Apie instrukciją jis nieko įrodyti negali, nes jo tikrinamus atsakymus
+parašė testo autorius, o ne instrukciją perskaitęs modelis. \file{tests/test_evals.py}
+antraštinis komentaras tai sako apie pačius rinkinius: vykdomi su modelio imitacija, jie
+įrodo \enquote{techninę grandinę, o ne instrukcijas}. Kad instrukcija būtų išmatuota, ją turi
+perskaityti tikras modelis, gavęs įvestis, kurių teisingas atsakymas žinomas.
+
+\subsection{Pažymėtas atvejis}\label{sec:control:case}
+
+\term{Pažymėtas atvejis} -- tai viena instrukcijos įvestis kartu su atsakymu, kurį pateiktų
+kruopštus skaitytojas, ir, penkiuose iš šešių rinkinių, to atsakymo priežastimi. Atvejai
+laikomi YAML failuose, po vieną rinkiniui, kataloge \file{prompts/evals/cases/}. Du iš jų,
+pateikti pažodžiui, parodo jų formą. Pirmasis -- viena atitikties spragų analizės rinkinio
+pareiga: pareiga taip, kaip 2026 m. lapkričio 11 d. ataskaita ją pateikė modeliui pavyzdinės
+įmonės atveju, laukiama būsena ir jos priežastis.
+
+\begin{codefile}{\file{prompts/evals/cases/gap.yaml} -- atvejis \code{dora-20}}
+  - id: dora-20
+    act: "DORA"
+    expect: met
+    why: >-
+      Conduct (b): the incident policies say that on a major ICT incident
+      affecting clients' interests the company informs clients without undue
+      delay about the incident and the mitigating measures, name the channels
+      (direct email, status page) and the responsible roles.
+    obligation:
+      provisions: "19 str., 23 str."
+      category: customer_protection
+      title: "Informuoti klientus apie jų finansinius interesus paveikusį incidentą"
+      text: >-
+        Kai didelis su IRT susijęs incidentas daro poveikį klientų
+        finansiniams interesams, finansų sektoriaus subjektai turi nepagrįstai
+        nedelsdami, iš karto sužinoję apie incidentą, informuoti savo klientus
+        apie incidentą ir priemones, kurių imtasi jo neigiamam poveikiui
+        sumažinti. Kredito įstaigoms, mokėjimo įstaigoms, informavimo apie
+        sąskaitas paslaugų teikėjams ir elektroninių pinigų įstaigoms ši
+        pareiga taip pat taikoma dideliems su mokėjimais susijusiems
+        operaciniams arba saugumo incidentams.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Didelis incidentas daro poveikį klientų finansiniams interesams."
+      expectedEvidence: "Klientams išsiųsti pranešimai, išsiuntimo laiko duomenys ir informacija apie poveikio mažinimo priemones."
+      deadline: "Nepagrįstai nedelsiant, iš karto sužinojus apie incidentą."
+\end{codefile}
+
+Antrasis -- sankcijų rinkinio atvejis. Jame nurodytas katalogo aktas ir straipsnis, o
+tikimasi maksimalios baudos, taikomos už bet kokį to straipsnio pažeidimą, ir griežtesnės,
+kurią aktas sieja su tam tikros rūšies pažeidimu.
+
+\begin{codefile}{\file{prompts/evals/cases/sanctions.yaml} -- atvejis \code{aml-law-any-breach-and-the-gross-one}}
+  - id: aml-law-any-breach-and-the-gross-one
+    act: pptfp-istatymas
+    article: 9
+    expect: {percent: 5}
+    graver: {eur: 5100000, percent: 10}
+    why: >-
+      39 str. 1 d. 1 p. — 0,5 to 5 % of annual income for breaches of the law;
+      2 p. — up to 10 % or EUR 5 100 000 when the breach is systematic, gross
+      or repeated within a year.
+\end{codefile}
+
+Atitikties spragų rinkinio atvejis turi savo pareigą; sankcijų rinkinio atvejis įvardija
+aktą, o rinkinys to akto sankcijų nuostatas perskaito iš teisės aktų bazės. Visi atvejai,
+išskyrus nuorodų rinkinio, kurių kiekvienas užima vieną eilutę, turi \code{why};
+\code{test_the_case_files_are_well_formed} faile \file{tests/test_evals.py} to reikalauja tuose
+penkiuose rinkiniuose, kartu su unikaliais identifikatoriais, bent devyniais atvejais
+rinkinyje ir laukiama reikšme iš leistinųjų. Atitikties spragų ar taikytinumo atvejis po
+\code{accept} gali nurodyti ir antrą atsakymą, su kuriuo atvejis taip pat laikomas
+išlaikytu.
+
+\subsection{Kas ir kaip pažymėjo atvejus}\label{sec:control:labels}
+
+Žymos lemia, ką reiškia rinkinio balas, todėl knyga tiksliai nurodo, kas jas sudėjo.
+\textbf{Visas žymas 2026 m. lapkričio 12 d. sudėjo DI programavimo asistentas, kuriuo buvo
+kuriama sistema}, -- Claude, Anthropic modelis; failuose jis vadinamas \enquote{asistentu
+(Claude)}; tai \emph{ne} produkto pokalbių asistentas, -- perskaitęs nuostatas ir dokumentus,
+kuriuos kiekvienas atvejis nurodo savo \code{why}. \textbf{Nė vienos žymos žmogus dar nei
+pakeitė, nei patvirtino}; kiekvieno failo antraštė baigiama kvietimu žmogui tai padaryti:
+\enquote{Žymą pakeiskite ją čia redaguodami.} Antraštėse nurodyta, kaip buvo sudarytas
+kiekvienas failas (\cref{tab:control:labels}).
+
+\begin{table}[H]
+\caption{Kaip buvo sudėtos kiekvieno rinkinio žymos, kaip nurodo atvejų failų antraštės}\label{tab:control:labels}
+\begin{tabularx}{\textwidth}{@{}L{22mm}Y@{}}
+\toprule
+\hd{Rinkinys} & \hd{Ką sako failo antraštė} \\
+\midrule
+\code{gap} & Atrinktos 72 pavyzdinės įmonės 2026 m. lapkričio 11 d. ataskaitos išvados, paskirstytos tarp aktų ir tarp paties modelio būsenų. Du nepriklausomi asistento egzemplioriai, kurių kiekvienas perskaitė visą dokumentų rinkinį, instrukcijos taisykles ir pusę atvejų, juos pažymėjo nematydami modelio atsakymų; kiekviena citata, kuria jie rėmėsi, patikrinta pažodžiui. Jie matė, kokia tvarka atvejai buvo atrinkti, o ji leidžia numanyti modelio būseną, -- \enquote{metodo trūkumas}. Su modeliu jie sutiko 52 atvejais, 14 atvejų jo atsakymą įvardijo kaip pagrįstą alternatyvą, o 6 atvejais visiškai nesutiko. Šiuos šešis asistentas perskaitė pagal instrukcijos taisykles (pažymėti \code{adjudicated}; liko penki), o vienas pašalintas. Liko 71 atvejis; 54 iš jų priima ir antrą būseną. \\
+\code{applicability} & Pažymėta pagal \code{why} nurodytas nuostatas. Renkant atvejus buvo žinomi pavyzdinės įmonės 2026 m. lapkričio 11 d. ataskaitos verdiktai, todėl imti tik tie aktai, kurių taikymo sritis \enquote{nepalieka vietos antram skaitymui}, -- tarp jų ir vienintelis aktas, kurį ta ataskaita įvertino klaidingai. Antroji įmonė, mokėjimo įstaiga, šiam failui sugalvota ir pažymėta be jokio modelio atsakymo. \\
+\code{verify} & Kiekvienas įrašas ir jo cituojamas straipsnis -- tokie, kokius teisės aktų bazė laikė 2026 m. lapkričio 12 d. Įrašai, kuriais turi būti suabejota, sąmoningai parašyti klaidingai, išskyrus paskutinį, kurį sukūrė išskyrimas. \\
+\code{citations} & Pažymėta pagal straipsnių antraštes. MiCA poros -- pačios pavyzdinės įmonės klaida: jos apžvalga kriptoturto paslaugas nuo 78~straipsnio pastumia per vieną straipsnį. \\
+\code{scope} & Pažymėta pagal \code{why} nurodytas nuostatas. \\
+\code{sanctions} & Pažymėta pagal \code{why} nurodytas nuostatas, perskaitytas teisės aktų bazėje. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ką tai reiškia skaitytojui: rinkinių \enquote{tikroji tiesa} -- tai kruopštus antras
+skaitymas, atliktas kitu ir apgalvotesniu procesu (kita instrukcija, visas tekstas, pažodžiui
+patikrintos citatos, nematant modelio atsakymo), o ne atitikties eksperto sprendimas.
+\file{docs/markdown/en/architecture.md} ir \file{docs/markdown/en/operations.md} tuos pačius žymėtojus vadina
+\enquote{skaitytojais}; jie buvo DI modelio egzemplioriai. Todėl rinkinio balas matuoja
+sutapimą su tuo skaitymu. Jį geriausia laikyti regresijos signalu: instrukcijos ar modelio
+pakeitimas, sumažinęs balą, pakeitė modelio elgesį, o atvejai, kurių modelis dabar neįveikia,
+parodo kur.
+
+\subsection{Per paties produkto funkcijas}\label{sec:control:runners}
+
+Rinkinys, kuris instrukcijos įvestį perkurtų savaip, matuotų instrukcijos kopiją. Todėl
+kiekvienas rinkinys savo atvejus leidžia per tas pačias funkcijas, kurias kviečia pats
+produktas (\file{prompts/evals/suites.py}, po vieną vykdyklę rinkiniui;
+\cref{tab:control:runners}), kad atvejis modelį pasiektų tokia forma, kokią turi tikras
+iškvietimas: tas pats duomenų atvaizdavimas, tas pats bendras blokas, ta pati schema ir,
+išskyrus vertintojo rinkinį, kuris pateikia po vieną atvejį per iškvietimą, tas pats paketo
+dydis. Instrukcija -- tai aktyvi tos sistemos, kurioje vykdomas rinkinys, versija su tos
+versijos modeliu.
+
+\begin{table}[H]
+\caption{Ką kiekvienas rinkinys kviečia, ką skaito ir ką saugo}\label{tab:control:runners}
+\begin{tabularx}{\textwidth}{@{}L{20mm}L{48mm}Y@{}}
+\toprule
+\hd{Rinkinys} & \hd{Per ką vykdoma} & \hd{Ką gauna iškvietimas} \\
+\midrule
+\code{verify} & \code{verify._render} ir \code{run_prompt} su \code{verify.SCHEMA}; vienas iškvietimas atvejui & Paties atvejo straipsnis ir įrašas, atvaizduoti taip, kaip juos atvaizduoja vertintojo užduotis. Vertintojo \code{partly} ar \code{unsupported} laikomas \enquote{abejone}. \\
+\code{scope} & \code{scope_readings}, \code{ACTS_PER_CALL} = 4 aktai per iškvietimą & Akto apimties nuostatos iš šios sistemos teisės aktų bazės. Akto redakcijoje niekas neišsaugoma. \\
+\code{citations} & \code{check_citations} su \code{use_model=True}; visi dvidešimt -- vienu iškvietimu & Straipsnis toks, kokį laiko šios sistemos teisės aktų bazė, surastas ta pačia paieška. \\
+\code{gap} & \code{pipeline.document_block}, \code{gap_data}, \code{GAP_SCHEMA}, \code{OBLIGATIONS_PER_CALL} = 15 & Visi 26 pavyzdinės įmonės dokumentai ir jos profilis kaip bendras blokas, kaip ataskaitoje, perskaityti iš \file{prompts/evals/data/1009-ltd/}; kiekvieno akto verdiktas toks, kokį pateikė ta ataskaita; \code{LANGUAGE} -- lietuvių. \\
+\code{applicability} & \code{applicability_data}, \code{APPLICABILITY_SCHEMA}, \code{ACTS_PER_CALL} = 4; pradžios datai perskaityti -- \code{applies_from_of} & Įmonės profilis iš atvejų failo kaip bendras blokas ir akto nuostatos iš šios sistemos teisės aktų bazės. \\
+\code{sanctions} & \code{sanction_reading}, po to \code{sanctions._of_act} susiejimui & Akto sankcijų nuostatos iš šios sistemos teisės aktų bazės, perskaitytos vieną kartą visiems jo atvejams; pakopos susiejamos su atvejo straipsniu tuo pačiu kodu, kurį naudoja ataskaita. Niekas neišsaugoma. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Iš to, kad skaitoma sistemos teisės aktų bazė, išplaukia dvi pasekmės. Atvejo, kurio akto
+teisės aktų bazėje nėra, pateikti neįmanoma, ir jis laikomas neišlaikytu: apimties,
+taikytinumo ir sankcijų rinkiniuose -- su priežastimi \enquote{akto nėra teisės aktų bazėje},
+nuorodų rinkinyje -- su pačios paieškos būsena \code{act_not_in_corpus}. Be to, keturi
+rinkiniai -- apimties, nuorodų, taikytinumo ir sankcijų -- aktus skaito tokius, kokie jie
+yra rinkinio vykdymo metu, nors jų žymos sudėtos pagal 2026 m. lapkričio 12 d. tekstus; nauja
+akto redakcija -- tai, ką tada skaitys tie rinkiniai. Rinkiniai \code{gap} ir \code{verify}
+savo medžiagą turi su savimi ir bet kurioje sistemoje vertina tą patį tekstą.
+
+Iškvietimai užfiksuojami kaip ir visi kiti, su paskirtimi \texttt{eval:} ir rinkinio
+pavadinimu (nuorodų rinkinio iškvietimai turi paties nuorodų vertintojo paskirtį,
+\code{citations.check}), be naudotojo ir be užduoties etapo: vertinimas neįskaičiuojamas į
+niekieno dienos biudžetą. Vieną nuorodų rinkinio savybę reikėtų žinoti. Kaip ir kiekvienas
+\code{check_citations} kvietėjas, nepavykus DI tinklų sąsajos (angl. \en{gateway})
+iškvietimui, jis grįžta prie palyginimo pagal sutampančius žodžius (komanda jau būna
+atsisakiusi vykdyti rinkinį, kurio instrukcija neturi aktyvios versijos), o jo vykdyklė
+\code{judgedBy} netikrina; vykdymas, kurio metu vertintojo nepavyko pasiekti, pakaitalo
+verdiktus įvertintų taip, lyg jie būtų modelio.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{w/.style={text width=27mm}}
+  \node[data, w] (case) at (15,0) {pažymėtas atvejis\\ {\scriptsize\file{cases/<suite>.yaml}}};
+  \node[svc, w] (fn) at (60,0) {paties produkto funkcija\\ {\scriptsize \code{gap_data}, \code{check_citations}, \ldots}};
+  \node[ai, w] (model) at (105,0) {tikras modelis\\ {\scriptsize aktyvi instrukcijos versija, per \code{run_prompt}}};
+  \node[ext, text width=12mm] (gw) at (139,0) {DI tinklų sąsaja};
+  \node[chk, w] (cmp) at (105,-24) {atsakymas lyginamas su žyma\\ {\scriptsize arba su būsena iš \code{accept}}};
+  \node[chk, w] (score) at (60,-24) {balas lyginamas su baziniu rezultatu, atėmus nuokrypį};
+  \node[store, text width=24mm] (base) at (60,-46) {\file{baseline.json}};
+  \node[man, w] (person) at (15,-24) {žmogus perskaito neįveiktus atvejus; įrašo naują bazinį rezultatą arba keičia instrukciją};
+  \node[man, w] (change) at (15,-46) {instrukcijos ar modelio pakeitimas};
+  \draw[flow] (case) -- (fn);
+  \draw[flow] (fn) -- (model);
+  \draw[call] (model) -- (gw);
+  \draw[flow] (model) -- (cmp);
+  \draw[flow] (cmp) -- node[lbl, above] {išlaikyta, iš} (score);
+  \draw[call] (base) -- (score);
+  \draw[flow] (score) -- node[lbl, above] {\code{MISS} eilutės} (person);
+  \draw[opt] (person.south) -- (change.north);
+  \draw[opt] (person.south east) -- node[lbl, above right, pos=.45, inner sep=1pt] {\code{--record}} (base.west);
+  \draw[opt] (change.west) -- ++(-4mm,0) |- (case.west);
+  \node[note, anchor=north west, text width=38mm] at (92,-38) {žemiau bazinio rezultato, atėmus nuokrypį: komanda baigiasi klaida};
+\end{tikzpicture}
+\actorlegend
+\caption{Vertinimo ciklas. Atvejis per produkto naudojamą funkciją pasiekia tikrą modelį;
+atsakymas lyginamas su žyma, balas -- su įrašytu baziniu rezultatu, atėmus leistiną
+nuokrypį. Žmogus perskaito, kas neįveikta, ir nusprendžia, ar balus įrašyti kaip naują
+bazinį rezultatą, ar keisti instrukciją ir vykdyti dar kartą.}\label{fig:control:evalloop}
+\end{figure}
+
+\subsection{Bazinis rezultatas ir leistinas nuokrypis}\label{sec:control:baseline}
+
+\file{prompts/evals/baseline.json} kiekvienam rinkiniui užfiksuoja balą, kurį galiojanti
+instrukcija pelnė, kai buvo priimta: \code{passed} ir \code{of}, instrukciją kaip trumpąjį
+pavadinimą ir versijos numerį, modelį, datą ir vienam rinkiniui -- \code{slack}. Vykdymas
+rinkinį laiko neišlaikytu, kai šis surenka mažiau nei bazinis rezultatas, atėmus leistiną
+nuokrypį. Leistinas nuokrypis reikalingas todėl, kad modelio atsakymai kinta nuo vykdymo iki
+vykdymo: komandos antraštinio komentaro žodžiais, atitikties spragų analizė praranda
+\enquote{vieną ar du atvejus iš septyniasdešimties}, ir jos baziniam rezultatui nustatytas
+leistinas nuokrypis 2. Kai bazinis rezultatas yra 67, atitikties spragų rinkinys neišlaikomas surinkus
+64 ar mažiau. Kiti rinkiniai leistino nuokrypio neturi ir neišlaikomi surinkus vienu atveju
+mažiau nei bazinis rezultatas.
+
+Bazinis rezultatas įrašomas tik paprašius. \code{--record} įrašo ką tik vykdytų rinkinių
+balus, kiekvieną su juos pelniusia instrukcijos versija ir modeliu, ir išlaiko esamą
+leistiną nuokrypį; komandos antraštiniame komentare sakoma, kad tai daryti reikia
+\enquote{žmogui peržiūrėjus, kas dar neteisinga}. Vykdymas be šios parinkties palygina ir
+nieko nekeičia.
+
+\subsection{Rinkinių vykdymas}\label{sec:control:command}
+
+Komanda -- \code{manage.py}~\code{eval_prompts}
+(\file{prompts/management/commands/eval_prompts.py}). Be argumentų ji vykdo visus šešis
+rinkinius; nurodžius rinkinius, vykdomi tik jie; \code{--record} priima balus kaip naują
+bazinį rezultatą; \code{--baseline} nurodo kitą bazinių rezultatų failą.
+\file{docs/markdown/en/operations.md} §12 prašo kiekvieno, kas keičia vieną iš šešių instrukcijų,
+jos modelį ar atsakymo schemą, rinkinį paleisti prieš pakeitimą ir po jo ir abu tos dienos
+vykdymus palyginti ne tik su baziniu rezultatu, bet ir tarpusavyje: schemos formą modelis irgi
+skaito (\cref{par:models:filled}), o tiekėjo modelis kinta. Rinkinys, kurio instrukcija neturi
+aktyvios versijos, sustabdo komandą su patarimu pirmiau paleisti \code{seed_prompts};
+nežinomas rinkinio pavadinimas atmetamas. Vykdymas spausdina tokias eilutes (laukai
+riestiniuose skliaustuose užpildomi):
+
+\begin{codeblock}
+  MISS {suite}/{case id}: expected {label}, got {answer}
+{suite}: {passed} of {cases} with {slug} v{version} on {model} (baseline {passed} of {of}, fails below {n}, {slug} v{version})
+Model calls since the run began cost ${amount}
+\end{codeblock}
+
+\noindent ir tada arba \enquote{Recorded as the baseline in \ldots}, arba, jei rinkinys
+surinko per mažai, baigiasi klaida su \enquote{Below the baseline:} ir rinkinių pavadinimais.
+Dalis \enquote{fails below} rodoma tik rinkiniui su leistinu nuokrypiu, o rinkinys be bazinio
+rezultato vietoj skliaustų rodo \enquote{(no baseline)}. Kainos eilutė sumuoja visas
+\code{llm_calls} eilutes, įrašytas nuo vykdymo pradžios, todėl naudojamoje sistemoje į ją
+patenka ir visa kita, kas tuo metu buvo kviesta.
+
+Vykdymas kainuoja tikrus pinigus: pagal 2026~m. lapkričio 12~d. matavimą šeši rinkiniai
+atsieina apie dolerį (\file{docs/markdown/en/operations.md} §12 ir komandos antraštinis komentaras),
+iš kurio beveik pusė, 0,42~\$, tenka atitikties spragų rinkiniui --
+kiekvienam jo iškvietimui pateikiamas visas pavyzdinės įmonės 26 dokumentų rinkinys, -- o
+kiekvienam iš kitų penkių -- centai.
+
+\subsection{Šeši rinkiniai}\label{sec:control:suites}
+
+\Cref{tab:control:suites} pateikia šešis rinkinius su jų dydžiais ir baziniais rezultatais.
+Kartu juose yra 146 atvejai. Kiekvienas bazinis rezultatas užfiksuotas 2026 m. lapkričio 12 d.
+su \texttt{gateway:azure/gpt-6.1-sol}.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}L{32mm}YR{16mm}L{24mm}@{}}
+\caption{Vertinimo rinkiniai ir jų baziniai rezultatai (\file{prompts/evals/baseline.json}, 2026 m. lapkričio 12 d.; sankcijų rinkinys dar kartą -- lapkričio 19 d.)}\label{tab:control:suites}\\
+\toprule
+\hd{Rinkinys} & \hd{Instrukcija} & \hd{Atvejai} & \hd{Bazinis rezultatas} & \hd{Užfiksuota instrukcijos versija} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Rinkinys} & \hd{Instrukcija} & \hd{Atvejai} & \hd{Bazinis rezultatas} & \hd{Užfiksuota instrukcijos versija} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{gap} & \prompt{report.gap_analysis} & 71 pareiga iš aštuonių aktų (MiCA 18, DORA 14, PPTFPĮ 13, TFR 8, GDPR 7, KRĮ 6, PAĮ 3, ADTAĮ 2), vertinamos pagal 26 pavyzdinės įmonės dokumentus; tikimasi 24 atitinka, 17 iš dalies, 7 neatitinka, 14 neįrodyta, 9 netaikoma; 54 priima ir antrą būseną & 67 iš 71, nuokrypis 2 & v8 \\
+\code{applicability} & \prompt{report.applicability} & 19 įmonės ir akto porų, 13 pavyzdinei įmonei ir 6 mokėjimo įstaigai: 13 taikoma, 5 netaikoma, 1 neaišku (vienas atvejis priima ir neaišku); kai kurie nustato ir poveikį arba taikymo pradžios datą & 19 iš 19 & v8 \\
+\code{citations} & \prompt{corpus.check_citations} & 20 nuorodų: 14 pagal MiCA, 3 pagal DORA, 3 pagal GDPR; 13 atitinka, 7 neatitinka & 19 iš 20 & v4 \\
+\code{verify} & \prompt{corpus.verify_obligations} & 14 įrašų su jų cituojamu straipsniu: 6 turi būti rasti pagrįsti, 8 -- abejotini & 14 iš 14 & v1 \\
+\code{scope} & \prompt{corpus.scope} & 9 aktai su įstaigų rūšimis, kurias jų apimties nuostatos turi ir neturi įvardyti & 9 iš 9 & v1 \\
+\code{sanctions} & \prompt{corpus.sanctions} & 16 straipsnių, perskaitytų per aštuonių aktų sankcijų nuostatas: 13 su maksimalia bauda už bet kokį pažeidimą (2 -- ir su griežtesne, 1 -- kuriam griežtesnė negali būti rodoma, 1 -- su nuoroda, kurią asmenų rūšį ji saisto), 1 su didžiausia jam rodoma maksimalia bauda ir nuoroda, kieno ji, 2, kuriems aktas jos nenurodo & 16 iš 16 & v4 \\
+\end{xltabular}
+
+\paragraph{Pastaba dėl versijų numerių.} Versijos numeris skaičiuoja instrukcijos versijas
+toje duomenų bazėje, kurioje ji išsaugota (\cref{ch:prompts}), o komanda užfiksuoja tos
+duomenų bazės, kurioje buvo vykdyta, numerį. Tai padaryta sąmoningai: bazinis rezultatas
+įvardija balą pelniusią versiją ten, kur tas balas pelnytas, o ta pati formuluotė kitame
+diegime gali turėti kitą numerį. Iki 2026 m. lapkričio 19 d. bazinis rezultatas nurodė
+\prompt{corpus.sanctions} v4 -- numerį toje kopijoje, kurioje instrukcija buvo rengiama, -- nors
+veikiančioje sistemoje ta pati formuluotė buvo 1 versija. Tą dieną rinkinys užfiksuotas iš naujo
+pakeistai instrukcijai -- dukart, jos 2 ir 3 versijoms, o lapkričio 20~d. -- 4 versijai
+(\cref{ch:obligations}), -- kaskart kopijoje, sukurtoje iš diegimo failo, todėl jo numeris,
+4, yra tas, kurį turi diegimas; kiti penki numeriai yra veikiančios sistemos aktyvių
+versijų numeriai. Todėl bazinio rezultato numeris formuluotę identifikuoja tik kartu su
+duomenų baze, kurioje jis užfiksuotas.
+
+\subsection{Ko modelis vis dar neįveikia}\label{sec:control:misses}
+
+2026 m. lapkričio 12 d. modelis neįveikė penkių iš 146 atvejų: keturių atitikties spragų
+rinkinio ir vieno nuorodų rinkinio. \file{docs/markdown/en/architecture.md} keturis atitikties spragų
+atvejus apibūdina kaip \enquote{per griežtus skaitymus (Lėšų pervedimo reglamento
+\enquote{įvykdyti} pritaikytas politikai, kuri blokuoja \enquote{inicijavimą})}: modelis
+politiką vertino pagal tikslią pareigos formuluotę ten, kur žymos politiką laikė pakankama.
+Jie paliekami faile tokie, kokie yra, \enquote{kad geresnė instrukcija pasirodytų kaip
+geresnis balas}. Įraše nenurodyta, kurio nuorodų atvejo modelis neįveikė. Į kitų keturių
+rinkinių atvejus modelis atsakė taip, kaip pažymėta.
+
+\subsection{Ko nematuoja joks rinkinys}\label{sec:control:unmeasured}
+
+Septyniolika iš 23 instrukcijų rinkinio neturi:
+
+\begin{itemize}
+  \item abi išskyrimo instrukcijos, kiekvienos pareigos kiekvienoje ataskaitoje šaltinis:
+    \prompt{corpus.extract_obligations} ir \prompt{corpus.extract_requirements};
+  \item \prompt{corpus.standard_outline}, kuri vykdyta tik su rankomis išmatuotais
+    dokumentais;
+  \item \prompt{report.inventory}, \prompt{company.internal_requirements} ir
+    \prompt{report.internal_gap};
+  \item \prompt{report.action_plan}, \prompt{report.plan_merge} ir \prompt{report.summary};
+  \item šešios programos dokumentų instrukcijos: \prompt{programme.policy},
+    \prompt{programme.documents}, \prompt{programme.structure}, \prompt{programme.raci},
+    \prompt{programme.risk_criteria} ir \prompt{programme.risk_scenarios};
+  \item pokalbio \prompt{chat.assistant} ir \prompt{chat.title}.
+\end{itemize}
+
+Paieška taip pat nematuojama nuolat: dviejų vektorizavimo modelių palyginimas atliktas vieną
+kartą, 2026 m. rugsėjo 28 d. (\cref{ch:corpus}).
+
+Ką tai reiškia, priklauso nuo kelio. Išskyrimo spraga didžiausia: to, ko modelis neužrašo,
+niekas nemato, nes vertintojas skaito esamus įrašus, o peržiūrėtojas -- tai, ką parodo
+vertintojas. Planą ir sujungimą kodas verčia išlaikyti aprėptį -- kiekvienai atvirai
+išvadai po vieną veiksmą, -- bet ne veiksmo kokybę. Santraukai liepiama neįvesti naujų
+faktų, ir niekas netikrina, ar ji jų neįveda. Programos dokumentas tikrinamas pagal jo rūšies
+taisykles ir tvirtinamas žmogaus; dvi pamokos iš pirmųjų jo registrų
+(\cref{sec:control:record}) buvo klaidos, kurių nematė jokia taisyklė. Pokalbį riboja jo
+įrankiai ir jų patikros, o ne jo atsakymų matavimas. Kiekvienos iš šių instrukcijų
+formuluotės ar modelio pakeitimas vertinamas skaitant jos rezultatą ir niekaip kitaip.
+
+
+% ============================================================
+\section{Išmatuotų pakeitimų įrašas}\label{sec:control:record}
+
+Instrukcijos ir konvejeris dabartinę formą įgijo remiantis stebėjimais pavyzdinės įmonės
+medžiagoje. \Cref{tab:control:record} surenka kiekvieną saugyklos dokumentuose ir knygos
+rengėjo faktuose užfiksuotą atvejį, kai instrukcijos, paieškos, modelio ar traktavimo
+pakeitimą lėmė skaičius. Kiekvienas jų -- vienos įmonės stebėjimas nurodytą dieną nurodytomis
+sąlygomis; nė vienas nėra bendras modelių reitingas ar pažadas dėl kitos įmonės.
+
+\begin{xltabular}{\textwidth}{@{}L{17mm}L{37mm}YL{37mm}@{}}
+\caption{Datuoti matavimai, lėmę dabartinę sistemos formą}\label{tab:control:record}\\
+\toprule
+\hd{Data} & \hd{Kas matuota} & \hd{Rezultatas} & \hd{Kas pakeista} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Data} & \hd{Kas matuota} & \hd{Rezultatas} & \hd{Kas pakeista} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+2026-09-28 & Atitikties spragų analizė, 73 rankomis patikrintos pavyzdinės įmonės ataskaitos išvados & Ankstesnė instrukcija ir paieška buvo teisingos 71~\% atvejų ir nurodė 21 problemą, kurios dokumentuose nėra; perdarytos, ištraukomis paremtos -- 93~\%, su tuo pačiu modeliu (\model{gpt-5.6-terra}); \model{gpt-5.6-sol} pasiekė 95~\% už dvigubą kainą & Perdaryta instrukcija ir paieška išlaikytos, kol lapkričio 10 d. ištraukas pakeitė visi dokumentai. 73 žymos neišsaugotos; jas pakeičia lapkričio 12 d. rinkiniai. \\
+2026-09-28 & Du vektorizavimo modeliai, 1536 dimensijos & Angliška pareiga savo lietuvišką straipsnį rado 38, 33 ir 37 kartus iš 40 (MiCA, DORA, PPTFPĮ) su \model{text-embedding-3-large}, palyginti su 23, 29 ir 34; tinkamą įmonės dokumentą tarp šešių ištraukų -- 38 kartus iš 41, palyginti su 35 & \model{text-embedding-3-large} \\
+be datos & Nuorodų patikra: vektorių panašumas, palyginti su vertinančiu modeliu, pavyzdinės įmonės klaidingoms MiCA nuorodoms & Vektoriai ne geresni už atsitiktinumą; \model{gpt-5.6-luna} teisingai įvertino visas 12 & Vertina modelis; žodžių sutapimas -- tik kaip pakaitalas \\
+be datos & MiCA pareigų išskyrimas & V ir VI priedai prie akto 393 pareigų pridėjo 134 pasikartojimus & Instrukcija praleidžia nuostatą, kuri tik išvardija pažeidimus \\
+2026-11-10 & Trys modeliai išskiria du paketus (MiCA 68--75~str.; PPTFPĮ 10--13~str.) & \model{gpt-5.6-terra} -- 44 ir 25 pareigos, \model{gpt-6.1-sol} -- 56 ir 32, \model{gpt-6-astra} -- 55 ir 31, maždaug penkis kartus brangiau nei \model{gpt-6.1-sol}. Skaičiuotos rastos pareigos, o ne jų teisingumas & Išskyrimas perkeltas į \model{gpt-6.1-sol}; tą pačią dieną visa teisės aktų bazė perskaityta iš naujo \\
+2026-11-10 & Trys modeliai su tikromis ataskaitos užklausomis: trys atitikties spragų analizės paketai po penkiolika, du taikytinumo paketai po keturis & \model{gpt-6.1-sol} ir \model{gpt-6-astra} sutapo dėl 43 iš 45 būsenų ir dėl visų 8 verdiktų; \model{gpt-5.6-terra} skyrėsi penkiose pareigose; 2\,200 pareigų atitikties spragų analizė su astra kainuotų apie 57~\$, palyginti su 11~\$ & Kiekvienas ataskaitos etapas -- su \model{gpt-6.1-sol} \\
+2026-11-10 & Išvados, vertintos pagal šešias kiekvienai pareigai surastas ištraukas & Paprašytas patikrinti penkias kritines tos dienos ataskaitos išvadas, pokalbių asistentas perskaitė dokumentus ir tris rado klaidingas & Kiekvienam iškvietimui pateikiami visi dokumentai \\
+2026-11-10 & Modelio vertinamas reikšmingumas & 23 iš 42 atvirų išvadų, pavadintų kritinėmis, buvo ataskaitų teikimo pareigos, keturios -- pareigos, įvertintos kaip žemos & Reikšmingumas imamas iš registro \\
+2026-11-10 & Veiksmų planas vienu iškvietimu 160 sunkiausių išvadų & 806 iš 966 atvirų išvadų liko be veiksmo & Planuojama kiekviena atvira išvada, pagal temas; tai, ką iškvietimas praleidžia, taiso kodas \\
+2026-11-10 & Kiekvienas taikomas ar neaiškus aktas vertintas vienodai & Septyni neaiškūs aktai lėmė 872 iš 2\,120 išvadų, iš jų 823 -- netaikoma arba neįrodyta & Neaiškus aktas nevertinamas; direktyva lieka už ją perkeliančio įstatymo; vėliau taikomas aktas -- pasirengimas \\
+2026-11-10--11 & Tiekėjo instrukcijų podėlis su \model{gpt-6.1-sol} & Atitikties spragų iškvietimas kainavo 0,17~\$, kai dokumentai buvo žinutėje; 0,18~\$ juos įrašant po instrukcijų ir apie 0,045~\$ juos nuskaitant & Bendras blokas po instrukcijų; pirmasis iškvietimas vykdomas vienas \\
+2026-11-11 & Institucijos veiklą organizuojantys aktai & Penki aktai lėmė 42 išvadas, nė vienos spragos & Verdikto \code{effect}; institucinis aktas taikomas netiesiogiai \\
+2026-11-11 & Katalogo sąrašas, kam aktas privalomas & Kriptoturto paslaugų teikėjui praleistas Finansų įstaigų įstatymas; lapkričio 12 d. perskaitytos 51 akto apimties nuostatos papildė penkis sąrašus naujomis rūšimis & Apimties nuostatų skaitymas, kuris gali aktą tik palikti \\
+2026-11-11 & Planavimo iškvietimų projektų sujungimas & 48 projektai tapo 20 veiksmų, išlaikytos visos 645 išvados; liepus dokumentus ir dalykus laikyti atskirai, 44 projektai tapo 24, o didžiausias uždarė 65 išvadas vietoj 123 & Sujungimo instrukcijos taisyklės, ko nejungti \\
+2026-11-12 & Pirmoji vertintojo formuluotė, 137 dviejų įstatymų pareigos & 17 abejonių: sąlygą leidimui ir vidaus audito tarnybos tikslus jis laikė mažiau nei pareigomis; su dabartine formuluote -- 3, kiekviena verta žmogaus dėmesio, už 0,19~\$ & Instrukcijos 1~patikra išvardija, kas laikoma pareiga; abi pusės išlaikytos rinkinyje \code{verify} \\
+2026-11-12 & DORA įgyvendinimo standarto, kuris yra ataskaitos forma, skaitymas & 68 pareigos, po vieną kiekvienam formos laukui & Du šabloniniai aktai pateikiami išjungti \\
+2026-11-12 & Pirmieji pavyzdinės įmonės rizikos registrai & Devyni iš dešimties scenarijų turėjo tuos pačius poveikio lygius; kitas rėmėsi vien finansinėmis politikomis & Instrukcija prašo kiekvieną scenarijų vertinti pagal jo faktus ir visai organizacijai; balai pasiskirstė nuo 9 iki 20 \\
+2026-11 & Standarto antraštės su mažesniu modeliu & Praleista 16 iš 286 OWASP ASVS reikalavimų & Struktūros instrukcija vykdoma su dideliu modeliu \\
+2026-11-12 & Šeši rinkiniai & \Cref{tab:control:suites} baziniai rezultatai & Užfiksuota kaip bazinis rezultatas \\
+\end{xltabular}
+
+Dviejų rūšių pakeitimų lentelėje nėra, nes jų nelėmė joks skaičius: pokalbio atsakymo kalbos
+pakeitimo, atlikto po to, kai į vieną anglišką klausimą atsakyta lietuviškai, ir ataskaitų
+sąrašo įrankio, pridėto po to, kai pokalbis paprašė naudotojo ataskaitos identifikatoriaus
+(\cref{ch:chat}).
+
+
+% ============================================================
+\section{Kaina}\label{sec:control:cost}
+
+Kaina -- savarankiška kontrolės priemonė: sistema, kurią per brangu vykdyti dar kartą, dar
+kartą nevykdoma, o nepakartota ataskaita nepatikrinama. Šiame poskyryje aprašoma, kiek
+kainuoja iškvietimas ir kodėl, kiek kainavo kiekvienas kelias pagal matavimus, iš ko susideda
+visos ataskaitos kaina ir kas išlaidas laiko ribose.
+
+\subsection{Kiek kainuoja iškvietimas ir kodėl}
+
+Iškvietimo kaina skaičiuojama pagal penkis žetonų skaičius DI tinklų sąsajos kainomis tam
+modeliui (\code{cost_of} faile \file{assistant/usage.py}; \cref{ch:models}): iš tiekėjo
+podėlio nuskaityta įvestis, į jį įrašyta įvestis, kita įvestis ir išvestis; samprotavimas
+yra išvesties dalis. Pagal 2026 m. lapkričio 10 d. kainoraštį \model{gpt-6.1-sol} milijonas
+įvesties žetonų kainuoja 2~\$, į podėlį įrašomos įvesties -- 2,50~\$, iš jo nuskaitomos --
+0,10~\$, išvesties -- 10~\$. Iš to išplaukia trys faktai, lemiantys visus toliau pateiktus
+skaičius. Išvestis penkis kartus brangesnė už įvestį, todėl etapas, kuris daug rašo
+(išskyrimas, atitikties spragų analizė), kainuoja daugiau nei tas, kuris daug skaito.
+Tiekėjo jau matyta įvestis kainuoja dvidešimt kartų mažiau, todėl etapas, kurio iškvietimai
+turi bendrą bloką, po pirmojo iškvietimo jį perskaito beveik nemokamai. O
+\model{gpt-6-astra}, pokalbio modelis, tiek už įvestį, tiek už išvestį kainuoja penkis kartus
+daugiau nei \model{gpt-6.1-sol}. \Cref{ch:models} aprašo podėlį ir matavimą, pagal kurį
+aplink jį suprojektuota sistema.
+
+\subsection{Kiekvieno kelio kaina pagal matavimus}
+
+\Cref{tab:control:costs} pagal kelius išvardija visus dokumentuose ir knygos rengėjo faktuose
+užfiksuotus kainos matavimus. Visi atlikti su pavyzdine įmone arba su bendra teisės aktų baze;
+kai skaičius gautas duomenų bazės kopijoje, o ne veikiančioje sistemoje, tai nurodyta
+lentelėje.
+
+\begin{xltabular}{\textwidth}{@{}L{17mm}L{35mm}YR{12mm}R{15mm}@{}}
+\caption{Išmatuota DI kelių kaina}\label{tab:control:costs}\\
+\toprule
+\hd{Data} & \hd{Kelias} & \hd{Kas atlikta} & \hd{Iškvie\-timai} & \hd{Kaina} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Data} & \hd{Kelias} & \hd{Kas atlikta} & \hd{Iškvie\-timai} & \hd{Kaina} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{5}{@{}l}{\hd{Vienkartinis darbas su teisės aktų baze}} \\
+2026-11-10 & Pareigų išskyrimas & Visi tuo metu įjungti aktai (51), iš naujo perskaityti ištisai: 4\,892 pareigos, 12:42--15:12 UTC, be klaidų & 461 & 23,61~\$ \\
+2026-11-13 & Pareigų išskyrimas & Tą dieną pridėti 17 įjungtų aktų: 1\,068 pareigos & 36 & 4,77~\$ \\
+2026-11-12 & Registro vertintojas & 137 dviejų įstatymų pareigos & --- & 0,19~\$ \\
+2026-11-13 & Registro vertintojas & Visas registras, 5\,960 pareigų & 369 & 9,80~\$ \\
+2026-11-12 & Sankcijų nuostatos & 51 aktas duomenų bazės kopijoje: 274 pakopos & --- & 0,65~\$ \\
+2026-11-13 & Sankcijų nuostatos & Visa teisės aktų bazė, veikiančioje sistemoje: 262 pakopos 27 aktuose & 29 & 0,71~\$ \\
+2026-11-19 & Sankcijų nuostatos & Visa teisės aktų bazė, dar kartą perskaityta antrąja instrukcijos versija duomenų bazės kopijoje: 309 pakopos 27 aktuose & 29 & 0,61~\$ \\
+2026-11-19 & Sankcijų nuostatos & Visa teisės aktų bazė, dar kartą perskaityta trečiąja instrukcijos versija duomenų bazės kopijoje: 288 pakopos 27 aktuose, 84 iš jų nurodo, ką saisto & 29 & 0,63~\$ \\
+2026-11-20 & Sankcijų nuostatos & Visa teisės aktų bazė, dar kartą perskaityta ketvirtąja instrukcijos versija duomenų bazės kopijoje: 302 pakopos 27 aktuose, 100 iš jų nurodo, ką saisto; 0,50~\$, kai po mažiau nei valandos perskaityta dar kartą ir įvestis buvo podėlyje & 29 & 0,61~\$ \\
+2026-11-13 & Apimties nuostatos & 24 aktai, vienos ataskaitos metu & 6 & 0,16~\$ \\
+2026-11-12 & Teisės aktų bazės vektorizavimas & 24 nauji katalogo aktai, įkelti į duomenų bazės kopiją, 89~s & --- & 0,08~\$ \\
+2026-09-28 & Teisės aktų bazės vektorizavimas & Visų vektorių perskaičiavimas, pagal įvertį & --- & \textasciitilde 0,30~\$ \\
+2026-11 & Standarto antraštės & OWASP ASVS 4.0.3, su \model{gpt-5.6-terra}, 90~s & 6 & \textasciitilde 0,25~\$ \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Vienai ataskaitai, pavyzdinė įmonė}} \\
+2026-11-10 & Visa ataskaita & 2\,120 išvadų iš mažesnio aktų skaičiaus, 48 minutės, be vidaus reikalavimų & --- & 16,04~\$ \\
+2026-11-10--11 & Vienas atitikties spragų analizės iškvietimas & 59\,000 įvesties žetonų: bendro bloko įrašymas / nuskaitymas & 1 & 0,18~\$ / \textasciitilde 0,045~\$ \\
+2026-11-11 & Sutrumpinta ataskaita & Kopijoje, kiekvieno akto pareigos apribotos pirmosiomis penkiolika: 7~min 44~s & --- & 1,42~\$ \\
+2026-11-13 & Visa ataskaita & 2\,151 teisinė išvada ir 475 vidaus reikalavimai, 1~val. 38~min, veikiančioje sistemoje (\cref{tab:control:anatomy}) & 272 & 13,20~\$ \\
+be datos & Dokumentų inventoriai & 26 dokumentai, modelis nenurodytas & --- & 1,09~\$ \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Programos dokumentai, pavyzdinė įmonė, kopijoje, 2026-11-12}} \\
+2026-11-12 & Atitikties politika & Visas dokumentas, penkios minutės & --- & 0,46~\$ \\
+2026-11-12 & Valdymo struktūra, procesas, RACI & Visas dokumentas & --- & 0,39~\$ \\
+2026-11-12 & Rizikos kriterijai ir registras & Visas dokumentas & --- & 0,35--0,48~\$ \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Kita}} \\
+2026-11-12 & Šeši vertinimo rinkiniai & Vienas vykdymas, iš jo 0,42~\$ -- atitikties spragų rinkinys (\file{docs/markdown/en/operations.md} §12) & --- & \textasciitilde 1~\$ \\
+--- & Pokalbio ėjimas, pokalbio pavadinimas & Matavimų neužfiksuota & --- & --- \\
+\end{xltabular}
+
+\subsection{Visos ataskaitos sandara}
+
+Išsamiausias matavimas -- 2026 m. lapkričio 13 d. veikiančioje sistemoje parengta ataskaita:
+pavyzdinė įmonė, su parinktimi vertinti jos vidaus reikalavimus, be apimties peržiūros, visi
+iškvietimai su \model{gpt-6.1-sol}, 272 iškvietimai, nė vienas nepavyko (\cref{ch:report}).
+\Cref{tab:control:anatomy} ir \cref{fig:control:anatomy} parodo, kam buvo išleisti jos
+13,20~\$.
+
+\begin{table}[H]
+\caption{2026 m. lapkričio 13 d. ataskaitos kaina pagal etapus}\label{tab:control:anatomy}
+\begin{tabularx}{\textwidth}{@{}YR{14mm}R{26mm}R{14mm}@{}}
+\toprule
+\hd{Etapas} & \hd{Iškvie\-timai} & \hd{Kaina} & \hd{Dalis} \\
+\midrule
+Teisės aktų nuorodų patikra & 6 & 0,24~\$ & 2~\% \\
+Taikytinumas ir šalia jo atliekami apimties nuostatų skaitymai (niekieno sąskaita) & 12 + 6 & 0,46~\$ + 0,16~\$ & 5~\% \\
+Atitikties spragų analizė & 154 & 7,32~\$ & 55~\% \\
+Vidaus reikalavimai: skaitymas ir vertinimas & 26 + 49 & 1,10~\$ + 2,07~\$ & 24~\% \\
+Veiksmų planas ir sujungimas & 17 + 1 & 1,53~\$ + 0,28~\$ & 14~\% \\
+Santrauka & 1 & 0,06~\$ & 0,5~\% \\
+\midrule
+Visas vykdymas & 272 & 13,20~\$ & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar stacked, width=112mm, height=46mm,
+  xmin=0, xmax=24, bar width=6.5mm,
+  enlarge y limits=0.45,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick=data, symbolic y coords={nov13,nov10},
+  yticklabels={{lapkr. 13 d. ataskaita\\ 2\,151 teisinė išvada\\ ir vidaus reikalavimai,\\ 68 aktai},{lapkr. 10 d. ataskaita\\ 2\,120 išvadų, 51 aktas}},
+  yticklabel style={align=right, text width=30mm, font=\sffamily\footnotesize, text=body},
+  xtick={0,4,8,12,16,20},
+  xticklabel style={font=\sffamily\footnotesize, text=muted},
+  xlabel={JAV doleriai}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  legend style={draw=none, font=\sffamily\scriptsize, text=body, at={(0.5,-0.42)}, anchor=north, legend columns=4},
+  legend image code/.code={\draw[#1] (0cm,-0.1cm) rectangle (0.3cm,0.1cm);}]
+  \addplot[fill=mid, draw=ink] coordinates {(7.32,nov13) (0,nov10)};
+  \addplot[fill=pale, draw=ink] coordinates {(2.71,nov13) (0,nov10)};
+  \addplot[fill=tint, draw=ink] coordinates {(3.17,nov13) (0,nov10)};
+  \addplot[fill=rule, draw=ink] coordinates {(0,nov13) (16.04,nov10)};
+  \legend{atitikties spragų analizė, likusi teisinė dalis, vidaus reikalavimai, neišskaidyta}
+  \node[font=\sffamily\footnotesize, text=body, anchor=west] at (axis cs:13.3,nov13) {13,20~\$, teisinė dalis 10,03~\$};
+  \node[font=\sffamily\footnotesize, text=body, anchor=west] at (axis cs:16.1,nov10) {16,04~\$};
+\end{axis}
+\end{tikzpicture}
+\caption{Dvi išmatuotos visos pavyzdinės įmonės ataskaitos. 2026 m. lapkričio 10 d.
+ataskaita užfiksuota tik kaip bendra suma, be modelio; kiekvienas 2026 m. lapkričio 13 d.
+ataskaitos iškvietimas vykdytas su \model{gpt-6.1-sol}. 2026 m. lapkričio 13 d. teisinė
+dalis -- atitikties spragų analizė ir visi kiti etapai, išskyrus įmonės vidaus reikalavimus,
+-- kainavo 10,03~\$ už šiek tiek daugiau išvadų, teisės aktų bazei išaugus nuo 51 iki 68
+įjungtų aktų; vidaus reikalavimai, kurie yra parinktis, pridėjo 3,17~\$. Lapkričio 13 d.
+segmentai -- jos užfiksuoti etapai, o likusi teisinė dalis -- tai 10,03~\$ atėmus atitikties
+spragų analizę.}\label{fig:control:anatomy}
+\end{figure}
+
+Atitikties spragų analizė sudaro daugiau nei pusę visos sumos, ir didžioji jos dalis --
+išvestis. Jos 154 iškvietimai išsiuntė 9,12 milijono įvesties žetonų, iš kurių 8,44 milijono
+(92,5~\%) nuskaityta iš tiekėjo podėlio ir 0,68 milijono įrašyta; jie parašė 0,48 milijono
+išvesties žetonų, kurie po 10~\$ už milijoną sudaro apie 4,80~\$ iš jos 7,32~\$
+(\cref{ch:report}). Įmonės 26 dokumentų skaitymas po penkiolika pareigų kainavo nedaug,
+pirmajam iškvietimui juos įrašius į podėlį.
+
+Tarp dviejų išmatuotų vykdymų ataskaita atpigo, nors išaugo. 2026 m. lapkričio 10 d.
+ataskaita dokumentus siuntė kiekvieno iškvietimo žinutėje, neaiškius aktus, direktyvas ir
+vėliau taikomus aktus vertino vienodai ir už 2\,120 išvadų kainavo 16,04~\$; iki lapkričio
+13 d. dokumentai jau keliavo ištisi podėlyje laikomame bendrame bloke, o tie aktai palikti
+tikslintini, taikomi netiesiogiai arba skaičiuojami atskirai (\cref{sec:control:record}).
+Skaičiai neišskiria kiekvieno pakeitimo poveikio, o teisės aktų bazė, kuria jie paremti, buvo
+skirtinga.
+
+\subsection{Vienkartinis darbas su teisės aktų baze ir darbas kiekvienai ataskaitai}
+
+Dvi išlaidų rūšis reikia laikyti atskirai (\cref{fig:control:split}). Teisės skaitymas --
+pareigų išskyrimas, jų vertinimas, apimties ir sankcijų nuostatų skaitymas, teisės aktų bazės
+vektorizavimas -- nepriklauso nuo įmonės ir atliekamas vieną kartą kiekvienai akto
+redakcijai. Juo pakartotinai naudojasi kiekviena vėlesnė kiekvienos įmonės ataskaita. Įmonė
+pagal registrą vertinama kiekvienoje ataskaitoje. Išmatuotuose vykdymuose 68 aktų
+vienkartinis darbas kainavo 39,05~\$ per 901 iškvietimą, viena visa pavyzdinės įmonės
+ataskaita -- 13,20~\$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, width=96mm, height=62mm,
+  xmin=0, xmax=28, bar width=4.6mm,
+  enlarge y limits=0.08, y dir=reverse,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick={1,...,7},
+  yticklabels={{išskyrimas, 51 aktas (lapkr. 10 d.)}, {išskyrimas, 17 aktų (lapkr. 13 d.)}, {vertintojas, 5\,960 pareigų (lapkr. 13 d.)}, {sankcijų nuostatos (lapkr. 13 d.)}, {apimties nuostatos, 24 aktai (lapkr. 13 d.)}, {visa ataskaita (lapkr. 13 d.)}, {visa ataskaita (lapkr. 10 d.)}},
+  yticklabel style={align=right, font=\sffamily\footnotesize, text=body},
+  xtick={0,5,10,15,20,25},
+  xticklabel style={font=\sffamily\footnotesize, text=muted},
+  xlabel={JAV doleriai}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  nodes near coords={\pgfmathprintnumber[fixed, precision=2, fixed zerofill, use comma]{\pgfplotspointmeta}~\$},
+  nodes near coords style={font=\sffamily\footnotesize, text=body, anchor=west},
+  point meta=x]
+  \addplot[fill=mid, draw=ink] coordinates {(23.61,1) (4.77,2) (9.80,3) (0.71,4) (0.16,5) (13.20,6) (16.04,7)};
+\end{axis}
+\end{tikzpicture}
+\caption{Vienkartinis darbas su teisės aktų baze, palyginti su vienos ataskaitos kaina.
+Pirmieji penki stulpeliai -- bendras darbas su teisės aktų baze, apmokamas vieną kartą
+kiekvienai akto redakcijai; paskutiniai du -- po vieną pavyzdinės įmonės ataskaitą,
+priskiriamą naudotojui, kuriam priklauso užduotis. 2026 m. lapkričio 10 d. ataskaita
+užfiksuota be modelio; tos dienos išskyrimas ir kiekvienas 2026 m. lapkričio 13 d.
+iškvietimas vykdyti su \model{gpt-6.1-sol}.}\label{fig:control:split}
+\end{figure}
+
+\subsection{Kieno sąskaita}
+
+Ar iškvietimas įskaičiuojamas į asmens dienos biudžetą, lemia naudotojas, kurį nurodo jį
+kviečiantis kodas (\cref{ch:models} išvardija visus atvejus). Taisyklė tokia: darbas vieno
+naudotojo įmonei yra to naudotojo, o darbas su bendra teisės aktų baze -- niekieno.
+Ataskaitos iškvietimai priskiriami naudotojui, kuriam priklauso užduotis, -- ataskaitos su
+apimties peržiūra atveju asmeniui, patvirtinusiam apimtį, nes brangi antroji dalis yra jo
+vardu į eilę įtraukta užduotis. Aktas, kurį ataskaita randa niekada neperskaitytą,
+išskiriamas niekieno sąskaita, kaip ir apimties bei sankcijų nuostatų skaitymai; išskyrimas
+ar vertintojo vykdymas, kurį administratorius įtraukia į eilę iš akto puslapio, priskiriamas tam
+administratoriui. Programos dokumento iškvietimai priskiriami jį pradėjusiam naudotojui,
+išskyrus nuorodų vertintojo iškvietimą jo etape \code{references}, kuris priskiriamas
+užduoties etapui be naudotojo. Vertinimo vykdymas yra niekieno sąskaita. Niekieno sąskaita
+atliktas darbas vis tiek naudoja DI tinklų sąsajos rakto komandos biudžetą.
+
+\subsection{Kas riboja išlaidas}
+
+\begin{codebox}{Ribos, kiek sistema gali išleisti}
+\begin{itemize}
+  \item \textbf{DI tinklų sąsajos rakto komandos biudžetas.} Nustatomas DI tinklų sąsajoje;
+    jį išnaudojus kiekvienas iškvietimas atmetamas su HTTP~402, produktas praneša
+    \code{AI_BUDGET_EXHAUSTED}, o dėl to nepavykusi ataskaita išlaiko tai, už ką jau
+    sumokėta.
+  \item \textbf{Kiekvieno naudotojo dienos biudžetas}, numatytasis 10,00~\$
+    (\code{LLM_DAILY_BUDGET_USD}); tikrinamas prieš pokalbio ėjimą, bandomąjį vykdymą ir
+    prieš pradedant ataskaitą, apimties patvirtinimą ar programos dokumentą, kuriems reikia,
+    kad liktų 0,25~\$ (\code{MIN_BUDGET_TO_START_USD}). Jau pradėtas vykdymas dėl jo
+    niekada nesustabdomas pusiaukelėje.
+  \item \textbf{Kainos įvertis prieš vykdymą.} Viršutinė riba, apskaičiuojama be modelio
+    (\file{analysis/estimate.py}) ir rodoma kartu su likusiu biudžetu, prieš naudotojui
+    patvirtinant. Pokalbyje paleidimas atmetamas, jei iškvietime nenurodyta įvertį
+    padengianti suma (\code{COST_NOT_CONFIRMED}, \code{COST_UNKNOWN}).
+  \item \textbf{Apimties peržiūra prieš brangiąją dalį.} 2026 m. lapkričio 13 d. pirmoji
+    ataskaitos dalis kainavo 0,86~\$; aktų sąrašą tvirtinantis asmuo, dar prieš išleidžiant
+    bet kokią jos dalį, mato antrosios dalies kainą tam pasirinkimui ir kiekvieno akto
+    pareigų skaičių (\code{estimate_rest}).
+  \item \textbf{Vienkartinis darbas.} Pareigos išskiriamos vieną kartą kiekvienai akto
+    redakcijai, inventorius perskaitomas iš naujo tik pasikeitus dokumento tekstui ar
+    instrukcijai, o ataskaita yra viena užduotis su vienu bandymu, kad nesėkmė nebūtų
+    apmokama du kartus.
+  \item \textbf{Tiekėjo podėlis}, naudojamas sąmoningai: bendras blokas po instrukcijų, o
+    pirmasis iškvietimas vykdomas vienas.
+  \item \textbf{Ribos įmonei}: viena ataskaita vienu metu, vienas tam tikros rūšies programos
+    dokumentas vienu metu; indeksavimo užduotis, susidūrusi su išnaudotu biudžetu, laukia
+    kitos dienos.
+\end{itemize}
+\end{codebox}
+
+\begin{humanbox}{Ką apie pinigus sprendžia žmogus}
+Naudotojas nusprendžia pradėti vykdymą, pamatęs jo kainos įvertį, o ataskaitos apimtį
+tvirtinantis asmuo nusprendžia, kiek kainuos brangioji dalis. Administratorius nustato
+kiekvienos paskyros dienos biudžetą ir, per kiekvienos instrukcijos modelį, valdo didelį
+svertą, lemiantį ataskaitos kainą (\model{gpt-6-astra} kainuoja penkis kartus daugiau nei
+\model{gpt-6.1-sol}). Komandos biudžetą nustato DI tinklų sąsajos operatoriai.
+\end{humanbox}
+
+
+% ============================================================
+\section{Kas lieka neaišku}\label{sec:control:limits}
+
+Šio skyriaus kontrolės priemonės susiaurina tai, kur modelis gali suklysti niekam nepastebint,
+bet to visiškai neužkerta. Žinomos šios ribos, ir kiekviena jų aprašyta skyriuje, kuriam
+priklauso jos kelias.
+
+\paragraph{Tikroji tiesa.}
+\begin{itemize}
+  \item Vertinimo rinkinių žymas sudėjo DI modelis, o ne atitikties ekspertas, ir nė vienos
+    jų žmogus nepatvirtino ir nepakeitė. Balas matuoja sutapimą su tuo skaitymu.
+  \item Atitikties spragų rinkinio žymėtojai matė, kokia tvarka atvejai buvo atrinkti, o ji
+    leidžia numanyti modelio būseną; failas tai nurodo kaip metodo trūkumą.
+  \item Kartu su produktu pateikiamą pareigų registrą peržiūrėjo vertintojas ir DI
+    programavimo asistentas, o ne žmogus įrašas po įrašo. Jis peržiūrėtas mašininiu būdu.
+  \item Kiekvienas šio skyriaus matavimas atliktas su viena įmone, \demo, nurodytą dieną.
+\end{itemize}
+
+\paragraph{Kas nematuojama.}
+\begin{itemize}
+  \item Septyniolika iš 23 instrukcijų neturi rinkinio, tarp jų ir išskyrimo instrukcijos;
+    išskyrimo praleistos pareigos niekas nemato.
+  \item Paieškos kokybė nematuojama nuolat.
+  \item Niekas netikrina santraukos teksto pagal jos įvestį ar pokalbio atsakymo pagal tai,
+    ką grąžino jo įrankiai.
+  \item Keturi rinkiniai skaito dabartinę sistemos teisės aktų bazę, nors jų žymos sudėtos
+    pagal 2026 m. lapkričio 12 d. tekstus; jei vertintojo nepavyktų pasiekti, nuorodų
+    rinkinys balą skaičiuotų pagal žodžių sutapimo pakaitalo verdiktus.
+\end{itemize}
+
+\paragraph{Ko keliai neapima.}
+\begin{itemize}
+  \item Išvada pagal 2~lygio aktą pasekmę perima iš pagrindinio akto straipsnio, pagal kurį
+    standartas priimtas (\cref{ch:obligations}); kai standartas priimtas pagal kelis
+    straipsnius, kurių pažeidimas kainuoja nevienodai, ji pasekmės nerodo, kaip jos nerodo ir
+    išvada pagal priežiūros institucijos nurodymus ar EBA gaires.
+  \item Modelio taikytinumo verdiktas 2~lygio aktui yra jo paties; niekas jo neišveda iš
+    pagrindinio akto verdikto.
+  \item Apimties nuostatų skaitymas mato tik pirmuosius tris akto straipsnius, o sankcijų
+    nuostatų skaitymas -- tik straipsnius, kurių antraštėje kalbama apie sankcijas, ne
+    daugiau kaip aštuonis kiekviename akte ir ne daugiau kaip 24 pakopas. Nė vieno iš šių skaitymų
+    negalima pataisyti konsolėje; akto puslapis rodo, ką įvardija taikymo srities skaitymas ir
+    kiek pakopų perskaityta, bet ne pačias pakopas.
+  \item Nėra ekrano įmonės vidaus reikalavimams peržiūrėti: jie lieka \code{proposed}.
+  \item Sankcijų pakopos nepatenka į rizikos registro poveikio balus, kurie lieka modelio
+    kriterijų skaitymu.
+  \item \code{register.standing()} atmestą pareigą laiko vis dar galiojančia (2026~m.
+    lapkričio 13~d. nė viena iš dešimties atmestų pareigų nebuvo susieta su veiksmu).
+  \item Pakeitus pareigos adresatą, sąlygas, terminą ar įstaigų rūšis, išlieka ankstesnis
+    vertintojo verdiktas; jį išvalo tik naujas pavadinimas ar tekstas. Atmesta pareiga kito
+    išskyrimo metu atpažįstama pagal tikslų pavadinimą.
+  \item Ataskaita vertina, ką nustato įmonės dokumentai, o ne kaip tvarka veikia praktikoje,
+    ir negali atskirti nesamos tvarkos nuo nepateikto dokumento.
+  \item Skenuotų dokumentų (PDF be teksto) perskaityti negalima: optinio simbolių atpažinimo (OCR) nėra.
+    Šeši kurso ISO standartai yra licencijuoti skenuoti dokumentai ir teisės aktų bazėje jų
+    nėra, todėl standartų kelias ir \prompt{corpus.extract_requirements} veikiančioje
+    sistemoje nevykdyti.
+  \item Metinė atitikties ataskaita ir stebėsenos programa nėra sistemos produktai.
+\end{itemize}
+
+\paragraph{Kas vis dėlto priklauso nuo modelio ar žmogaus.}
+\begin{itemize}
+  \item Pokalbio įrašai, kurie remiasi naudotojo žodžiu, -- profilyje užfiksuotas faktas,
+    patikrintu pažymėtas leidimas,
+    pakeista išvados būsena, kainos patikrai perduota suma -- priklauso nuo modelio: joks
+    kodas neatskiria naudotojo duoto sutikimo nuo to, kurį tik teigia modelis. Dokumente
+    įterpta instrukcija, kurią perskaito administratoriaus pokalbis, galėtų pasiekti bet
+    kurią įmonę (\cref{ch:chat,ch:security}).
+  \item Pradėtas vykdymas nesustabdomas, kai jo naudotojo dienos biudžetas baigiasi, o
+    nepavykęs iškvietimas nepalieka sąnaudų eilutės, nors tiekėjas galėjo už jį išrašyti
+    sąskaitą (\cref{ch:models}).
+  \item Be apimties peržiūros pradėta ataskaita remiasi modelio verdiktais, kurie aktai
+    taikomi; eksportai nurodo, kad sąrašo niekas nepatvirtino.
+\end{itemize}
+
+Kiekvienos ataskaitos PDF nurodo ribą, kuri apima visas kitas: \enquote{Išvados yra
+pagalbinės ir negali pakeisti teisininko ar atitikties specialisto vertinimo --- kiekvieną
+išvadą patikrinkite pagal nurodytą teisės akto nuostatą.} Sistemos kontrolės priemonės
+sukurtos taip, kad šis patikrinimas būtų įmanomas -- kiekviena išvada nurodo savo nuostatą,
+pateikia į ją nuorodą, cituoja savo įrodymą ir įvardija ją parašiusią formuluotę, -- o jos
+įrašai kiekvienam rezultatui parodo, kiek žmogus tai jau padarė.

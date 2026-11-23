@@ -1,0 +1,1013 @@
+% STATUS: verified
+\chapter{Architecture}\label{ch:arch}
+
+This chapter describes the system as a set of running parts: the eight containers and what each
+owns, the two networks and the single way in and the single way out, the four rules that decide
+which part may do what, and the two internal doors between the API and the assistant service.
+It then follows four requests through the parts --- a chat turn, a report, a work product and a
+refresh of the legal corpus --- at the level of who calls whom. Background jobs are described
+in full here, because every long operation of the system is one: the queue, the worker, the
+scheduler and the daily maintenance. The chapter closes with the technology stack, the two
+modes of the compose file, and the architectural decisions with their reasons.
+
+\section{The system and its containers}\label{sec:arch:containers}
+
+The \product{} helps a compliance officer establish which Lithuanian and EU acts apply to a
+financial-sector company, extracts the obligations those acts impose, compares them with the
+company's own documents and writes a report of the gaps. From the same documents it drafts the
+work products of a compliance programme for a person to edit and approve. The user works in a
+chat; structured pages exist for review and administration. All of it runs on one host as one
+Docker Compose project, described in \file{docker-compose.yml}: eight containers
+(\cref{tab:arch:containers}), of which three are built from the repository's own code --- the
+API, the assistant service and the console --- and one, the database, from a stock image with
+an extension compiled in.
+
+\begin{table}[H]
+\caption{The eight containers of \file{docker-compose.yml} and what each owns}\label{tab:arch:containers}
+\begin{tabularx}{\textwidth}{@{}L{36mm}L{33mm}Y@{}}
+\toprule
+\hd{Container} & \hd{Image} & \hd{What it owns} \\
+\midrule
+\code{legalops-endpoint} & \code{caddy:2.11-alpine} & The single ingress. It publishes host port 80 and routes each request by its path to the console, the API, the assistant service or the database tool; it sets the security headers and writes a JSON access log. \\
+\code{legalops-exit} & \code{vuknf/caddy-l4:2.11} & The single egress: a proxy on port 443 that forwards a TLS connection only when it names one of four allowed hosts. \\
+\code{legalops-vite} & built from \file{vite/} & The console under \code{/console} and the public site at the root: one Vite project with two applications. It holds no data and no secret. \\
+\code{legalops-django} & built from \file{django/} & The API (Django): accounts and sessions, companies and their documents, the legal corpus, the register of obligations, reports, work products, prompts, chat history, usage and the audit log; the uploaded files on disk; the internal door \code{/internal/assistant/*}. The worker's loop runs inside this container. \\
+\code{legalops-worker} & \code{docker:27-cli} & Nothing of its own. It is a Docker command-line client that starts the job loop inside \code{legalops-django} and stays alive as long as that loop does. \\
+\code{legalops-assistant} & built from \file{assistant/} & The assistant service: every call to a model --- the streaming chat with its tools, the generations and embeddings the API asks for, and the client of external MCP servers. It owns the gateway's key and no data. \\
+\code{legalops-postgres} & built from \file{postgres/} & PostgreSQL with the \code{pgvector} extension: all data, the vector indexes and the full-text indexes. An empty data directory loads \file{postgres/bootstrap.sql.gz} on the first start. \\
+\code{legalops-dbgate} & \code{dbgate/dbgate:7.3.3-alpine} & An administration tool: a browser for the database, reachable under \code{/dbgate/} by administrators only. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Every container has a read-only root file system; what must be written goes to a
+\code{tmpfs} mount or to one of the two host folders under \file{_DATA/} (the database files
+and the uploads). The endpoint, the exit, the API and the database run as uid~1000. The
+worker and the database tool run as root, and for the console's and the assistant service's
+containers the \code{user} line of the compose file is commented out, so they run as their
+image's default user. The compose file sets no resource limits, no health checks and no start
+order: the services start together, and the endpoint answers 502 until the service behind a
+path is up. The security consequences of these choices are the subject of \cref{ch:security};
+installation and updates are in \cref{ch:ops}.
+
+\paragraph{Inside the API.} The Django project uses none of Django's bundled applications: no
+admin site, no \code{django.contrib.auth}, no sessions framework and no templates of its own
+(\file{settings.py}). It is eleven applications of the project's own (\cref{tab:arch:apps}),
+two pieces of middleware --- \code{RequestGuardMiddleware} (\file{common/middleware.py}),
+which refuses a NUL character in a path or query and turns a value the database cannot take,
+one out of range or malformed, into
+a 400 answer, and Django's \code{CommonMiddleware} --- and one route table for the whole
+service, \file{urls.py}. Every answer is JSON, errors included. Times are aware UTC values
+throughout. The routes themselves are listed in \cref{ch:api} and the tables in \cref{ch:data}.
+
+\begin{table}[H]
+\caption{The applications of the API, as \file{settings.py} installs them}\label{tab:arch:apps}
+\begin{tabularx}{\textwidth}{@{}L{23mm}Y@{\hspace{5mm}}L{23mm}Y@{}}
+\toprule
+\hd{Application} & \hd{Holds} & \hd{Application} & \hd{Holds} \\
+\midrule
+\code{users} & Accounts, sessions, sign-in & \code{programme} & Work products \\
+\code{audit} & The audit log & \code{chat} & Threads and messages \\
+\code{jobs} & The queue and the worker & \code{prompts} & Prompts and their versions \\
+\code{companies} & Companies and their documents & \code{ops} & Health probe, maintenance, rate-limit windows \\
+\code{corpus} & Acts, versions, units, obligations & \code{assistant} & The client of the assistant service, usage, prices, MCP servers \\
+\code{analysis} & Reports and the action register & & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Inside the assistant service.} The service is one Node process: an Express
+application (\file{app.js}) served by \file{server.js}. Its folders follow its three jobs:
+\file{routes/} holds the public chat route and the two internal route groups, \file{llm/} the
+provider registry, the chat tools, the stream and the MCP client, and \file{services/} the
+clients of the API and the small in-memory registries (who is signed in, the turn limit, the
+live turns). It keeps nothing on disk.
+
+\section{Networks, the way in and the way out}\label{sec:arch:network}
+
+The containers sit on two Docker networks, and the difference between them is the main
+security property of the deployment (\cref{fig:arch:containers}).
+
+\begin{description}
+  \item[The isolated network] \code{isolated} is a bridge declared \texttt{internal: true} with
+    the subnet 172.28.10.0/24. Docker gives such a network no route to the outside. Every
+    service except the worker is attached to it, and it is the only network the API, the
+    assistant service, the database and the database tool are attached to in production
+    mode.
+  \item[The external network] \code{external} is an ordinary Docker network that the compose
+    file does not create itself (it is declared \texttt{external: true};
+    \file{runUpdateThisStack.sh} creates it when the host has none of that name). Only the
+    endpoint and the exit join it in
+    production mode. The endpoint is the one container with a published port.
+  \item[No network] The worker has \texttt{network\_mode: none}. It talks to nothing but the
+    Docker socket mounted into it.
+\end{description}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \begin{scope}[on background layer]
+    \draw[lane] (0,-14) rectangle (150,-86);
+  \end{scope}
+  \node[lanelabel, anchor=north west] at (1.5,-15.5) {isolated network --- internal, no route out};
+
+  \node[ext] (browser) at (75,6) {browser, through the hosting's TLS proxy};
+  \node[svc, text width=24mm] (endpoint) at (75,-14) {\textbf{endpoint}\\ Caddy, port 80};
+  \node[svc, text width=22mm] (vite) at (16,-40) {\textbf{vite}\\ public site, console};
+  \node[svc, text width=22mm] (dbgate) at (134,-40) {\textbf{dbgate}\\ database tool};
+  \node[svc, text width=24mm] (assistant) at (40,-63) {\textbf{assistant}\\ every model call};
+  \node[svc, text width=24mm] (django) at (98,-63) {\textbf{django}\\ the API and the worker's loop};
+  \node[store] (postgres) at (136,-63) {\textbf{postgres}};
+  \node[svc, text width=22mm] (exit) at (62,-86) {\textbf{exit}\\ SNI allowlist};
+  \node[svc, text width=22mm] (worker) at (136,-101) {\textbf{worker}\\ Docker CLI, no network};
+
+  \node[ext] (gw) at (13,-109) {ai.knf.vu.lt};
+  \node[ext] (cellar) at (48,-109) {publications.europa.eu};
+  \node[ext] (etar) at (83,-109) {www.e-tar.lt};
+  \node[ext] (lb) at (106,-109) {www.lb.lt};
+
+  \draw[flow] (browser) -- (endpoint);
+  \draw[flow] (endpoint) -- node[lbl, pos=.55] {everything else} (vite);
+  \draw[flow] (endpoint) -- node[lbl, pos=.5] {\code{/api/assistant/*}} (assistant);
+  \draw[flow] (endpoint) -- node[lbl, pos=.5] {\code{/api/*}} (django);
+  \draw[flow] (endpoint) -- node[lbl, pos=.55] {\code{/dbgate/*}} (dbgate);
+
+  \draw[flow] ([yshift=2.2mm]django.west) -- node[lbl, above] {\code{/internal/llm/*}} ([yshift=2.2mm]assistant.east);
+  \draw[flow] ([yshift=-2.2mm]assistant.east) -- node[lbl, below, align=center] {\code{/api/*} as the user,\\ \code{/internal/assistant/*}} ([yshift=-2.2mm]django.west);
+  \draw[flow] (django) -- (postgres);
+  \draw[flow] (dbgate) -- (postgres);
+
+  \draw[flow] (assistant.south) -- (exit.north west);
+  \draw[flow] (django.south west) -- (exit.north east);
+  \draw[flow] (exit.south west) -- (gw.north);
+  \draw[flow] (exit.south) -- (cellar.north);
+  \draw[flow] (exit.south east) -- (etar.north);
+  \draw[flow] (exit.east) -- (lb.north);
+
+  \draw[opt] (worker.north west) -- node[lbl, pos=.5] {\texttt{docker exec}} (django.south east);
+
+  \node[note, anchor=west] at ([xshift=1mm]endpoint.east) {on both networks;\\ the only published port};
+  \node[note, anchor=east] at ([xshift=-1mm]exit.west) {on both networks,\\ at 172.28.10.30};
+\end{tikzpicture}
+\caption{The containers (their names without the prefix \code{legalops-}), the isolated
+  network, and which service may reach which. An arrow points from the caller to the service
+  called. Requests enter only through the endpoint and leave only through the exit, which
+  forwards to four named hosts. The dotted arrow is not a network path: the worker starts the
+  job loop inside the API's container through the Docker socket.}\label{fig:arch:containers}
+\end{figure}
+
+\subsection{The single ingress}
+
+The endpoint is a Caddy reverse proxy configured in \file{endpoint/Caddyfile}. It listens on
+port 80 in plain HTTP; TLS ends at the hosting's proxy in front of the host. It first refuses
+a request whose \code{Origin} header names another site, with a bare 403, and adds a content
+security policy
+and a transport security header to every other answer (\cref{ch:security}), then routes by
+path, first match wins
+(\cref{tab:arch:ingress}).
+
+\begin{table}[H]
+\caption{How the endpoint routes a request, in the order of \file{endpoint/Caddyfile}}\label{tab:arch:ingress}
+\begin{tabularx}{\textwidth}{@{}L{34mm}L{45mm}Y@{}}
+\toprule
+\hd{Path} & \hd{Goes to} & \hd{Remark} \\
+\midrule
+\code{/dbgate/*} & \code{legalops-dbgate:3000} & Only after the API has confirmed, on \route{GET}{/api/auth/checkauth/admin}, that the caller is a signed-in administrator (Caddy's \code{forward_auth}). \\
+\code{/api/assistant/*} & \code{legalops-assistant:3000} & The chat stream and its stop and status routes. \\
+\code{/api/*} & \code{legalops-django:8000} & The whole public API. \\
+everything else & \code{legalops-vite:80} & The public site and the console. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two things follow from this table. The assistant service has exactly one public route group,
+the chat; everything else it serves is internal. And no path beginning with \code{/internal/}
+is forwarded to the API or to the assistant service: such a request falls through to the last
+row and is answered by the console's container, which serves only the public site and the
+console.
+
+\subsection{The single egress}
+
+A container on the isolated network cannot open a connection to the internet. The exit is
+the one exception that is allowed, and it is narrow. It is a layer-4 proxy
+(\file{exit/Caddyfile}) that listens on port 443 only, reads the server name a TLS client
+announces when it opens a connection (the SNI field) and, when that name is on its list,
+forwards the connection to the same name on port 443. It does not decrypt anything. A
+connection that names any other host matches no route and is not forwarded.
+
+A service reaches an allowed host through two entries that must both exist: a route in
+\file{exit/Caddyfile}, and an \code{extra_hosts} line on the consuming service in
+\file{docker-compose.yml} that pins the host's name to the exit's fixed address,
+172.28.10.30. The service then connects to what it believes is the host and reaches the exit.
+\Cref{tab:arch:egress} lists the four hosts.
+
+\begin{table}[H]
+\caption{The egress allowlist: the hosts of \file{exit/Caddyfile} and the services that have
+  them pinned}\label{tab:arch:egress}
+\begin{tabularx}{\textwidth}{@{}L{38mm}L{30mm}Y@{}}
+\toprule
+\hd{Host} & \hd{Pinned for} & \hd{Used for} \\
+\midrule
+\code{ai.knf.vu.lt} & assistant service, API & The gateway: every model call, made by the assistant service. The compose file pins the name for the API's container too, but no code of the API calls it. \\
+\code{publications.europa.eu} & API & CELLAR, the Publications Office's machine interface: the EU acts. \\
+\code{www.e-tar.lt} & API & The Lithuanian register of legal acts. \\
+\code{www.lb.lt} & API & The Bank of Lithuania's pages and PDF files. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The three corpus hosts are pinned for the API's container because the worker's loop, which
+fetches the acts, runs there. The fetcher adds its own rule on top of the network's
+(\file{corpus/fetchers.py}): HTTPS on port 443 only, checked again on every redirect, so that
+a source cannot point the worker at one of the stack's own services; which hosts are
+reachable at all is left to the allowlist.
+
+The reason for the arrangement is that the two services that hold the system's data and its
+gateway key also process text they did not write --- uploaded documents, fetched pages,
+the answers of a model, the tools of external MCP servers. If one of them were made to open a
+connection of an attacker's choosing, the isolated network gives that connection nowhere to
+go except the four hosts. The price is paid in operations: a new corpus source or an external
+MCP server works only after its host is added in both places (\cref{ch:ops}). EUR-Lex and
+e-seimas are deliberately absent, because they refuse unattended clients (\cref{ch:corpus}).
+
+\section{Four design rules}\label{sec:arch:rules}
+
+Four rules fix the division of work between the API and the assistant service. Each exists
+for a reason and each has a consequence that can be checked in the code.
+
+\begin{description}
+  \item[The assistant service owns no data.]
+    Prompts, chat threads, usage records and the configurations of MCP servers live in the
+    API's database. The assistant service has no database connection --- its container is
+    given no database address --- and reads what it needs through the API. \emph{Reason:}
+    one copy of every fact, behind one set of access rules, in one place.
+    \emph{Consequence:} the service can be restarted or replaced without losing anything
+    but the chat turns in flight. What it keeps in memory --- the turn limiter's windows, the
+    cache of signed-in callers, the registry of live turns --- is rebuilt from nothing, and
+    the code notes that it therefore runs as a single instance on purpose
+    (\file{services/runs.js}, \file{services/ratelimit.js}).
+
+  \item[The API never calls a model provider.]
+    The worker and the web process ask the assistant service for a generation
+    (\route{POST}{/internal/llm/generate}) or for embeddings
+    (\route{POST}{/internal/llm/embed}); the one client is \file{assistant/gateway.py} in the
+    API. The API makes outbound HTTP requests from exactly two modules: this client, and
+    the corpus fetcher. \emph{Reason:} the providers and their credentials are configured
+    once, in one container. \emph{Consequence:} the gateway's key is in the environment of
+    the assistant service alone, a model is named everywhere by one string of the form
+    \code{provider:model} stored on the prompt version, and every model call of the system
+    passes one piece of code that can time it, retry it and count its tokens
+    (\cref{ch:models}).
+
+  \item[Chat tools act through the public API with the user's own token.]
+    When the model in a chat calls a tool --- file a company profile, read a report, start
+    an analysis --- the assistant service sends an ordinary request to \code{/api/*} carrying
+    the bearer token of the user who is chatting (\code{userClient} in
+    \file{services/django.js}). \emph{Reason:} the rule of who may see what --- a user sees
+    their own rows, an administrator all rows except other users' chat threads --- is
+    enforced once, in the API's views, and a tool cannot step around it. \emph{Consequence:}
+    the chat can do nothing its user could not do in the console, every change it makes is
+    audited under that user's name, and a tool has no route to accounts, prompts or MCP
+    settings, and none that changes the corpus: the chat may search and read the acts and
+    the register of obligations, never edit them (\cref{ch:chat}). There are two deliberate exceptions, both through the
+    internal door described below: the assistant's own replies, and the title a model gives
+    a conversation.
+
+  \item[Every model call is logged.]
+    A call leaves a row in \code{llm_calls} with its model, its token counts, its cost in US
+    dollars from the gateway's price list, the prompt version and the outcome. The API
+    writes the row itself after each generation and each embedding batch it asked for
+    (\code{record_call} in \file{assistant/usage.py}); the assistant service reports each
+    chat turn, with its transcript, through the internal door. \emph{Reason:} cost and
+    accountability --- a budget can only be enforced, and an answer only be traced, from a
+    complete record. \emph{Consequence:} the daily budget of a user, the usage page and the
+    cost of every job step are all computed from this one table. Two limits of the rule
+    should be stated: the embedding of a search query (a few tokens) is not recorded, and a
+    generation that fails raises before the row is written, so the rows of job steps are
+    those of calls that answered.
+\end{description}
+
+\section{The two internal doors}\label{sec:arch:doors}
+
+The API and the assistant service call each other, and neither call is open to anyone else.
+Each side has an \term{internal door}: a group of routes under \code{/internal/} that exists
+only for the other service (\cref{tab:arch:doors}).
+
+\begin{xltabular}{\textwidth}{@{}L{62mm}Y@{}}
+\caption{What goes through each internal door}\label{tab:arch:doors}\\
+\toprule
+\hd{Route} & \hd{What goes through} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Route} & \hd{What goes through} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}L{\textwidth}@{}}{\hd{The API's door} --- called by the assistant service (\code{internalFetch} in \file{services/django.js}), served by \file{assistant/api/internal_views.py}} \\
+\route{GET}{/internal/assistant/prompt} & The active version of one prompt with its text and model. When a prompt has none the answer is 404 and the chat answers 503 rather than run on a text nobody can see. \\
+\route{GET}{/internal/assistant/budget} & What a user may still spend today; asked before each chat turn. \\
+\route{POST}{/internal/assistant/turn-log} & One \code{llm_calls} row for a chat turn: tokens, the tools called, the outcome and the transcript. \\
+\route{POST}{/internal/assistant/threads/{id}/messages} & The assistant's reply --- text, tool calls and tool results --- stored when the turn ends. Only this door may write a message of the role \code{assistant}. \\
+\route{POST}{/internal/assistant/threads/{id}/title} & The short title a model wrote for a new conversation; applied only while the thread still carries its automatic title. \\
+\route{GET}{/internal/assistant/mcp-servers} & The enabled MCP servers with the header values that authenticate to them --- the only place those values leave the API. \\
+\midrule
+\multicolumn{2}{@{}L{\textwidth}@{}}{\hd{The assistant service's door} --- called by the API (\file{assistant/gateway.py}), served by \file{routes/internal.js} and \file{routes/internalMcp.js}} \\
+\route{POST}{/internal/llm/generate} & One generation: a prompt, optional instructions and shared data, a model, and optionally a JSON schema the answer must fit. Answers the text or the object, with the usage. \\
+\route{POST}{/internal/llm/embed} & A batch of at most 256 texts (\code{MAX_EMBED_TEXTS}) to embed. \\
+\route{GET}{/internal/llm/models} & The configured providers and the gateway's models with their prices. \\
+\route{POST}{/internal/mcp/list-tools} & Connect to one MCP server and list its tools: the administrator's connection test. \\
+\end{xltabular}
+
+The first exception to the third design rule is visible in the table. The public API lets a
+browser store only messages of the role \code{user} (\code{GUI_WRITABLE_ROLES} in
+\file{chat/api/views.py}); an assistant message, whose tool results the model is shown again
+on the next turn, can be written through the internal door alone. A browser can therefore
+never plant a forged tool result in a conversation.
+
+Three things protect a door. It is reachable only on the isolated network. The endpoint
+forwards no \code{/internal/} path (\cref{sec:arch:network}). And every request must carry a
+shared secret.
+
+\begin{codebox}{How the shared secret is checked}
+The secret is one value, \code{ASSISTANT_INTERNAL_SECRET}, minted as random hexadecimal by
+the update script and given to both containers by the compose file. A caller sends it in the
+header \code{X-Internal-Secret}.
+
+\begin{itemize}
+  \item \textbf{In the API} the decorator \code{require_internal}
+    (\file{assistant/api/internal_views.py}) wraps every view of the door. It compares the
+    presented and the expected value as bytes with \code{hmac.compare_digest}, which takes
+    the same time wherever the two differ, so the answer's timing tells a guesser nothing
+    about how much of a guess was right.
+  \item \textbf{In the assistant service} the middleware \code{requireInternal}
+    (\file{middleware/internal.js}) stands in front of every \code{/internal} path, before
+    the body of the request is parsed. It compares with \code{timingSafeEqual}; a value of
+    another length is refused before the comparison, which reveals the length and nothing
+    else.
+  \item \textbf{Both fail closed.} When the configured secret is empty, every internal call is
+    refused; neither side treats \enquote{no secret set} as \enquote{no secret needed}. The
+    assistant service also says so in its log when it starts.
+\end{itemize}
+A refused call is answered 403 with the code \code{INTERNAL_ONLY}.
+\end{codebox}
+
+\section{Four requests, followed through the system}\label{sec:arch:flows}
+
+The four flows below are the ones every other chapter builds on. They are drawn as sequences:
+time runs downwards, a solid arrow is a step of the main path, a dashed arrow is a request
+together with its answer. What happens inside each step --- what a model is given and what is
+done with its answer --- belongs to the chapters named in each subsection.
+
+\subsection{A chat turn}
+
+A chat turn is the only flow in which the browser talks to the assistant service
+(\cref{fig:arch:chat}). The console sends \route{POST}{/api/assistant/chat} with the user's
+token and nothing but the new message: the conversation itself is kept by the API, so the
+history a model sees is always the stored one and not what a browser claims it was.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \begin{scope}[on background layer]
+    \draw[lane] (53,-76) rectangle (150,-106);
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (60,-106) {repeated while the model calls tools};
+
+  \node[svc] (hc) at (10,0) {console};
+  \node[svc] (ha) at (58,0) {assistant service};
+  \node[svc] (hd) at (108,0) {API (Django)};
+  \node[ext] (hg) at (140,0) {gateway};
+  \foreach \x in {10,58,108} \draw[draw=rule, line width=.6pt] (\x,-4) -- (\x,-131);
+  \draw[draw=rule, line width=.6pt] (140,-4) -- (140,-78);
+
+  \draw[flow] (10,-13) -- node[lbl, above, align=center] {\code{POST}~\code{/api/assistant/chat}\\ the token, the new message} (58,-13);
+  \draw[call] (58,-21) -- node[lbl, above] {\code{/api/auth/me}: who is asking} (108,-21);
+  \node[chk, minimum height=5mm, inner ysep=2pt] at (58,-28.5) {turn limit, in memory};
+  \draw[call] (58,-37) -- node[lbl, above] {\code{/internal/assistant/budget}} (108,-37);
+  \draw[call] (58,-44) -- node[lbl, above] {\code{/internal/assistant/prompt}} (108,-44);
+  \draw[call] (58,-54) -- node[lbl, above, align=center] {\code{/api/chat/threads/…}: the thread, its\\ history; the new message is stored} (108,-54);
+  \draw[call] (58,-64) -- node[lbl, above, align=center] {\code{/api/companies/…}, \code{/api/reports}:\\ the company and its reports} (108,-64);
+  \draw[call] (58,-71) -- node[lbl, above] {\code{/internal/assistant/mcp-servers}} (108,-71);
+
+  \node[ai, text width=15mm, minimum height=24mm] (m) at (140,-91) {the model answers, in at most 24 steps};
+  \draw[flow] (58,-82) -- node[lbl, above, pos=.3] {instructions, history, tools} (m.west |- 0,-82);
+  \draw[flow] (m.west |- 0,-89) -- node[lbl, above, pos=.72] {a tool call} (58,-89);
+  \draw[call] (58,-94) -- node[lbl, above] {\code{/api/*} with the user's token} (108,-94);
+  \draw[flow] (58,-99) -- node[lbl, above, pos=.3] {the tool's result} (m.west |- 0,-99);
+
+  \draw[flow] (58,-112) -- node[lbl, above] {the answer, as an event stream} (10,-112);
+  \draw[call] (58,-120) -- node[lbl, above] {\code{…/threads/{id}/messages}: the reply} (108,-120);
+  \draw[call] (58,-127) -- node[lbl, above] {\code{/internal/assistant/turn-log}} (108,-127);
+\end{tikzpicture}
+\actorlegend
+\caption{A chat turn. The assistant service identifies the caller and loads the context through
+  the public API as the user, reads the prompt, the budget and the MCP servers through the
+  internal door, and runs the model with tools. Each tool is a request to the public API with
+  the user's token. The reply and the usage record go back through the internal door.}\label{fig:arch:chat}
+\end{figure}
+
+The route (\file{routes/chat.js}) passes a turn through its gates before any model is called.
+The caller's token is resolved against \route{GET}{/api/auth/me}, and the answer is cached
+for 15~seconds (\code{IDENTITY_CACHE_MS}); a caller without a valid token is refused. The
+turn limiter allows 12 turns a user a minute (\code{RATE_LIMIT_TURNS}). The user's budget for
+the day is asked from the API, and a spent budget refuses the turn; if the question itself
+fails, the turn is let through rather than every chat be blocked. The active version of the
+prompt \prompt{chat.assistant} is read from the API, and without one the chat answers 503:
+the assistant is then switched off on purpose.
+
+The service then loads, as the user, the thread, the branch of its history, the company the
+thread is about and that company's reports, stores the user's message, and opens the tools of
+the enabled MCP servers. It builds the instructions and calls the model on the gateway with
+the tools attached. The model may answer or call a tool; a tool call becomes a request to the
+public API under the user's token, its result goes back to the model, and this repeats for at
+most 24 model steps (\code{MAX_STEPS}), the last of which runs without tools so that the turn
+ends in text. The answer streams to the browser as it is written.
+
+When the turn ends the service stores its reply and logs the turn. A turn outlives the
+request that started it: if the browser reloads or the tab is closed, the model goes on and
+the reply is stored; apart from the turn's own time limits, only the stop button, a newer
+turn in the same thread or a shutdown ends it early. On the first turn of a thread, while it
+still carries its automatic title, a second, small model call gives the conversation a
+title. The tools, the prompt and both model calls are the subject of \cref{ch:chat}.
+
+\subsection{A report}
+
+A report is far too long for a request: it is a job (\cref{fig:arch:report}).
+\route{POST}{/api/reports} checks that the caller may see the company, that the corpus is not
+empty, that no other report of the company is under way and that the user has budget left;
+it then creates the report's row in the state \code{queued}, enqueues a job of the kind
+\code{report.analyze} with the report's id as its payload, and answers at once.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=18mm}]
+  \node[svc, text width=17mm] (hc) at (10,0) {console or chat tool};
+  \node[svc] (hd) at (44,0) {API (Django)};
+  \node[store] (hj) at (70,0) {\code{jobs}};
+  \node[svc] (hw) at (100,0) {worker's loop};
+  \node[svc, text width=17mm] (ha) at (140,0) {assistant service};
+  \foreach \x in {44,70,100} \draw[draw=rule, line width=.6pt] (\x,-5) -- (\x,-128);
+  \draw[draw=rule, line width=.6pt] (10,-6) -- (10,-128);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-128);
+
+  \draw[flow] (10,-14) -- node[lbl, above] {\code{POST}~\code{/api/reports}} (44,-14);
+  \draw[flow] (44,-21) -- node[lbl, above] {job queued} (70,-21);
+  \draw[call] (100,-28) -- node[lbl, above] {claims the job} (70,-28);
+
+  \node[svc, cell] at (89.5,-36) {profile};
+  \node[ai, cell] at (110.5,-36) {documents};
+  \node[ai, cell] at (89.5,-43) {citations};
+  \node[ai, cell] (p1) at (110.5,-43) {applicability};
+  \draw[call] (121.2,-39.5) -- node[lbl, above] {\code{/internal/llm/*}} (140,-39.5);
+
+  \draw[flow] (100,-53) -- node[lbl, above, align=center] {job done; the report\\ waits in \code{scope_review}} (70,-53);
+  \draw[call] (10,-61) -- node[lbl, above] {polls \code{GET}~\code{/api/reports/{id}}} (44,-61);
+
+  \node[man, text width=17mm] (person) at (10,-73) {a person approves the scope};
+  \draw[flow] (person.east) -- node[lbl, above] {\code{POST}~\code{…/scope}} (44,-73);
+  \draw[flow] (44,-80) -- node[lbl, above] {queued again} (70,-80);
+  \draw[call] (100,-87) -- node[lbl, above] {claims the job} (70,-87);
+
+  \node[ai, cell] at (89.5,-95) {documents};
+  \node[ai, cell] at (110.5,-95) {obligations};
+  \node[ai, cell] at (89.5,-102) {gap\_analysis};
+  \node[ai, cell] at (110.5,-102) {internal};
+  \node[ai, cell] at (89.5,-109) {action\_plan};
+  \node[ai, cell] at (110.5,-109) {summary};
+  \draw[call] (121.2,-102) -- node[lbl, above] {\code{/internal/llm/*}} (140,-102);
+
+  \draw[flow] (100,-118) -- node[lbl, above] {job done; the report is done} (70,-118);
+  \draw[call] (10,-125) -- node[lbl, above] {reads it, exports it} (44,-125);
+\end{tikzpicture}
+\actorlegend
+\caption{A report started with the scope review. The job runs twice: the first run ends when
+  the acts have their verdicts and leaves the report waiting; a person's approval queues the
+  same kind of job again, and the second run assesses the obligations. The boxes on the
+  worker's line are the job's steps; a yellow step makes model calls through the assistant
+  service. The second run reads the company again, freezes the profile a second time and
+  takes the documents step again, which finds the inventories in
+  their cache; the step \code{internal} runs only for a report started with the company's own
+  requirements. Without the review one run does both parts.}\label{fig:arch:report}
+\end{figure}
+
+The worker claims the job and runs its handler, \code{analyze} in \file{analysis/pipeline.py}.
+A report is made in two parts. The first decides which acts apply and is cheap: the steps
+\code{profile}, \code{documents}, \code{citations} and \code{applicability}. The second
+judges every obligation of those acts and is where the money goes: \code{obligations},
+\code{gap_analysis}, \code{action_plan} and \code{summary}, with a step \code{internal}
+between the gap analysis and the plan when the report was started with the company's own
+requirements. Every model call of a step travels from the worker to the assistant service's
+door and from there to the gateway.
+
+\begin{humanbox}{The stop between the two parts}
+A report started with the review option does not go on by itself. When the first part has
+finished, the handler sets the report to \code{scope_review} and returns; the job ends as
+done, and nothing runs. The console, which polls \route{GET}{/api/reports/{id}} every three
+seconds while a report is active, shows the acts with what the report would do with each. A
+person may change the selection and is shown its price (\route{POST}{/api/reports/{id}/scope}
+without \code{approved}), and approves it (the same route with \code{approved}). The approval
+is stamped on the report with the person and the time, written to the audit log with every
+change made, and a second \code{report.analyze} job is enqueued. The handler tells the second
+run from the first by that stamp. Without the review option the handler stamps the time
+itself, with no person, and goes straight on.
+\end{humanbox}
+
+The second run reads what the first left in the database --- the acts and their verdicts and
+the citation audit. The company it reads again, as it stands when the second run starts, and
+it freezes the profile a second time (\code{freeze_profile}), so that the report shows the
+company its findings were judged on: a credential verified or a document added while the
+report waited counts. Its \code{documents} step
+runs again and finds the documents' inventories in their cache. When the last step has finished the report is \code{done}; a failure sets it
+to \code{failed} with a message a user can read, a cancellation to \code{cancelled}. The
+finished report is read through \route{GET}{/api/reports/{id}} and exported through
+\route{GET}{/api/reports/{id}/export}. The pipeline is the subject of \cref{ch:report}.
+
+\subsection{A work product}
+
+A work product is made the same way, by a job of the kind \code{programme.generate}
+(\cref{fig:arch:product}). \route{POST}{/api/companies/{id}/programme} with the kind ---
+\code{policy}, \code{governance} or \code{risks} --- checks that the company has readable
+documents, that no product of that kind is being generated and that budget is left, creates
+the next version of the product in the state \code{queued} and enqueues the job. The chat's
+tool \code{startWorkProduct} calls the same route.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=30mm}]
+  \node[svc, text width=17mm] (hc) at (10,0) {console or chat tool};
+  \node[svc] (hd) at (48,0) {API (Django)};
+  \node[svc] (hw) at (92,0) {worker's loop};
+  \node[svc, text width=17mm] (ha) at (140,0) {assistant service};
+  \draw[draw=rule, line width=.6pt] (10,-6) -- (10,-72);
+  \draw[draw=rule, line width=.6pt] (48,-5) -- (48,-72);
+  \draw[draw=rule, line width=.6pt] (92,-5) -- (92,-72);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-72);
+
+  \draw[flow] (10,-14) -- node[lbl, above] {\code{POST}~\code{…/programme}} (48,-14);
+  \draw[flow] (48,-21) -- node[lbl, above] {job queued, then claimed} (92,-21);
+  \node[ai, cell] at (92,-28) {documents};
+  \node[ai, cell] (calls) at (92,-35) {two model calls};
+  \node[chk, cell] (refs) at (92,-42) {references};
+  \draw[call] (calls.east) -- node[lbl, above] {\code{/internal/llm/generate}} (140,-35);
+  \draw[opt] (refs.east) -- node[lbl, below] {the citation judge} (140,-42);
+  \draw[flow] (92,-51) -- node[lbl, above] {the product is a draft} (48,-51);
+  \draw[call] (10,-58) -- node[lbl, above] {polls \code{GET}~\code{/api/programme/{id}}} (48,-58);
+  \node[man, text width=17mm] (person) at (10,-68) {a person edits, approves};
+  \draw[flow] (person.east) -- node[lbl, above] {\code{PUT}~\code{…/content}, \code{PATCH}} (48,-68);
+\end{tikzpicture}
+\actorlegend
+\caption{A work product. The job reads the company's documents, asks the model twice and
+  puts the answer through the rules of the product's kind; the result is a draft. Only a
+  person's request approves it.}\label{fig:arch:product}
+\end{figure}
+
+The handler (\code{generate} in \file{programme/run.py}) has three stages. The step
+\code{documents} gathers the company's profile and documents and each document's inventory,
+from its cache or, when there is none yet, by a model call (\code{ensure_inventory}). The
+kind's own two steps make
+the two model calls, the second given what the first wrote. The step \code{references}
+brings the answer into the kind's shape and checks its rules with code; the provisions the
+text names are looked up in the corpus, and whether each regulates what the text says of it
+is judged by a model, once. The product is then stored as a \code{draft} with its content and
+the result of every rule. It never leaves that state by itself: a person edits it and
+approves it through the API (\cref{ch:programme}).
+
+\subsection{A refresh of the legal corpus}
+
+The corpus is kept current by jobs of the kind \code{corpus.ingest}, one per act
+(\cref{fig:arch:refresh}). An administrator queues one with
+\route{POST}{/api/corpus/documents/{id}/refresh}; once a week the scheduler queues
+\code{corpus.refresh_all}, which does nothing but enqueue one \code{corpus.ingest} for every
+enabled act whose text is fetched rather than uploaded.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=34mm}]
+  \node[svc, text width=22mm] (hc) at (13,0) {administrator, or the weekly schedule};
+  \node[svc] (hw) at (64,0) {worker's loop};
+  \node[ext, text width=20mm] (hs) at (108,0) {the source, through the exit};
+  \node[svc, text width=17mm] (ha) at (140,0) {assistant service};
+  \draw[draw=rule, line width=.6pt] (13,-6) -- (13,-64);
+  \draw[draw=rule, line width=.6pt] (64,-5) -- (64,-64);
+  \draw[draw=rule, line width=.6pt] (108,-6) -- (108,-64);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-64);
+
+  \draw[flow] (13,-14) -- node[lbl, above] {\code{corpus.ingest} queued} (64,-14);
+  \draw[call] (64,-21) -- node[lbl, above] {fetch} (108,-21);
+  \node[chk, cell] at (64,-28) {unchanged? then stop here};
+  \node[svc, cell] at (64,-35) {extract, parse, chunk};
+  \node[ai, cell] (emb) at (64,-42) {embed};
+  \node[chk, cell] at (64,-49) {activate the version};
+  \draw[call] (emb.east) -- node[lbl, above, pos=.72] {\code{/internal/llm/embed}} (140,-42);
+  \draw[flow] (64,-59) -- node[lbl, above] {the act has a new current version} (13,-59);
+\end{tikzpicture}
+\actorlegend
+\caption{A refresh of one act. The worker fetches the source through the exit and stops when
+  nothing changed. Otherwise it builds a new version beside the current one and switches to
+  it in one transaction.}\label{fig:arch:refresh}
+\end{figure}
+
+The handler (\code{ingest} in \file{corpus/ingest.py}) records five steps. \code{fetch}
+gets the bytes from the act's source and compares them with the current version: the same
+content hash, or the same edition label, ends the job at once with the answer
+\enquote{unchanged}, which is why a weekly check of an unchanged corpus costs nothing.
+Otherwise a new version row is created and \code{extract} reads the publication's structure
+in a child process with limits on memory and time, \code{parse} writes the provisions as
+units, \code{chunk} cuts them for retrieval and \code{embed} has the chunks embedded. Only
+then is the version made current, together with the record of what it changed against the
+one before, in a single transaction; until that moment every reader sees the old version
+whole. A run that fails leaves its version marked failed, and a retry starts a fresh one.
+For an uploaded standard the \code{extract} step may also ask a model to mark the headings.
+All of this is the subject of \cref{ch:corpus}.
+
+\section{Background jobs}\label{sec:arch:jobs}
+
+Everything that takes longer than a request is a \term{job}: one row in a table, picked up
+and run by the \term{worker}. There is no message broker and no separate scheduler. The
+queue is two tables of the same database that holds everything else, and the code is the
+application \code{jobs} of the API: \file{jobs/models.py} (the tables), \file{jobs/queue.py}
+(enqueueing), \file{jobs/registry.py} (the kinds), \file{jobs/runner.py} (claiming and
+running), \file{jobs/schedule.py} (the periodic kinds) and
+\file{jobs/management/commands/run_worker.py} (the loop).
+
+\subsection{The queue: two tables}
+
+A job is a row of \code{jobs} (\cref{tab:arch:jobrow}). Its \term{kind} names the handler
+that will run it, its payload is the handler's input, and its \term{subject} says what it is
+about --- \code{report:<id>}, \code{corpus:<id>}, \code{document:<id>} --- so that the pages
+can list the jobs of one thing and a route can see that one is already under way.
+\code{enqueue} (\file{jobs/queue.py}) writes the row; it refuses a kind that has no handler,
+so that a mistyped kind fails where it is written and never waits in the table for ever.
+
+\begin{table}[H]
+\caption{The columns of \code{jobs} that make it a queue}\label{tab:arch:jobrow}
+\begin{tabularx}{\textwidth}{@{}L{37mm}Y@{}}
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\code{kind}, \code{payload}, \code{subject} & Which handler, with what input, about what. \\
+\code{status} & \code{queued}, \code{running}, \code{done}, \code{failed} or \code{cancelled}; a check constraint allows no other value. \\
+\code{priority}, \code{run_after} & The order of claiming, and the earliest moment a job may be claimed. \\
+\code{attempts}, \code{max_attempts} & How often the job was claimed, and how often its kind allows. \\
+\code{locked_by}, \code{heartbeat_at} & Which worker holds the job, and when that worker last said it was alive. \\
+\code{cancel_requested} & Set by the API; read by the handler. \\
+\code{progress} & \texttt{\{step, percent, message\}}: what the pages show while the job runs. \\
+\code{result}, \code{error} & What the handler returned, or why it failed. \\
+\code{created_by} & The user who caused the job; empty for the scheduler's. Model calls of the job are charged to this user where they are charged at all. \\
+\code{created_at}, \code{started_at}, \code{finished_at} & The three moments of its life. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A handler divides its work into \term{steps}, and each step is a row of \code{job_steps}:
+its ordinal and name, its status (\code{running}, \code{done} or \code{failed} as the runner
+writes them), a reference to its input, its output, its duration and its error --- and the
+model, the prompt version and the usage of the model calls made in it. The step is the unit
+at which a report's cost and provenance are read: \enquote{the gap analysis ran on this
+version of this prompt, made this many calls and cost this much}.
+
+\begin{codebox}{What a step records about its model calls}
+A handler never counts its own tokens. Every model call is logged with the id of the step it
+was made for, and when a step ends --- done or failed --- the runner reads the step's rows
+back from \code{llm_calls} in one grouped query (\code{_usage_from_calls} in
+\file{jobs/runner.py}) and writes onto the step: the number of calls, the input and output
+tokens and the cost, in total and per model; the model that made the most calls; and the
+prompt version, when all the calls ran on one. A step that fails half-way therefore still
+shows what it had spent. The prompt version is kept as plain text and not as a foreign key,
+so the record survives the deletion of the version it names.
+\end{codebox}
+
+\subsection{The life of a job}
+
+\Cref{fig:arch:jobstates} shows the states of a job and every way from one to another. The
+rest of this subsection goes through them.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \node[svc, minimum width=22mm] (q) at (14,0) {queued};
+  \node[svc, minimum width=22mm] (r) at (74,0) {running};
+  \node[svc, minimum width=22mm] (d) at (136,15) {done};
+  \node[svc, minimum width=22mm] (f) at (136,0) {failed};
+  \node[svc, minimum width=22mm] (c) at (136,-15) {cancelled};
+
+  \draw[flow] (q) -- node[lbl, above] {claimed: \code{attempts} + 1} (r);
+  \draw[flow] (r.north east) -- node[lbl, pos=.55] {the handler returns} (d.west);
+  \draw[flow] (r.east) -- node[lbl, pos=.5, align=center] {an error or a dead worker,\\ no attempt left} (f.west);
+  \draw[flow] (r.south east) -- node[lbl, pos=.55] {cancel seen at a check} (c.west);
+  \draw[flow] (r.north) to[out=150, in=30] (q.north);
+  \node[note, anchor=south, align=left] at (44,15) {back to the queue:\\ an error with an attempt left (30 s later)\\ the worker is stopping (the attempt is given back)\\ a heartbeat older than 120 s, with an attempt left};
+  \draw[flow] (q.south) |- node[lbl, pos=.75] {cancelled while still queued} ([yshift=-2mm]c.west);
+\end{tikzpicture}
+\caption{The states of a job. A job is claimed from the queue, and ends done, failed or
+  cancelled; three events send a running job back to the queue instead.}\label{fig:arch:jobstates}
+\end{figure}
+
+\paragraph{Claiming and locking.} The worker claims one job at a time (\code{claim} in
+\file{jobs/runner.py}): among the rows that are \code{queued} and whose \code{run_after} has
+passed, the one with the highest \code{priority}, and among equals the oldest. The row is
+selected with PostgreSQL's \texttt{FOR UPDATE SKIP LOCKED}, which locks it for the length of
+the transaction and makes any other worker asking at the same instant skip it and take the
+next. Inside the same transaction the row is set to \code{running}, \code{locked_by} is set
+to the worker's id (the container's host name and eight random characters),
+\code{heartbeat_at} to the present, and \code{attempts} is raised by one. Two workers can
+therefore never run the same job, and running several loops side by side is safe. An index
+over status, \code{run_after}, priority and creation time serves the query.
+
+\paragraph{Priority and delay.} Priority is a plain integer, default 0, higher first. The
+code uses four values: 5 for indexing an uploaded document, so that a document a user has
+just dropped into the chat is searchable before a long corpus job gets its turn; 0 for
+everything a user or an administrator starts through the API (and for the ingestion jobs of
+the command \code{seed_corpus}); $-1$ for the jobs the bulk commands
+\code{extract_obligations}, \code{verify_obligations} and \code{read_sanctions} queue over
+the whole corpus (\code{PRIORITY} in each), so that work a user starts goes first; and $-5$
+for the scheduler's. \code{run_after} delays
+a job: a retry is pushed 30~seconds ahead (\code{BACKOFF_S}), and an indexing job that finds
+its user's daily budget spent queues itself again for five minutes after midnight UTC, when
+the budget resets.
+
+\paragraph{Attempts.} Each kind is registered with the number of attempts it is allowed
+(\cref{tab:arch:kinds}). When a handler raises an error and the job has an attempt left, the
+job goes back to the queue with the error text and the delay; otherwise it ends as
+\code{failed}. Most kinds allow one attempt; fetching an act (\code{corpus.ingest}) allows two
+and indexing a document (\code{documents.index}) three. An error raised while the job's
+cancel flag is set ends it as \code{cancelled} instead, whatever attempts are left.
+
+\paragraph{The heartbeat, and a worker that died.} While a handler runs, a second thread
+stamps \code{heartbeat_at} every 15~seconds (\code{HEARTBEAT_S}). At the top of every turn of
+its loop the worker looks for running jobs whose heartbeat is older than 120~seconds
+(\code{STALE_S}): their worker is taken to be dead (\code{recover_stale}). Such a job goes
+back to the queue if it has an attempt left. If it has none it is set to \code{failed} with
+the message that its worker stopped unexpectedly, its still-open steps are failed with it
+--- each with what its model calls had used --- and the kind's \code{on_abandon} hook runs.
+The hook exists for the two kinds whose job has a row of its own that mirrors it: it sets
+the report, or the work product, to failed as well, so that neither stays \enquote{running}
+for ever with no job behind it.
+
+\begin{codebox}{Fencing: no write without the lock}
+A worker that was only slow --- paused for minutes, not dead --- may wake up after another
+worker has recovered its job. Every write that settles a job --- done, failed, cancelled,
+back to the queue --- is therefore conditional on the row still being \code{running} and
+still carrying that worker's \code{locked_by} (\code{_fenced} in \file{jobs/runner.py}), and
+a progress write on the row still carrying that \code{locked_by}; an update that matches no
+row changes nothing. The heartbeat thread notices the same thing first: when its stamp matches no
+row it raises a flag, the handler stops at its next check with \code{JobLost}, and nothing
+more is written for that attempt.
+\end{codebox}
+
+\paragraph{Cancelling.} \route{POST}{/api/jobs/{id}/cancel} (\file{jobs/api/views.py}) does
+one of two things. A job still queued is set to \code{cancelled} at once and its kind's
+\code{on_abandon} hook settles the report or product behind it. A running job only gets its
+\code{cancel_requested} flag; the handler sees it at its next call of
+\code{ctx.check_cancelled()}, which handlers make between their expensive phases, raises
+\code{JobCancelled}, and the job ends as \code{cancelled} --- not as a failure, and without a
+retry. The two writes are conditional and made in that order, so a job that a worker claims
+between them still receives the flag. A job that has already finished answers 409. Reports
+and work products have cancel routes of their own that do the same to their job. A user may
+cancel the jobs they created, an administrator any job; the same rule decides which jobs
+\route{GET}{/api/jobs} lists.
+
+\paragraph{Progress.} A handler reports where it is with \texttt{ctx.progress(step, percent, message)}, which writes the three values onto the job's row. The jobs page and the progress
+panels of a report and of a work product poll the job and show them.
+
+\subsection{The kinds of job}
+
+A handler is an ordinary function registered under its kind with the decorator
+\code{@register} (\file{jobs/registry.py}); \file{jobs/handlers.py} imports every module that
+registers one, in the web process and in the worker alike, since the web process must know
+the kinds to enqueue them. \Cref{tab:arch:kinds} lists them all.
+
+\begin{xltabular}{\textwidth}{@{}L{37mm}YL{43mm}@{}}
+\caption{The registered kinds of job}\label{tab:arch:kinds}\\
+\toprule
+\hd{Kind, handler, attempts} & \hd{What it does} & \hd{Who can start it} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Kind, handler, attempts} & \hd{What it does} & \hd{Who can start it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{report.analyze}\newline \file{analysis/pipeline.py}\newline 1 attempt, abandon hook & One run of a report: its first part, its second, or both (\cref{fig:arch:report}). & Any user, for a company they may see: \route{POST}{/api/reports} and the approval of the scope; the chat's tools do the same. \\
+\code{programme.generate}\newline \file{programme/run.py}\newline 1 attempt, abandon hook & A new version of one work product. & Any user, for a company they may see: \route{POST}{/api/companies/{id}/programme}; the chat's tool. \\
+\code{documents.index}\newline \file{companies/indexing.py}\newline 3 attempts & Cuts one uploaded document into passages and has them embedded. Waits for the next day when the uploader's budget is spent. & Any user, by uploading a document (\route{POST}{/api/documents}); the job itself, when it waits. \\
+\code{corpus.ingest}\newline \file{corpus/ingest.py}\newline 2 attempts & Fetches one act, or reads an uploaded file, and makes it the act's current version (\cref{fig:arch:refresh}). & An administrator: adding an act with a source, its refresh, an upload. The kind below. The command \code{seed_corpus}. \\
+\code{corpus.refresh_all}\newline \file{corpus/ingest.py}\newline 1 attempt & Enqueues one \code{corpus.ingest} for every enabled act that is fetched. & The scheduler, weekly. An administrator: \route{POST}{/api/corpus/refresh-all}. \\
+\code{corpus.reembed}\newline \file{corpus/ingest.py}\newline 1 attempt & Embeds every chunk of the current versions again and, unless one act is named, every obligation in both languages and every company document. Needed after the embedding model changes. & An administrator: \route{POST}{/api/corpus/reembed}. \\
+\code{corpus.extract_obligations}\newline \file{corpus/obligations.py}\newline 1 attempt & Reads the obligations out of one act's current version. & An administrator, per act. The command \code{extract_obligations}, for every act that is behind. \\
+\code{corpus.verify_obligations}\newline \file{corpus/verify.py}\newline 1 attempt & Has the judge compare one act's obligations with the provisions they cite. & An administrator, per act. The command \code{verify_obligations}. \\
+\code{corpus.read_sanctions}\newline \file{corpus/sanctions.py}\newline 1 attempt & Reads the sanction provisions of the acts that were never read, one act after another. & The command \code{read_sanctions} only. \\
+\code{ops.maintenance}\newline \file{ops/maintenance.py}\newline 1 attempt & The daily purges (\cref{tab:arch:purges}). & The scheduler, daily. \\
+\code{ops.noop}\newline \file{jobs/handlers.py}\newline 1 attempt & A smoke test: a number of empty steps, with an optional pause and a forced failure. & The test suite; a person at a shell. \\
+\end{xltabular}
+
+No route of the API enqueues an arbitrary kind. A job comes into being only as the side
+effect of a route that has checked the caller and the subject, of a management command run on
+the host, or of the scheduler. The routes that refresh an act, extract its obligations or have
+the judge read them answer the job already queued or running for that act instead of adding
+a second.
+
+Not every long operation appears in the table under its own kind: what a report needs is
+done inside the report's job. A report whose acts were never read for obligations extracts
+them in its own \code{obligations} step, and reads their sanction provisions there too; it
+does not wait for another job.
+
+\subsection{The worker and its loop}
+
+The loop is a management command of the API, \code{run_worker}. Each turn it marks a
+heartbeat file, lets the scheduler look once a minute, recovers jobs whose worker died,
+claims one job and runs it to its end; with nothing to claim it waits two seconds
+(\code{--poll}) and looks again. One loop runs one job at a time.
+
+\paragraph{Why the worker is a Docker client.} The loop needs exactly what the API has: the
+same code, the same settings and secrets, the same upload folder, the same connection to the
+database, the same pinned hosts for fetching acts. The compose file gives it all of that by
+running the loop \emph{inside} the API's container. The container \code{legalops-worker}
+is only the stock Docker command-line image with one fixed command, \texttt{docker exec legalops-django python3 manage.py run\_worker}, and the host's Docker socket mounted into
+it. It has no network at all, and its log is the loop's log. Nothing is built or configured
+twice, and a change of the API's code or environment cannot leave the worker behind. The
+cost is the socket: access to it amounts to root on the host, which is why that container
+has no network and runs nothing else (\cref{ch:security}).
+
+\paragraph{Taking over a running loop.} This arrangement has one awkward property that the
+code handles explicitly. A loop started with \texttt{docker exec} belongs to the API's
+container, not to the worker's. When the API's container restarts, the loop dies with it,
+the \texttt{docker exec} returns, the worker's container exits and its restart policy starts
+it --- and with it a new loop --- again. But when only the worker's container restarts, the
+old loop keeps running inside the API's container, and a second one is about to be started
+beside it. So a new loop first takes over (\code{take_over} in
+\file{jobs/management/commands/run_worker.py}): it
+reads the process id the previous loop left in a file (\file{/tmp/worker.pid}), checks in
+\file{/proc} that this process really is a \code{run_worker} loop and not an unrelated
+process that happens to have the same number, sends it the stop signal, and writes its own id
+into the file. It does not wait: the old loop stops claiming at once and finishes only the
+step it is in.
+
+\paragraph{Stopping gracefully.} The stop signal only raises a flag. The loop stops
+claiming, and the handler that is running sees the flag at its next check and raises
+\code{WorkerStopping}. The runner then puts the job back in the queue and gives its attempt
+back (\code{attempts} is lowered by one), so that being interrupted is not counted as having
+failed; the next loop runs the job again. For a report this means the interrupted part
+starts over: the handler begins by deleting the rows an earlier attempt of the same part
+left behind, so nothing is doubled.
+
+\begin{notebox}{What an update of the system does to a running job}
+The two ways a loop can end have different consequences, and the difference matters for the
+kinds that allow a single attempt. A loop that is \emph{asked} to stop --- because a new loop
+takes over --- hands its job back with the attempt unspent, and the job runs again. A loop
+that is \emph{killed} with the API's container, as it is when the whole stack is taken down
+for an update, can hand nothing back: its job stays \code{running} until its heartbeat is two
+minutes old, and the next loop then recovers it. \code{corpus.ingest} and
+\code{documents.index} have attempts left and are queued again. A \code{report.analyze} or a
+\code{programme.generate} job has spent its one attempt, so it ends as \code{failed} with the
+message that its worker stopped unexpectedly, and its report or work product is set to failed
+with it rather than left hanging. What the interrupted run had already paid for is kept in
+its steps and in \code{llm_calls}; the report itself has to be started again.
+\end{notebox}
+
+\subsection{The scheduler}
+
+Two kinds are periodic, and \file{jobs/schedule.py} holds the whole schedule as a table of
+two entries: \code{ops.maintenance} every day and \code{corpus.refresh_all} every seven days.
+Once a minute (\code{SCHEDULE_EVERY_S}) the loop calls \code{tick}, which looks up the
+newest job of each kind and enqueues a new one, at priority $-5$ and with the subject
+\code{schedule:<kind>}, unless that newest job is still queued or running or was created
+within the interval. The schedule thus lives in the queue it feeds. There is no cron
+container; the scheduler never queues a kind while one of its jobs is still waiting or running; a refresh an administrator starts by
+hand counts as the week's run; and after a long outage each kind is simply due and runs
+once. A failure of the tick is logged and never stops the loop.
+
+\subsection{The daily maintenance}
+
+\code{ops.maintenance} (\file{ops/maintenance.py}) removes what has no further use and
+answers how much of each it removed (\cref{tab:arch:purges}).
+
+\begin{table}[H]
+\caption{What the daily maintenance job removes}\label{tab:arch:purges}
+\begin{tabularx}{\textwidth}{@{}L{38mm}YL{43mm}@{}}
+\toprule
+\hd{What} & \hd{Condition} & \hd{Constant} \\
+\midrule
+Sessions & Expired. & --- \\
+Finished jobs, with their steps & Done, failed or cancelled more than 90 days ago --- except a job a report points at, which is kept as long as the report. & \code{JOB_RETENTION_DAYS}~=~90 \\
+Usage records & Rows of \code{llm_calls} older than 400 days, with the chat transcripts they carry. & \code{TELEMETRY_RETENTION_DAYS}~=~400 \\
+Orphaned upload files & Files in the documents folder that no document row names and that are more than six hours old: what a crash between writing the file and writing the row leaves behind. & \code{ORPHAN_GRACE_HOURS}~=~6 \\
+Rate-limit windows & Past their reset time. & --- \\
+Unused chat uploads & Documents attached to no company, uploaded more than seven days ago and named in no chat message: a file dropped into the chat and never sent. At most 500 a run. & \code{ORPHAN_UPLOAD_DAYS}~=~7, \code{ORPHAN_UPLOAD_BATCH}~=~500 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The second row is why a report keeps its provenance: the job a report points at, with the
+steps that record each prompt version, model and cost, is not purged while the report exists.
+A report made with the scope review points at the job of its second part. The job of its first
+part is purged like any other, and nothing reads it after the run: the report's statistics,
+with the prompt versions, the models and the cost of both parts, are stored on the report when
+the run ends (\cref{ch:data}), and the usage records keep the calls for 400 days.
+
+\section{The technology stack and the two modes}\label{sec:arch:stack}
+
+\Cref{tab:arch:stack} gives the versions the repository pins. The Python packages are pinned
+exactly in \file{django/Dockerfile} --- the project has no requirements file --- and the
+base images by tag. The two Node projects declare minimum versions in their
+\file{package.json}; the exact versions installed are those of each \file{package-lock.json}.
+
+\begin{xltabular}{\textwidth}{@{}L{29mm}Y@{}}
+\caption{The technology stack with the versions the repository declares}\label{tab:arch:stack}\\
+\toprule
+\hd{Part} & \hd{Components and versions} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Part} & \hd{Components and versions} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Ingress and egress & Caddy 2.11 (\code{caddy:2.11-alpine}); Caddy with the layer-4 module (\code{vuknf/caddy-l4:2.11}). \\
+API and worker's loop & Python 3.13 (\code{python:3.13-slim}); Django 5.2.17; psycopg 3.3.6 and the \code{pgvector} bindings 0.5.0; gunicorn 26.2.0; django-environ 0.14.0; bcrypt 5.0.0; requests 2.34.2. Reading documents: pypdf 6.19.0, cryptography 50.0.2, python-docx 1.2.0, lxml 6.1.3, PyYAML 6.0.3. Exports: WeasyPrint 70.0, openpyxl 3.1.5, Markdown 3.11. \\
+Assistant service & Node 24.16.0; Express 5.1; the AI SDK \code{ai} 7.0 with its provider packages \code{@ai-sdk/openai} 4.0, \code{@ai-sdk/openai-compatible} 3.0 and \code{@ai-sdk/anthropic} 4.0, and \code{@ai-sdk/mcp} 2.0; zod 4.1. \\
+Console and public site & React 19.2; Vite 7.3; MUI 7.3 with its data grid 8.27; Tailwind CSS 4.2; assistant-ui 0.15; TanStack Query 5; React Router 7.13; axios 1.13. Tested with vitest 5 and msw 2; in production the build is served by Caddy 2.11. \\
+Database & PostgreSQL 17.11 (\code{postgres:17.11-alpine3.24}) with \code{pgvector} 0.8.6 compiled into the image. \\
+Worker's container & The Docker command-line client (\code{docker:27-cli}). \\
+Database tool & DbGate 7.3.3. \\
+\end{xltabular}
+
+The compose file is written to run in one of two modes, and the lines that differ carry a
+comment, \texttt{\# Dev} or \texttt{\# Prod}. Switching mode means commenting out the lines of
+one tag, uncommenting those of the other and running the update script
+(\cref{tab:arch:modes}). The file in the repository stands in dev mode.
+
+\begin{table}[H]
+\caption{The two modes of \file{docker-compose.yml}}\label{tab:arch:modes}
+\begin{tabularx}{\textwidth}{@{}L{27mm}YY@{}}
+\toprule
+\hd{Service} & \hd{Dev mode} & \hd{Production mode} \\
+\midrule
+Console and public site & \file{vite/Dockerfile.dev}: the Vite development server on the source folder, mounted from the host; a saved file reloads the page. & \file{vite/Dockerfile}: the application is built once, from the locked dependencies, and Caddy serves the result as static files. \\
+Assistant service & \file{assistant/Dockerfile.dev}: the source mounted from the host, restarted on change by nodemon. & \file{assistant/Dockerfile}: the locked production dependencies and the source baked in; \texttt{node server.js}. \\
+API & \code{DJANGO_RUNSERVER} is set: Django's development server, on the source mounted from the host. & The variable is unset: gunicorn from the baked image, by default three processes of eight threads each (\file{django/gunicorn.conf.py}). \\
+Networks & The console's and the assistant service's containers also join the external network, to install their packages. & Both are on the isolated network only. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two consequences of dev mode belong in an architecture chapter because they weaken its two
+main properties. A container on the external network can reach the internet directly, so in
+dev mode the assistant service is not confined to the exit's allowlist. And the worker's
+loop does not reload when a source file changes: it runs the code it started with until the
+worker's container is restarted, which makes the new loop take over. In production mode a
+change of code reaches any container only through the update script (\cref{ch:ops}).
+
+\section{Architectural decisions}\label{sec:arch:decisions}
+
+The repository records six decisions that shaped the architecture
+(\file{docs/markdown/en/architecture.md}, section~10). They are given here with their reasons.
+
+\begin{description}
+  \item[Django for the API, not FastAPI.] The record gives this as a decision taken at the
+    outset, with no technical argument for it. What the
+    code shows is how little of Django is used: the ORM, the migrations, the request cycle
+    and the management commands, with none of the bundled applications.
+
+  \item[Chat first; pages for review and administration.] A user is meant to work by
+    talking: describe the company, drop its documents, ask for the analysis. The pages of
+    the console exist to review what was produced and to administer the system. The chat's
+    tools cover the work on a company and nothing else --- they can read the corpus but not
+    change it, and cannot reach accounts, the prompts or the MCP settings. This bounds what an instruction hidden in a
+    document could make the chat do (\cref{ch:security}).
+
+  \item[The system drafts and checks; a person approves.] The scope of a report, an
+    obligation of the register, the override of a finding, a work product: each is approved
+    by a named person and audited, and nothing is marked approved by the system. Scores,
+    bands and identifiers are computed by code and never taken from a model. The stop for
+    the scope review in \cref{fig:arch:report} and the draft state in
+    \cref{fig:arch:product} are this decision in the architecture; \cref{ch:control} gathers
+    all such points.
+
+  \item[Obligations belong to the corpus, and are reviewed.] The obligations of an act are
+    extracted once per version and reused by every later report of every company, instead of
+    being read anew for each report. This makes a report cheaper and two reports
+    comparable, and it gives the review of an obligation a lasting effect. A report records
+    how many of its findings rest on reviewed obligations. How the register was built and
+    reviewed is the subject of \cref{ch:obligations}.
+
+  \item[Official machine sources for the law.] The texts come from CELLAR and from e-tar
+    rather than from EUR-Lex and e-seimas, the sites a person would read, because those two
+    refuse unattended clients. The egress allowlist of \cref{tab:arch:egress} is the
+    architectural trace of this decision.
+
+  \item[One model provider: the faculty's gateway.] Every model call goes to the gateway at
+    \code{ai.knf.vu.lt}. The record states plainly what leaves the machine as a result: the
+    company's documents are sent to the gateway to be embedded and in the steps of a report,
+    and whatever a chat reads travels with its turns. Everything else --- the database, the
+    files, the parsing, the checks, the exports --- runs on the host. The assistant service
+    can be configured for other providers, but the allowlist would have to be opened for
+    them (\cref{ch:models}).
+\end{description}

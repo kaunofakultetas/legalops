@@ -1,0 +1,1275 @@
+% STATUS: reviewed
+\chapter{Modelių sluoksnis}\label{ch:models}
+
+Kiekvienas kitas šios dalies skyrius aprašo vieną kelią, kuriuo modelio kas nors klausiama. Šis
+skyrius aprašo tai, kas visiems tiems keliams bendra: kaip apskritai pasiekiamas modelis, kaip
+atrodo vienas iškvietimas tinkle, kaip užtikrinama atsakymo forma, kas apie iškvietimą
+užrašoma, kiek jis kainuoja ir kas už jį moka. Skyrius eina iš išorės į vidų.
+\Cref{sec:models:door} nusako vienų durų į modelius principą; \cref{sec:models:providers} --
+tiekėjus ir modelių identifikatorius; \cref{sec:models:generate,sec:models:embed} -- du
+asistento paslaugos maršrutus, vieną generuojamam tekstui, kitą vektoriams;
+\cref{sec:models:client} -- klientą, kuriuo API juos kviečia, ir jo klaidų apdorojimą. Antroji
+pusė skirta pinigams ir limitams: kas užrašoma apie iškvietimą (\cref{sec:models:usage}),
+biudžetai (\cref{sec:models:budgets}), tiekėjo instrukcijų podėlis ir kaip jis paveikė
+sprendimus (\cref{sec:models:cache}), dažnio limitai (\cref{sec:models:ratelimits}) ir
+modelis, kuriuo pagal numatymą veikia kiekvienas etapas, kartu su išmatuota pasirinkimo
+priežastimi (\cref{sec:models:defaults}).
+
+
+\section{Vienos durys į modelius}\label{sec:models:door}
+
+Sistema veikia kaip kelios paslaugos (\cref{ch:arch}). Čia svarbios dvi iš jų.
+\term{API} -- tai Django paslauga, kuri saugo visus duomenis ir per savo \term{užduočių
+vykdytoją} atlieka fonines \term{užduotis}: perskaito teisės aktą, indeksuoja dokumentą,
+parengia ataskaitą. \term{Asistento paslauga} (\code{legalops-assistant}: Node~24,
+Express~5 ir AI~SDK 7~versija, kaip jas deklaruoja \file{package.json} kataloge
+\file{assistant/app/}) yra vienintelis procesas, kuris apskritai jungiasi prie modelio. API
+modelio nekviečia: kai užduoties etapui jo prireikia, API siunčia HTTP užklausą asistento
+paslaugai, o ši atlieka iškvietimą ir grąžina atsakymą. Pokalbių asistentas veikia asistento
+paslaugoje ir modelius pasiekia tuo pačiu kodu (\cref{ch:chat}).
+
+Toks padalijimas sąmoningas, ir \file{docs/markdown/en/architecture.md} jį įtvirtina kaip dvi
+projektavimo taisykles: \enquote{Django niekada nekviečia modelio tiekėjo} ir
+\enquote{asistentas neturi jokių duomenų}. Iš to išplaukia trys dalykai.
+
+\begin{itemize}
+  \item \textbf{Tiekėjai ir raktai konfigūruojami vienoje vietoje.} Kokie tiekėjai yra, kokie
+    jų adresai ir raktai ir kaip su kiekvienu kalbamasi, parašyta viename vienos paslaugos
+    faile (\file{llm/provider.js}). Pridėjus tiekėją ar pakeitus raktą, daugiau nieko
+    nekeičiama.
+  \item \textbf{API niekada neturi rakto.} API parametruose nurodyta asistento paslauga
+    (\code{ASSISTANT_URL}), jų tarpusavio durų bendroji paslaptis ir vektorizavimo modelio
+    identifikatorius -- jokio tiekėjo adreso ir jokio tiekėjo rakto. Procesas, kuris atpažįsta
+    įkeltų failų struktūrą ir aptarnauja viešuosius maršrutus, negali nutekinti to, ko neturi.
+  \item \textbf{Kiekvienas iškvietimas registruojamas vienodai.} Kad ir kas klausė -- pokalbio
+    ėjimas, užduoties etapas, vektorizavimo paketas, bandomasis paleidimas instrukcijų
+    redaktoriuje, -- rezultatas yra viena eilutė lentelėje \code{llm_calls} su tais pačiais
+    stulpeliais (\cref{sec:models:usage}). Kainos, biudžetai ir sąnaudų puslapis skaito tą
+    vieną lentelę.
+\end{itemize}
+
+Asistento paslauga savo ruožtu nieko nesaugo: instrukcijos, pokalbiai ir sąnaudų eilutės
+laikomos API duomenų bazėje, o asistento paslauga jas skaito ir rašo per API.
+
+\paragraph{Vidinės durys.} Maršrutai, kuriuos kviečia API, yra po \code{/internal/llm/}
+(\file{routes/internal.js}; \cref{tab:models:routes}). Jie egzistuoja tik izoliuotame tinkle
+tarp konteinerių: viešasis atvirkštinis tarpinis serveris paslaugoms perduoda tik kelius po
+\code{/api/}, todėl kelias, prasidedantis \code{/internal/}, iš išorės jų niekada nepasiekia.
+Be to, kiekvienoje užklausoje turi būti antraštė \code{X-Internal-Secret}. Sargas
+(\file{middleware/internal.js}, \code{requireInternal}) palygina ją su sukonfigūruota
+paslaptimi per pastovų laiką ir tai daro dar prieš perskaitydamas užklausos turinį; jei
+sukonfigūruota paslaptis tuščia, atmetamas kiekvienas iškvietimas su
+403~\code{INTERNAL_ONLY}, užuot praleidus viską. API savo vidinius maršrutus saugo taip pat
+(\file{assistant/api/internal_views.py}, \code{require_internal}). Užklausos turinys pro šias
+duris gali būti iki 16~MB; viešasis pokalbio maršrutas, priimantis vieną žinutę, leidžia
+512~kB.
+
+\begin{table}[H]
+\caption{Asistento paslaugos maršrutai, kuriuos kviečia API}\label{tab:models:routes}
+\begin{tabularx}{\textwidth}{@{}L{58mm}Y@{}}
+\toprule
+\hd{Maršrutas} & \hd{Ką daro} \\
+\midrule
+\route{POST}{/internal/llm/generate} & Vienas generavimas: paprastas tekstas arba objektas, atitinkantis JSON schemą (\cref{sec:models:generate}). \\
+\route{POST}{/internal/llm/embed} & Tekstų paketo vektoriai (\cref{sec:models:embed}). \\
+\route{GET}{/internal/llm/models} & Sukonfigūruoti tiekėjai ir DI tinklų sąsajos modeliai su kainomis; kainoraščio (\cref{sec:models:usage}) ir instrukcijų redaktoriaus modelio pasirinkimo šaltinis. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\Cref{fig:models:path} rodo vieną iškvietimą nuo pradžios iki galo. Likusi skyriaus dalis
+eina juo.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  % the API
+  \node[svc, text width=27mm] (step) at (14,0) {užduoties etapas\\{\scriptsize arba maršrutas, kurio laukia žmogus}};
+  \node[svc, text width=27mm] (rp) at (14,-18) {\code{run_prompt}\\{\scriptsize randa instrukcijos versiją, užpildo jos kintamuosius}};
+  \node[svc, text width=27mm] (gen) at (14,-37) {\code{gateway.generate}\\{\scriptsize kartoja; išlaukia dažnio limito}};
+  \node[chk, text width=27mm] (rec) at (14,-56) {\code{record_call}\\{\scriptsize \code{cost_of}: kiekviena įvesties dalis pagal savo kainą}};
+  \node[store] (calls) at (14,-74) {\code{llm_calls}};
+  \node[store] (pv) at (49,-18) {instrukcijų\\versijos};
+  \node[store] (prices) at (49,-56) {\code{model_prices}};
+  % the assistant service
+  \node[chk, text width=28mm] (gate) at (89,-37) {\code{requireInternal}\\{\scriptsize bendroji paslaptis}};
+  \node[svc, text width=28mm] (route) at (89,-56) {generavimo maršrutas\\{\scriptsize prašo srauto, perskaito jį iki galo}};
+  \node[chk, text width=28mm] (check) at (89,-74) {objektas tikrinamas pagal schemą};
+  % outside
+  \node[ext, text width=17mm] (gw) at (130,-56) {DI tinklų sąsaja};
+  \node[ai, text width=17mm] (model) at (130,-74) {modelis};
+
+  \draw[flow] (step) -- (rp);
+  \draw[flow] (rp) -- (gen);
+  \draw[flow] (pv) -- node[lbl, above] {aktyvi} (rp);
+  \draw[call] (gen) -- node[lbl, above] {POST \code{/internal/llm/generate}} (gate);
+  \draw[flow] (gate) -- (route);
+  \draw[call] (route) -- node[lbl, above] {Responses API} (gw);
+  \draw[call] (gw) -- (model);
+  \draw[flow] (route) -- (check);
+  \draw[flow] (gen) -- node[lbl, right, pos=.45] {atsakymas ir penki žetonų skaičiai} (rec);
+  \draw[flow] (prices) -- node[lbl, above] {kainos} (rec);
+  \draw[flow] (rec) -- node[lbl, right] {viena eilutė} (calls);
+
+  \begin{scope}[on background layer]
+    \node[lane, fit=(step)(calls)(pv)(prices)] (laneapi) {};
+    \node[lane, fit=(gate)(route)(check)] (laneas) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (laneapi.north west) {API (Django): užduočių vykdytojas arba žiniatinklio procesas};
+  \node[lanelabel, anchor=south west] at (laneas.north west) {Asistento paslauga};
+\end{tikzpicture}
+\actorlegend
+\caption{Vieno modelio iškvietimo kelias. Užduoties etapas kviečia \code{run_prompt}, kuri
+instrukcijas ir modelį paima iš aktyvios instrukcijos versijos; API klientas siunčia užklausą
+pro vidines duris; asistento paslauga prašo DI tinklų sąsajos srauto, perskaito jį iki galo,
+patikrina objektą ir atsako visu atsakymu. Sąnaudos užrašomos vienoje vietoje: grįžus
+atsakymui, \code{record_call} apskaičiuoja iškvietimo kainą ir įterpia vieną eilutę į
+\code{llm_calls}. Punktyrinė rodyklė -- užklausa kartu su jos atsakymu.}\label{fig:models:path}
+\end{figure}
+
+
+\section{Tiekėjai ir modelių identifikatoriai}\label{sec:models:providers}
+
+\term{Tiekėjas} -- tas, kas teikia modelius per API. Visoje sistemoje modelis vadinamas viena
+\texttt{provider:model} formos eilute, pvz., \texttt{gateway:azure/gpt-6.1-sol}: priešdėlis,
+parenkantis tiekėją, dvitaškis ir identifikatorius, kurį modeliui suteikė pats tiekėjas. Šią
+eilutę instrukcijos versija saugo savo lauke \code{model} (\cref{ch:prompts}), ją užrašo
+sąnaudų eilutė ir pagal ją sudarytas kainoraštis.
+
+\subsection{Registras}
+
+\file{llm/provider.js} laiko registrą: po vieną įrašą kiekvienam priešdėliui, nurodantį, ar
+tiekėjas turi prisijungimo duomenis, kaip kuriamas jo klientas (vieną kartą, pirmą kartą
+prireikus) ir kaip jis sukuria kalbos modelį bei vektorizavimo modelį
+(\cref{tab:models:providers}). \code{parseModelId} eilutę skaido ties pirmuoju dvitaškiu, bet
+tik tada, kai prieš dvitaškį stovi žinomas priešdėlis; bet kuri kita eilutė skaitoma kaip DI
+tinklų sąsajos identifikatorius, todėl \model{azure/gpt-6.1-sol} ir
+\texttt{gateway:azure/gpt-6.1-sol} yra tas pats modelis. Iškvietimo atsakyme modelis visada
+nurodomas pilna forma (\code{qualifiedModel}), nes pagal ją API apskaičiuoja iškvietimo kainą.
+
+\begin{table}[H]
+\caption{Asistento paslaugos tiekėjų registras}\label{tab:models:providers}
+\begin{tabularx}{\textwidth}{@{}L{21mm}L{37mm}YL{28mm}@{}}
+\toprule
+\hd{Priešdėlis} & \hd{Sukonfigūruotas, kai} & \hd{Kalbos modeliai} & \hd{Vektoriai} \\
+\midrule
+\texttt{gateway:} & nustatytas \code{AI_GATEWAY_KEY} (adresas: \code{AI_GATEWAY_URL}) & DI tinklų sąsajos Responses API, kiekvienas iškvietimas be būsenos & DI tinklų sąsajos \code{/embeddings} \\
+\texttt{openai:} & nustatytas \code{OPENAI_API_KEY} & OpenAI, per atskirą SDK klientą & taip \\
+\texttt{anthropic:} & nustatytas \code{ANTHROPIC_API_KEY} & Anthropic, per atskirą SDK klientą & nėra: jų paprašius -- klaida \\
+\texttt{ollama:} & nustatytas \code{OLLAMA_BASE_URL} & Ollama serveris, kaip su OpenAI suderinami pokalbių modeliai & taip \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Tiekėjas be prisijungimo duomenų sukelia aiškią klaidą: \code{providerFor} meta išimtį, ir maršrutas
+atsako 400~\code{UNKNOWN_MODEL} dar prieš atliekant bet kokį iškvietimą. Iškvietimas niekada
+neperduodamas kitam tiekėjui vietoje šio, o eilutė, nenurodanti jokio modelio, atmetama taip
+pat, užuot ją persiuntus toliau, kad iškvietimas nepavyktų srauto viduryje.
+
+Iš keturių šis diegimas naudoja vieną. \file{docs/markdown/en/architecture.md} užrašo sprendimą --
+fakulteto DI tinklų sąsaja (angl. \en{gateway}) yra vienintelis modelių tiekėjas, -- o tinklas
+jį užtikrina: vienintelis modelių serveris išeinančių jungčių leidžiamų adresų sąraše yra DI
+tinklų sąsajos (\cref{ch:security}). Kiti trys priešdėliai neprivalomi: kiekvienas įjungiamas
+nustačius jo raktą ar adresą, o šio diegimo compose failas asistento paslaugai neperduoda nė
+vieno iš jų.
+
+\subsection{DI tinklų sąsaja ir jos tinklo formatas}
+
+\term{DI tinklų sąsaja} -- tai fakulteto Bifrost sąsaja (numatytasis adresas
+\texttt{https://ai.knf.vu.lt/v1}). Ji naudoja OpenAI tinklo formatus ir kiekvieną iškvietimą
+perduoda už jos įdiegtam modeliui; jos modelių identifikatoriai prasideda \code{azure/}.
+Raktas siunčiamas iš karto dviejose antraštėse: kaip \code{x-bf-vk} ir kaip prieigos raktas
+antraštėje \code{Authorization}.
+
+Registras tuo pačiu raktu sukuria du klientus, nes dvi iškvietimų rūšys naudoja du skirtingus
+formatus:
+
+\begin{itemize}
+  \item \textbf{Kalbos modeliai kviečiami per Responses API} (\code{/v1/responses}), o ne
+    senesniu chat-completions formatu. Priežastis nurodyta \file{llm/provider.js}
+    antraštiniame komentare: naujesni DI tinklų sąsajos modeliai (GPT-6 Astra, GPT-6.1 Sol)
+    funkcijų įrankius priima tik ten, o pokalbių asistentas savo įrankius siunčia visada.
+  \item \textbf{Vektoriai gaunami per} \code{/v1/embeddings}, naudojant su OpenAI suderinamą
+    SDK klientą.
+\end{itemize}
+
+Modelių ir kainų sąrašas skaitomas iš \code{/v1/models}.
+
+\paragraph{Iškvietimai be būsenos.} Responses API gali laikyti pokalbį tiekėjo pusėje ir leisti
+kitai užklausai į jį remtis. Sistema to niekada nenaudoja. \code{gatewayLanguageModel} apgaubia
+kiekvieną DI tinklų sąsajos modelį taip, kad kiekvienoje užklausoje parinktis \code{store}
+turėtų reikšmę \code{false}: nei DI tinklų sąsaja, nei už jos esantis tiekėjas nesaugo, ko buvo
+klausta ir kas atsakyta, o užklausoje visada yra viskas, ką modelis turi perskaityti.
+Struktūrizuotam generavimui tai tiesiog viena užklausa ir vienas atsakymas. Pokalbyje tai
+reiškia, kad kiekvienas ėjimo žingsnis vėl siunčia visus ankstesnius žingsnius
+(\cref{ch:chat}).
+
+\paragraph{Samprotaujantys modeliai.} Kai kurie modeliai prieš atsakydami
+\enquote{samprotauja}: jie sukuria vidinius žetonus, kurie apmokestinami kaip išvestis, bet
+nėra atsakymo dalis. SDK tokius modelius atpažįsta pagal pačios OpenAI identifikatorius, tačiau
+DI tinklų sąsajos identifikatoriai turi diegimo priešdėlį (\code{azure/}), kurio SDK nesitiki.
+Todėl \code{isReasoningModel} tą pačią taisyklę taiko pavadinimui po paskutinio pasvirojo
+brūkšnio.
+
+\begin{codebox}{Kaip atpažįstamas samprotaujantis modelis ir kas pasikeičia}
+DI tinklų sąsajos modelis laikomas samprotaujančiu, kai jo pavadinimas yra \code{gpt-N} arba
+\code{gpt-N.M}, kur $N \ge 5$, su bet kokia priesaga -- išskyrus sveikojo skaičiaus versiją,
+kurios priesaga prasideda \code{chat}, -- arba kai jis priklauso \code{o} serijai (raidė ir
+skaičius). Tokiam modeliui apvalkalas atlieka tris dalykus:
+\begin{itemize}
+  \item pažymi modelį kaip samprotaujantį (\code{forceReasoning}), kad SDK instrukcijas
+    siųstų kaip \enquote{developer} žinutę ir modelio samprotavimą prašytų šifruotu pavidalu
+    -- jį vėlesnis pokalbio ėjimo be būsenos žingsnis turi grąžinti atgal;
+  \item pašalina iš užklausos \code{temperature} ir \code{topP}, nes samprotaujantis modelis
+    nepriima nė vieno iš jų;
+  \item palieka \code{store} išjungtą, kaip ir kiekvienam modeliui.
+\end{itemize}
+Pagal šią taisyklę kiekvienas modelis, kurį nurodo pristatomos instrukcijos
+(\cref{sec:models:defaults}), yra samprotaujantis. Todėl instrukcijos versijoje saugoma
+temperatūra su pristatomais numatytaisiais nustatymais nesiunčiama; ji įsigalioja tik tada,
+kai administratorius instrukciją perkelia į nesamprotaujantį modelį.
+\end{codebox}
+
+\paragraph{Atsarginiai modeliai.} Du asistento paslaugos parametrai nurodo modelį, kuris
+naudojamas, kai užklausa jo nenurodo: \code{AI_CHAT_MODEL} (numatytasis
+\texttt{gateway:azure/gpt-5.5}) generavimui ir \code{AI_EMBED_MODEL} (numatytasis
+\texttt{gateway:azure/text-embedding-3-large}) vektoriams. Kiekviena pristatoma instrukcijos
+versija nurodo savo modelį, todėl pirmasis -- tik apsauginis tinklas. Antrasis yra kiekvienos
+paieškos užklausos vektoriaus modelis; saugomi vektoriai sukuriami modeliu, kurį nurodo paties API to paties
+pavadinimo parametras (\code{AI_EMBED_MODEL} faile \file{settings.py}), kurį kviečiantieji
+siunčia su kiekvienu paketu, todėl abu parametrai turi nurodyti tą patį modelį
+(\cref{sec:models:embed}).
+
+
+\section{Generavimo maršrutas}\label{sec:models:generate}
+
+\route{POST}{/internal/llm/generate} atlieka vieną generavimą. Tai maršrutas, kuris stovi už
+kiekvieno struktūrizuoto atsakymo sistemoje: nuostatų paketo pareigų, verdikto dėl akto,
+penkiolikos pareigų išvadų, veiksmų plano. Šiame poskyryje aptariama užklausa, tai, kaip
+skaitomas modelis, laiko limitai, schema ir nesėkmės.
+
+\subsection{Ką siunčia API}
+
+Užklausa -- JSON objektas. \code{readGenerateBody} jį patikrina laukas po lauko dar prieš
+įtraukiant modelį (\cref{tab:models:request}); nepraėjęs laukas reiškia 400 su atskiru kodu,
+ir modelio niekas nepasiekia.
+
+\begin{table}[H]
+\caption{Generavimo užklausos laukai}\label{tab:models:request}
+\begin{tabularx}{\textwidth}{@{}L{27mm}L{45mm}Y@{}}
+\toprule
+\hd{Laukas} & \hd{Taisyklė} & \hd{Ką neša} \\
+\midrule
+\code{prompt} & privalomas, netuščia eilutė (\code{INVALID_PROMPT}) & Šio vieno iškvietimo duomenys: nuostatos, kurias reikia perskaityti, pareigos, kurias reikia įvertinti. Siunčiamas kaip vienintelė naudotojo žinutė. \\
+\code{system} & neprivaloma eilutė (\code{INVALID_SYSTEM}) & Instrukcijos: instrukcijos versijos tekstas su užpildytais kintamaisiais. \\
+\code{shared} & neprivaloma eilutė (\code{INVALID_SHARED}) & Duomenys, kuriuos nepakeistus neša kiekvienas vieno etapo iškvietimas, pvz., įmonės profilis ir dokumentai ataskaitoje. Dedami po instrukcijų (\cref{sec:models:cache}). \\
+\code{model} & neprivaloma eilutė, apkarpoma & Instrukcijos versijos modelio identifikatorius; jei jo nėra -- \code{AI_CHAT_MODEL}. \\
+\code{schema} & neprivalomas JSON objektas, ne sąrašas (\code{INVALID_SCHEMA}) & JSON schema, kurią turi atitikti atsakymas. Be jos atsakymas yra paprastas tekstas. \\
+\code{schemaName} & neprivaloma eilutė, sutrumpinama iki 64 simbolių; numatytoji \code{result} & Pavadinimas, kuriuo siunčiama schema. \\
+\code{temperature} & neprivalomas skaičius nuo 0 iki 2 (\code{INVALID_TEMPERATURE}) & Instrukcijos versijos imties temperatūra; samprotaujančiam modeliui praleidžiama. \\
+\code{maxOutputTokens} & neprivalomas sveikasis skaičius nuo 1 iki 128\,000 (\code{INVALID_MAX_TOKENS}) & Instrukcijos versijos išvesties riba, jei ji nustatyta. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{aibox}{Ką modelis gauna struktūrizuoto generavimo metu}
+Maršrutas sujungia \code{system} ir \code{shared}, atskirdamas tuščia eilute, ir rezultatą
+siunčia kaip užklausos \emph{instrukcijas}; po jų eina \code{prompt} kaip viena naudotojo
+žinutė; schema, jei ji yra, siunčiama kaip griežtas atsakymo formatas jos pavadinimu. Tai ir
+viskas. Nėra jokios pokalbio istorijos, nėra įrankių ir nesiremiama niekuo iš ankstesnio
+iškvietimo: viskas, ką modelis turi žinoti apie teisę, įmonę ar užduotį, yra šiuose trijuose
+tekstuose. Ką jie kiekviename kelyje apima, aptariama tolesniuose skyriuose.
+\end{aibox}
+
+\subsection{Skaitoma kaip srautas, atsakoma visu atsakymu}
+
+Maršrutas neprašo tiekėjo baigto atsakymo. Jis prašo srauto (SDK \code{streamText}), perskaito
+srautą iki galo asistento paslaugos viduje ir tik tada atsako API visu rezultatu viename JSON
+objekte:
+
+\begin{codeblock}
+{ "model": "gateway:azure/gpt-6.1-sol",
+  "text": null,  "object": { ... },      one of the two is null
+  "finishReason": "stop",
+  "usage": { "inputTokens", "cachedInputTokens", "cacheWriteTokens",
+             "outputTokens", "reasoningTokens" },
+  "durationMs": 187000 }
+\end{codeblock}
+
+Todėl API mato įprastą, tik ilgai trunkančią užklausą. Srautas egzistuoja dėl vienos
+priežasties, nurodytos \file{routes/internal.js} antraštiniame komentare: lėtas modelis ilgą
+atsakymą rašo daugybę minučių, o Node nutraukia atsakymą, kurio pirmasis baitas atkeliauja
+vėliau nei po penkių minučių. Srautas prasideda iš karto, todėl pirmojo baito laukiama
+trumpai, kad ir kiek modelis rašytų.
+
+\begin{lessonbox}{Išmatuota 2026 m. lapkričio 10 d.}
+Tą dieną DI tinklų sąsajos GPT-6 modeliai rašė apie 70 žetonų per sekundę. Tankus nuostatų
+paketas, išsiųstas pareigoms išskirti, užtrukdavo nuo keturių iki šešių minučių; vienas
+patikrintas iškvietimas truko 338~sekundes ir parašė 24\,000 išvesties žetonų. Tokios trukmės
+iškvietimo neįmanoma atlikti kaip vieno atsakymo, kai pirmajam baitui taikoma penkių minučių
+riba, todėl generavimas skaitomas kaip srautas, o toliau aprašytos viršutinės ribos yra
+penkiolika minučių.
+\end{lessonbox}
+
+Srautas gali sugesti ir jau prasidėjęs -- tiekėjas praneša apie klaidą kaip apie įvykį srauto
+viduje. SDK tokį srautą užbaigtų tyliai, ir tai atrodytų kaip trumpesnis atsakymas. Maršrutas
+įsimena pirmąją pastebėtą klaidą (\code{onError}) ir, srautui pasibaigus, ją meta:
+\enquote{srautas, pranešantis apie klaidą jau prasidėjęs, yra nepavykęs iškvietimas, o ne
+trumpesnis atsakymas}, kaip sakoma maršruto antraštiniame komentare. Tai įtvirtina testas
+faile \file{tests/internal.test.mjs} (\enquote{joks dalinis atsakymas nepasiekia užduočių
+vykdytojo}).
+
+\subsection{Laiko limitai abiejose pusėse}
+
+Abi durų pusės turi suderintas viršutines ribas (\cref{tab:models:timeouts}). Asistento
+paslauga vienam generavimui skiria penkiolika minučių; API laukia puse minutės ilgiau, kad
+asistento atsisakymas atkeliautų anksčiau, nei API pasiduos, ir priežastis nepasimestų.
+
+\begin{table}[H]
+\caption{Modelio iškvietimo laiko limitai}\label{tab:models:timeouts}
+\begin{tabularx}{\textwidth}{@{}L{42mm}L{50mm}Y@{}}
+\toprule
+\hd{Konstanta} & \hd{Kur} & \hd{Reikšmė ir prasmė} \\
+\midrule
+\code{GENERATE_TIMEOUT_MS} & asistento paslauga, \file{config.js} & 900\,000~ms: vienas generavimas. Jį viršijus, tiekėjo iškvietimas nutraukiamas, o maršrutas atsako 502, nurodydamas laiko limitą. \\
+\code{GENERATE_TIMEOUT_S} & API, \file{assistant/gateway.py} & 930~s: kiek \code{generate} laukia asistento paslaugos. \\
+\code{EMBED_TIMEOUT_MS} & asistento paslauga, \file{config.js} & 60\,000~ms: vienas vektorizavimo paketas, įskaitant pakartojimus. \\
+\code{embed} parametras \code{timeout} & API, \file{assistant/gateway.py} & 120~s: dvigubai daugiau nei asistento riba, kad pakibęs iškvietimas taptų 502, kurį klientas kartoja, o ne veiktų toliau, kai API jau pasidavė. \\
+\code{maxRetries} & asistento paslauga, abu maršrutai & 2: SDK nepavykusį tiekėjo iškvietimą pakartoja du kartus (kai biudžetas išnaudotas, klausiama tik vieną kartą). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Schema ir jos neatitinkantis atsakymas}
+
+Etapas, kuriam reikia struktūrizuoto atsakymo, siunčia JSON schemą. Schemos priklauso kodui,
+kuris atsakymus apdoroja -- kiekvienas konvejerio modulis apibrėžia savąsias, -- o
+\file{prompts/schemas.py} jas surašo pagal instrukciją (\code{SCHEMAS}: 21 instrukcija, prie
+kiekvienos -- modulis, konstanta ir pavadinimas, kuriuo schema siunčiama), kad bandomasis
+paleidimas instrukcijų redaktoriuje naudotų lygiai tą pačią schemą kaip konvejeris. Mažiausioji
+iš jų parodo formą:
+
+\begin{codefile}{\file{corpus/citations.py} -- \code{JUDGE_SCHEMA}, siunčiama pavadinimu \code{verdicts}}
+JUDGE_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["verdicts"],
+    "properties": {"verdicts": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["ref", "verdict", "note"],
+        "properties": {"ref": FILLED,
+                       "verdict": {"type": "string", "enum": ["match", "mismatch", "unclear"]},
+                       "note": FILLED}}}},
+}
+\end{codefile}
+
+Kiekviena schema parašyta DI tinklų sąsajos \term{griežtajam režimui}: kiekviena savybė
+nurodyta kaip privaloma, \code{additionalProperties} yra \code{false}, o reikšmė, kurios gali
+nebūti, deklaruojama kaip tipas, leidžiantis \texttt{null}, o ne kaip neprivalomas raktas. Schema
+siunčiama kaip griežtas atsakymo formatas, kuriuo tiekėjo prašoma užtikrinti, kad modelio išvestis jo
+laikytųsi: jokio trūkstamo rakto, jokio paties modelio sugalvoto rakto, jokios būsenos už
+išvardytųjų ribų.
+
+\paragraph{Privalomas dar nereiškia užpildytas.}\label{par:models:filled} Griežtajame režime
+kiekvienas raktas privalomas, tačiau tai užtikrina tik patį raktą: \code{{"type": "string"}}
+tenkina ir tuščia eilutė, o masyvą -- ir tuščias sąrašas. Todėl tai, be ko atsakymas negali
+apsieiti, pažymima pačioje schemoje (taisyklę nurodo failo \file{prompts/schemas.py}
+antraštinis komentaras):
+
+\begin{itemize}
+  \item tekstas, kuris privalo turėti turinį, yra \code{FILLED}, eilutė su
+    \code{minLength}~1, -- kaip pirmiau parodyti \code{ref} ir \code{note};
+  \item sąrašas, kurio dydis žinomas, tai nurodo raktažodžiais \code{minItems} ir
+    \code{maxItems}: aštuonios politikos dalys, penki kriterijų lentelės lygiai, bent viena
+    nuostata, kuria remiasi pareiga.
+\end{itemize}
+
+Laukas, kuriam instrukcija leidžia būti tuščiam, lieka paprasta eilutė: sąlyga, terminas,
+dalies numeris. Ribą tarp šių dviejų nubrėžia pačios instrukcijos formuluotė, nes žymė, kurios
+instrukcija neparemia, yra blogiau nei jokios žymės: į užpildytu pažymėtą lauką dekoderis
+priverčia įrašyti \emph{ką nors}, ir modelis, neturėdamas ko pasakyti, įrašo brūkšnį. DI tinklų
+sąsaja užtikrina, kad šių raktažodžių būtų laikomasi, kol modelis rašo, o asistento paslaugos
+tikrintuvas juos patikrina dar kartą; abu dalykai išbandyti su visais trimis modeliais prieš
+pažymint schemas.
+
+\begin{lessonbox}{Žymė, pakeitusi atsakymus, 2026 m. lapkričio 17 d.}
+Kai kurių laukų reikia tik kai kuriuose atsakymuose: rekomendacijos -- kai išvada atvira,
+klausimų -- kai akto taikytinumas lieka neaiškus, pastabos -- kai pareiga abejotina. Schema gali
+pasakyti ir tai -- dviem elemento formomis po raktažodžiu \code{anyOf}: uždara išvada, kurios
+rekomendacija gali būti tuščia, ir atvira išvada, kurios rekomendacija užpildyta, -- ir DI
+tinklų sąsaja tokią schemą priima. Ji buvo sukurta, o matavimas nulėmė, kad jos atsisakyta.
+Su dviem formomis atitikties spragų analizė sutapo su 64 ir 65 iš 71 vertinimo
+rinkinio pažymėto atvejo; su schema, kokia ji buvo iki tol, tą pačią dieną -- su 67 ir 68; su
+viena forma ir paprastomis šio poskyrio žymėmis -- su 69 ir 69 (\cref{ch:control}). Du atvejai
+pasislinko abiejuose dviejų formų schemos paleidimuose ir nė viename iš kitų keturių, abu
+atviros būsenos link: išvada, kurią atvejų žymos laiko atitinkančia, buvo įvertinta kaip
+atitinkanti iš dalies, kita -- kaip neįrodyta; kiti skirtumai kiekvieną kartą buvo vis kiti. Niekas dviejose formose teisingo atsakymo nedraudžia; schemos forma yra
+dalis to, ką modelis skaito, ir ji pakreipė vertinimą. Trys schemos, turėjusios dvi formas, vėl
+turi po vieną, o to, ką jos būtų galėjusios užtikrinti, prašo vien instrukcija. Žymė į schemą
+dedama tik ten, kur vertinimas rodo, kad atsakymai su ja nėra prastesni.
+\end{lessonbox}
+
+\begin{codebox}{Atsakymas tikrinamas du kartus}
+\code{schemaOutput} faile \file{routes/internal.js} perduoda schemą tiekėjui kaip griežtą
+atsakymo formatą \emph{ir} iš tos pačios schemos sukuria tikrintuvą, kurį išanalizuotas
+atsakymas turi praeiti asistento paslaugos viduje, prieš jį grąžinant. Antraštinis
+komentaras nurodo priežastį: tiekėjas be griežtojo režimo gali nukrypti, o API objektą skaito
+pagal raktus, todėl pervadintas raktas tyliai reikštų \enquote{išvadų nėra}. Atsakymas,
+kurio neįmanoma išanalizuoti kaip JSON arba kuris neatitinka schemos, iškvietimą paverčia
+nesėkmingu; kaip rezultatas jis API niekada nepasiekia. Schema, kurios tikrintuvas negali
+perskaityti, siunčiama netikrinta, su įspėjimu žurnale, ir tada už jos stovi tik tiekėjo
+griežtasis režimas.
+\end{codebox}
+
+Nepavykusi patikra neturi tiekėjo HTTP būsenos, todėl maršrutas į ją atsako
+502~\code{GENERATION_FAILED}, kurį API klientas laiko laikinu sutrikimu ir klausia dar kartą
+(\cref{sec:models:client}). Schema, kurią atmeta pati DI tinklų sąsaja -- t.~y. neatitinkanti
+griežtosios formos, -- grįžta kaip pačios sąsajos 4xx ir nekartojama: klausti dar kartą
+nepadės.
+
+\subsection{Kelio kortelė}
+
+Šiuo keliu eina kiekvienas struktūrizuotas generavimas sistemoje. Vėlesnių skyrių kortelės
+nurodo, kas būdinga kiekvienai instrukcijai; ši nurodo, kas bendra visoms.
+
+\begin{pathcard}{Struktūrizuotas generavimas}{run_prompt}
+  \pcrow{Trigger}{Užduočių vykdytojo užduoties etapas arba maršrutas, kurio laukia žmogus,
+    kviečia API funkciją \code{run_prompt} (\file{assistant/llm.py}) su instrukcijos
+    identifikatoriumi (slug) ir duomenimis. Instrukcijų redaktoriaus bandomasis paleidimas
+    kviečia \code{gateway.generate} tiesiogiai su projekto tekstu.}
+  \pcrow{Input}{Trys tekstai: instrukcijos (aktyvi instrukcijos versija su užpildytais
+    \code{{PLACEHOLDER}} kintamaisiais); nebūtinai -- bendrasis blokas, kurį neša visi etapo
+    iškvietimai; šio iškvietimo duomenys. Be to, JSON schema ir jos pavadinimas, modelio
+    identifikatorius, instrukcijos versijos temperatūra ir išvesties riba. Turinys gali būti
+    iki 16~MB; paketų dydžius ir dydžio ribas nustato kiekvienas kelias.}
+  \pcrow{Prompt and model}{Instrukcija, nurodyta identifikatoriumi; jos aktyvios versijos
+    modelis, nebent kviečiantysis perduoda kitą. Užduoties etapui atliekamas iškvietimas yra
+    \emph{kantrus}: jis išlaukia dažnio limito. Samprotaujančiam modeliui temperatūra
+    nesiunčiama.}
+  \pcrow{Output}{Su schema -- \code{object}: išanalizuotas JSON. Be jos -- \code{text}.
+    Visada \code{model}, \code{finishReason}, \code{durationMs} ir penki \code{usage} žetonų
+    skaičiai.}
+  \pcrow{Checked by code}{Užklausa, laukas po lauko. Schemą užtikrina tiekėjo griežtasis
+    režimas, o asistento paslauga ją patikrina dar kartą. Klaida srauto viduje iškvietimą
+    paverčia nesėkmingu. Visa, kas susiję su atsakymo \emph{turiniu}, tikrina kviečiantysis
+    kelias.}
+  \pcrow{Stored}{Viena eilutė lentelėje \code{llm_calls}: rūšis \code{job_step}
+    (\code{prompt_test} bandomajam paleidimui), paskirtis, modelis, penki žetonų skaičiai,
+    kaina, trukmė, užduoties etapas, apmokestintas naudotojas ir instrukcijos versija. Patį
+    atsakymą saugo kviečiantysis. Šiame sluoksnyje sistema atsakymų podėlio nelaiko;
+    instrukcijas laiko tiekėjo podėlis (\cref{sec:models:cache}).}
+  \pcrow{On failure}{SDK nepavykusį tiekėjo iškvietimą pakartoja du kartus, išnaudoto
+    biudžeto -- niekada. API klientas laikiną sutrikimą pakartoja vieną kartą; užduoties
+    etapas dažnio limito laukia iki penkiolikos minučių; nutrūkęs ryšys bandomas penkis
+    kartus. Tada kviečiantįjį pasiekia \code{GatewayError} (\cref{tab:models:errors}).
+    Nepavykęs iškvietimas sąnaudų eilutės nepalieka.}
+  \pcrow{Cost}{Apskaičiuojama dalis po dalies pagal DI tinklų sąsajos kainoraštį ir
+    priskiriama naudotojui, kurį nurodo kviečiantysis, arba niekam
+    (\cref{tab:models:charged}). Išmatuota 2026 m. lapkričio 10--11 d. su pavyzdine įmone:
+    atitikties spragų analizės iškvietimas su 59\,000 įvesties žetonų kainavo 0,18~\$, kai
+    pildė tiekėjo podėlį, ir apie 0,045~\$, kai skaitė iš jo.}
+  \pcrow{Human control}{Šiame sluoksnyje -- jokios. Administratorius parenka kiekvienos
+    instrukcijos tekstą ir modelį (\cref{ch:prompts}) bei kiekvienos paskyros dienos
+    biudžetą; ką žmogus peržiūri atsakyme, nurodyta kiekvieno kelio kortelėje.}
+  \pcrow{Measured by}{Testai, ne vertinimai: asistento paslaugos
+    \file{tests/internal.test.mjs}, \file{tests/provider.test.mjs} ir
+    \file{tests/usage.test.mjs} (tinklo formatas, schemos patikra, nesėkmės, sąnaudos); API
+    \file{tests/test_prompts.py} (kainos skaičiavimas, pakartojimai, kantrybė, kainoraštis).
+    Niekas šiame sluoksnyje nematuoja instrukcijos.}
+\end{pathcard}
+
+
+\section{Vektorizavimo maršrutas}\label{sec:models:embed}
+
+\term{Vektorinis atvaizdas}, trumpiau -- vektorius (angl. \en{embedding}), yra iš teksto
+apskaičiuota skaičių seka, tokia, kad panašios prasmės tekstai gautų arti vienas kito esančius
+vektorius. Sistema saugo po
+vektorių kiekvienam teisės aktų bazės fragmentui, kiekvienai pareigai ir kiekvienam įmonės
+dokumentų fragmentui, o kiekvienai paieškos užklausai jį apskaičiuoja;
+\cref{ch:corpus,ch:company} aprašo, kas su jais daroma. Visi jie gaunami iš
+\route{POST}{/internal/llm/embed}.
+
+\paragraph{Užklausa.} Sąrašas \code{texts} iš 1--256 eilučių (\code{MAX_EMBED_TEXTS}; kitaip
+400~\code{INVALID_TEXTS} arba \code{TOO_MANY_TEXTS}) ir nebūtinai \code{model}; jei jo nėra,
+maršrutas naudoja \code{AI_EMBED_MODEL}. Dėl tuščios eilutės kai kurie tiekėjai atmestų visą
+paketą, todėl ji pakeičiama vienu tarpu. SDK \code{embedMany} paketą siunčia daugiausia
+keturiais lygiagrečiais iškvietimais ir su dviem pakartojimais, neviršydama ribos
+\code{EMBED_TIMEOUT_MS}.
+
+\paragraph{Modelis ir jo plotis.} Vektorizavimo modelis -- DI tinklų sąsajos
+\model{text-embedding-3-large}. Jo vektorių prašoma \textbf{1536 matmenų}, o ne viso modelio
+pločio, nes toks yra kiekvieno vektorių stulpelio duomenų bazėje plotis
+(\code{EMBED_DIMENSIONS} failuose \file{corpus/models.py} ir \file{companies/models.py},
+pakartota faile \file{routes/internal.js}). Maršrutas parinktį \code{dimensions} perduoda tik
+\code{text-embedding-3} šeimos modeliams, t.~y. tiems, kurie ją priima. Kaip antroji
+apsauga, \code{fitDimensions} bet kurį ilgesnį vektorių sutrumpina iki pirmųjų 1536 reikšmių ir
+iš naujo normalizuoja -- tą patį daro ir parinktis, -- kad tilptų ir parinkties nepaisęs
+tiekėjas. Trumpesnis vektorius perduodamas toliau, ir jį atmeta duomenų bazės stulpelis.
+
+Kadangi kiekvienas saugomas vektorius, kad būtų palyginamas, turi būti gautas iš to paties
+modelio, pakeitus \code{AI_EMBED_MODEL} viską tenka vektorizuoti iš naujo (užduotis
+\code{corpus.reembed}; \cref{ch:corpus}).
+
+\paragraph{Atsakymas.} \code{embeddings} (po vieną vektorių kiekvienam tekstui, ta pačia
+tvarka, kuria buvo išsiųsti), \code{model}, \code{dimensions}, \code{usage.tokens} ir
+\code{durationMs}.
+
+\paragraph{Paketai.} Maršruto riba -- 256 tekstai; kviečiantieji lieka gerokai žemiau jos
+(\cref{tab:models:embedcallers}). Kiekvienas paketas -- vienas iškvietimas ir viena sąnaudų
+eilutė.
+
+\begin{table}[H]
+\caption{Kas prašo vektorių ir kokiais paketais}\label{tab:models:embedcallers}
+\begin{tabularx}{\textwidth}{@{}L{43mm}YL{40mm}@{}}
+\toprule
+\hd{Kviečiantysis} & \hd{Vektorizuojamas tekstas} & \hd{Paketas; užrašoma paskirtis} \\
+\midrule
+\file{corpus/ingest.py}, \code{embed_chunks} & Akto fragmentas, pradedamas trumpuoju akto pavadinimu, nuostatos keliu ir jos antrašte & 64 (\code{EMBED_BATCH}); \code{corpus.embed} \\
+\file{corpus/obligations.py}, \code{embed_obligations} & Pareigos pavadinimas ir tekstas, o jei yra -- ir angliškas pavadinimas bei tekstas & 32 pareigos, daugiausia 64 tekstai; \code{obligations.embed} \\
+\file{corpus/obligations.py}, \code{embed_english} & Pareigų, kurioms trūksta šio vektoriaus, angliškas pavadinimas ir tekstas & 64; \code{obligations.embed_en} \\
+\file{companies/indexing.py}, \code{index_document} & Įmonės dokumento langas, pradedamas dokumento pavadinimu ir skirsnio antrašte & 64; \code{documents.embed} \\
+\file{corpus/search.py}, \file{companies/search.py} & Paieškos užklausa & 1; neužrašoma \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{pathcard}{Vektorizavimo iškvietimas}{gateway.embed}
+  \pcrow{Trigger}{Akto įkėlimas arba pakartotinis vektorizavimas (užduotys
+    \code{corpus.ingest}, \code{corpus.reembed}); pareigų išskyrimas arba administratoriaus
+    atliktas pareigos taisymas; įkelto dokumento indeksavimas (užduotis
+    \code{documents.index}); ataskaita, aptikusi dar neindeksuotą dokumentą arba pareigas be
+    angliško vektoriaus; kiekviena paieška teisės aktų bazėje ar įmonės dokumentuose.}
+  \pcrow{Input}{Tekstų sąrašas, daugiausia 256 per iškvietimą (\code{MAX_EMBED_TEXTS});
+    kviečiantieji siunčia daugiausia 64 arba vieną užklausą (\cref{tab:models:embedcallers}).
+    Kiekvienas tekstas -- ištrauka kartu su tuo, kas nurodo jos vietą: aktu ir nuostata arba
+    dokumentu ir skirsniu.}
+  \pcrow{Prompt and model}{Instrukcijos nėra. \texttt{gateway:azure/text-embedding-3-large}
+    (\code{AI_EMBED_MODEL}), prašoma 1536 matmenų.}
+  \pcrow{Output}{\code{embeddings} -- po vieną 1536 skaičių vektorių kiekvienam tekstui ta
+    tvarka, kuria išsiųsta; \code{model}; \code{dimensions}; \code{usage.tokens};
+    \code{durationMs}.}
+  \pcrow{Checked by code}{Tekstai patikrinami, o tušti pakeičiami tarpu. Ilgesnis vektorius
+    sutrumpinamas iki 1536 reikšmių ir iš naujo normalizuojamas. Teisės aktų įkėlimas atmeta
+    atsakymą, kurio vektorių skaičius skiriasi nuo tekstų skaičiaus. Kito pločio vektorių
+    atmeta duomenų bazės stulpelis.}
+  \pcrow{Stored}{Vektorių stulpeliai \code{legal_chunks.embedding},
+    \code{obligations.embedding} ir \code{obligations.embedding_en},
+    \code{company_document_chunks.embedding}. Užklausos vektorius panaudojamas vieną kartą ir
+    nesaugomas. Po vieną \code{embed} rūšies \code{llm_calls} eilutę kiekvienam paketui,
+    išskyrus užklausą.}
+  \pcrow{On failure}{SDK -- du pakartojimai; paketas, užtrukęs ilgiau nei 60~s, nutraukiamas
+    ir į jį atsakoma 502. API klientas laikiną sutrikimą kartoja tris kartus (po 2, 6 ir
+    18~s). Paieška, kurios užklausos nepavyksta vektorizuoti, vykdoma vien pagal raktažodžius.
+    Indeksavimo užduotis bandoma tris kartus.}
+  \pcrow{Cost}{0,13~\$ už milijoną žetonų (DI tinklų sąsajos kainoraštis, 2026 m. lapkričio
+    10 d.). Įkelto dokumento vektorių kaina priskiriama įkėlusiajam; teisės aktų bazės darbas --
+    niekam; užklausa neužrašoma. Išmatuota: 24 naujų aktų įkėlimas duomenų bazės kopijoje
+    2026 m. lapkričio 12 d. kainavo 0,08~\$; visko pakartotinis vektorizavimas 2026 m.
+    rugsėjo 28 d. įvertintas maždaug 0,30~\$.}
+  \pcrow{Human control}{Jokios.}
+  \pcrow{Measured by}{\file{tests/internal.test.mjs} ir \file{tests/embed-timeout.test.mjs}
+    (maršrutas, 1536 matmenys, viršutinė riba); 2026 m. rugsėjo 28 d. dviejų vektorizavimo
+    modelių palyginimas (\cref{tab:models:embedcompare}).}
+\end{pathcard}
+
+
+\section{API klientas}\label{sec:models:client}
+
+API pusėje su asistento paslauga kalbasi vienas modulis -- \file{assistant/gateway.py}, o virš
+jo yra viena funkcija, kurią kviečia konvejeriai, -- \code{run_prompt} faile
+\file{assistant/llm.py}. Modulis vadinamas \enquote{gateway}, nes tai API vartai į modelius;
+jo nereikia painioti su fakulteto DI tinklų sąsaja, į kurią jis niekada nesikreipia.
+
+\subsection{Du iškvietimai}
+
+\code{gateway.generate} iš savo argumentų sudaro užklausą (\cref{tab:models:request}),
+praleidžia tuos, kurie yra \code{None}, išsiunčia ją su bendrąja paslaptimi ir grąžina
+\code{GenerateResult}: tekstą arba objektą, modelį, pabaigos priežastį, penkis žetonų skaičius
+ir trukmę. \code{gateway.embed} tą patį daro su tekstų sąrašu ir grąžina \code{EmbedResult}.
+Trečioji funkcija, \code{list_models}, perskaito modelių sąrašą ir, kai asistento paslauga
+neveikia, grąžina tuščią, kad niekas, kam reikia tik kainų, dėl to nesugestų.
+
+Abu iškvietimai eina per \code{_post} -- ciklą, kuris siunčia užklausą ir sprendžia, ką daryti
+su nesėkme (\cref{sec:models:errors}). Galutinė nesėkmė iškeliama kaip \code{GatewayError} su
+trimis dalykais, pagal kuriuos kviečiantysis gali veikti: HTTP būsena (0 tinklo sutrikimui),
+mašininis kodas ir asistento paslaugos pranešimas, kuriame yra paties tiekėjo žodžiai. Tinklo
+klaidos tekste minimi vidiniai serveriai ir prievadai; jis keliauja į žurnalą, o klaida, kurią
+naudotojas gali perskaityti ataskaitoje ar užduotyje, žodžiais pasako, kas atsitiko
+(\enquote{DI paslauga neatsakė per 930~s}).
+
+\subsection{run\_prompt: saugoma instrukcija virš duomenų}
+
+\code{run_prompt}, kaip sakoma jos antraštiniame komentare, yra \enquote{vienintelis būdas,
+kuriuo konvejerio etapas kalbasi su modeliu}. Jos signatūra rodo, ką sprendžia kviečiantysis
+ir ko jis nesprendžia:
+
+\begin{codeblock}
+run_prompt(slug, data, *, shared=None, schema=None, schema_name="result",
+           variables=None, job_step_id=None, user_id=None, purpose=None, model=None)
+\end{codeblock}
+
+Ji atlieka keturis veiksmus iš eilės.
+
+\begin{enumerate}
+  \item \textbf{Randa instrukcijos versiją.} \code{active_version(slug)}
+    (\file{prompts/store.py}) grąžina versiją, kurią administratorius tai instrukcijai padarė
+    aktyvia. Jei tokios nėra, ji iškelia \code{PromptNotConfigured}, ir etapas nepavyksta su
+    tuo pranešimu: etapas niekada nevykdomas pagal instrukcijas, kurių niekas negali matyti.
+  \item \textbf{Užpildo kintamuosius.} \code{render} pakeičia kiekvieną \code{{NAME}} formos
+    kintamąjį (didžiosios raidės, skaitmenys, pabraukimo brūkšniai), kuriam kviečiantysis
+    pateikė reikšmę; ataskaita perduoda \code{LANGUAGE}, \code{TODAY} ir
+    \code{COMPANY_NAME}. Kintamasis be reikšmės lieka tekste toks, koks parašytas, todėl
+    redaktoriuje su klaida įrašytas pavadinimas matomas instrukcijose, o ne dingsta.
+  \item \textbf{Iškviečia modelį.} Užpildytas tekstas yra instrukcijos; \code{data} -- naudotojo
+    žinutė; \code{shared}, schema ir jos pavadinimas perduodami toliau; modelis, temperatūra ir
+    išvesties riba imami iš instrukcijos versijos (kviečiantysis gali pakeisti modelį).
+    Iškvietimas yra \emph{kantrus} būtent tada, kai nurodytas \code{job_step_id}.
+  \item \textbf{Užrašo iškvietimą} su \code{record_call} (\cref{sec:models:usage}), įskaitant
+    instrukcijos versijos identifikatorių, \enquote{kad ataskaitą visada būtų galima atsekti iki
+    tikslių instrukcijų, pagal kurias ji parengta}.
+\end{enumerate}
+
+Ji grąžina \code{PromptRun}: objektą arba tekstą, neapdorotą rezultatą ir panaudotą versiją.
+Kviečiantysis pasirenka duomenis, schemą, kam priskiriama kaina ir prie kurio užduoties etapo
+iškvietimas registruojamas; instrukcijų teksto ir modelio kviečiančiojo kode niekada nėra. Būtent
+tai leidžia administratoriui pakeisti bet kurį iš jų be diegimo (\cref{ch:prompts}).
+
+\subsection{Bendrieji duomenys ir lygiagretūs iškvietimai}
+
+Dvi pagalbinės funkcijos lemia, kaip etapas atlieka daug iškvietimų.
+
+\code{parallel_map(fn, items, workers=4)} faile \file{common/parallel.py} vykdo etapo
+iškvietimus po kelis vienu metu gijose ir rezultatus grąžina elementų tvarka. Beveik visą laiką
+etapas laukia modelio, todėl keturi iškvietimai vienu metu ataskaitą sutrumpina nuo kelių
+dešimčių minučių iki kelių. Kiekviena gija, baigusi darbą, uždaro savo duomenų bazės ryšį. Jei
+iškvietimas nepavyksta, kitiems vis tiek leidžiama baigtis, o pirmoji išimtis iškeliama, kai
+visi užsibaigia.
+
+\code{shared=} pažymi tą įvesties dalį, kuri visuose etapo iškvietimuose ta pati: ataskaitos
+atitikties spragų analizėje tai įmonės profilis ir jos dokumentai. \code{run_prompt} ją
+perduoda atskirai nuo duomenų, o asistento paslauga ją deda po instrukcijų, kur ją išsaugo
+tiekėjo podėlis. Kad tai duotų naudos, pirmasis iškvietimas turi būti baigtas prieš pradedant
+kitus -- kartu pradėti iškvietimai kiekvienas mokėtų už bloko įrašymą. \code{shared_first}
+faile \file{analysis/pipeline.py} būtent tai ir daro: pirmąjį elementą vykdo vieną, o likusius
+perduoda \code{parallel_map}. \Cref{sec:models:cache} pateikia tai pagrindžiantį matavimą.
+
+\subsection{Pakartojimai, kantrybė ir klaidos, kurias mato kviečiantysis}\label{sec:models:errors}
+
+Nesėkmė apdorojama trimis lygmenimis, kurių kiekvieno horizontas kitoks. SDK asistento
+paslaugoje nepavykusį tiekėjo iškvietimą per kelias sekundes pakartoja du kartus. Tada API
+klientas renkasi tarp trumpo pakartojimo ir ilgo laukimo. Kas lieka, pasiekia kviečiantįjį
+kodą kaip \code{GatewayError}.
+
+Klientas skiria dvi kviečiančiųjų rūšis. Iškvietimas, kurio laukia žmogus -- nuorodų patikra
+iš teisės aktų bazės puslapio, bandomasis paleidimas, -- turi nepavykti pakankamai greitai,
+kad tą žmogų būtų galima informuoti. Užduoties etapui atliekamas iškvietimas yra foninis
+darbas, kurio niekas nestebi: jam dažnio limitas yra \enquote{visai ne nesėkmė}, nes tiekėjas
+skaičiuoja žetonus per minutę, ir limitas praeina savaime. \Cref{tab:models:retries} pateikia
+\code{_post} taisykles.
+
+\begin{table}[H]
+\caption{Ką API klientas daro su nepavykusiu iškvietimu. $n$ -- jau atliktų pakartojimų
+skaičius; \code{generate} pagal numatymą kviečiama su vienu pakartojimu, \code{embed} -- su
+trimis, instrukcijų redaktoriaus bandomasis paleidimas -- be
+pakartojimų.}\label{tab:models:retries}
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+\toprule
+\hd{Nesėkmė} & \hd{Ką daro klientas} \\
+\midrule
+Dažnio limitas (429), kantrus iškvietimas & Laukia ir klausia dar kartą, neišnaudodamas pakartojimo: tiek, kiek prašė tiekėjas (\code{retryAfterS}), kitaip \code{RATE_LIMIT_WAIT_S} = 20~s, paskui 40, paskui daugiausia 60; kiekvienas laukimas atsitiktinai ketvirčiu ilgesnis ar trumpesnis, kad vieno etapo iškvietimai negrįžtų visi tą pačią sekundę. Iš viso išlaukus \code{RATE_LIMIT_PATIENCE_S} = 900~s, limitas traktuojamas kaip kitoje eilutėje. \\
+Dažnio limitas (429), kiti iškvietimai; 408, 409, 425, 500, 502, 503, 504 & Kartojama iki kviečiančiojo nurodyto pakartojimų skaičiaus, po $\min(2\cdot 3^{n},\,30)$ sekundžių: 2, 6, 18. \\
+Nepavyko prisijungti (\code{GATEWAY_UNREACHABLE}) & Kartojama ne mažiau kaip \code{CONNECTION_RETRIES} = 5 kartus, jei kviečiantysis leidžia bent vieną pakartojimą (po 2, 6, 18, 30 ir 30~s): asistento paslauga buvo paleidžiama iš naujo, o pats iškvietimas buvo tvarkingas. \\
+Laiku negautas atsakymas (\code{GATEWAY_TIMEOUT}) & Kartojama iki kviečiančiojo nurodyto pakartojimų skaičiaus. \\
+Bet kuri kita 4xx, įskaitant išnaudotą biudžetą (402) & Iškeliama iš karto. Klausti dar kartą nepadės. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\Cref{tab:models:errors} išvardija viską, ką kviečiantysis gali gauti. Asistento paslauga šiuos
+atsakymus sudaro funkcijoje \code{providerFailure} (\file{routes/internal.js}) pagal
+klasifikaciją faile \file{middleware/errors.js}: išnaudotas biudžetas tampa 402, dažnio limitas
+-- 429 su tiekėjo nurodytu laukimu, o visa kita išlaiko paties tiekėjo būseną arba tampa 502,
+jei jos nebuvo, -- kad klientas galėtų atskirti kartotiną nesėkmę nuo nekartotinos.
+
+\begin{xltabular}{\textwidth}{@{}L{41mm}L{50mm}Y@{}}
+\caption{Modelio iškvietimo klaidos, kaip jas gauna API}\label{tab:models:errors}\\
+\toprule
+\hd{Būsena ir kodas} & \hd{Kas atsitiko} & \hd{Kas toliau} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Būsena ir kodas} & \hd{Kas atsitiko} & \hd{Kas toliau} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+402 \code{AI_BUDGET_EXHAUSTED} & DI tinklų sąsaja atmetė iškvietimą, nes jos rakto biudžetas išnaudotas (\cref{sec:models:budgets}); taip pat tiekėjo žodžiais išreikštas kvotos atsisakymas. & SDK klausia vieną kartą, klientas niekada nekartoja. Ataskaita nepavyksta su pranešimu, prasidedančiu \code{AI_BUDGET_EXHAUSTED}, kurį konsolė parodo žodžiais, ir išsaugo jau apmokėtą darbą. \\
+429 \code{GENERATION_FAILED} arba \code{EMBEDDING_FAILED} & Tiekėjo dažnio limitas truko ilgiau nei du SDK pakartojimai arba atėjo srauto viduje. \code{retryAfterS} neša laukimą, jei tiekėjas jį nurodė. & Užduoties etapas jo laukia iki penkiolikos minučių; iškvietimas, kurio laukia žmogus, trumpai kartojamas (\cref{tab:models:retries}). \\
+400 \code{UNKNOWN_MODEL} & Modelio identifikatorius nenurodo jokio modelio, nurodo nežinomą tiekėją arba tiekėją be prisijungimo duomenų. & Iškeliama iš karto. Etapas nepavyksta su pranešimu. \\
+400, kodas, prasidedantis \code{INVALID_} & Užklausos laukas nepraėjo patikros (\cref{tab:models:request}). & Iškeliama iš karto; kviečiančiojo kodo defektas. \\
+4xx \code{GENERATION_FAILED} & Tiekėjas atmetė pačią užklausą: negriežta schema, modelis, kurio raktas negali naudoti, įvestis, ilgesnė, nei modelis priima. & Iškeliama iš karto, pranešime -- tiekėjo žodžiai. \\
+5xx \code{GENERATION_FAILED} & Paties tiekėjo klaida po SDK pakartojimų. & 500, 502, 503 ar 504 klientas pakartoja, tada iškelia. \\
+502 \code{GENERATION_FAILED} arba \code{EMBEDDING_FAILED} & Tiekėjo būsenos nėra: atsakymas nebuvo galiojantis JSON arba neatitiko schemos, iškvietimas pasiekė savo laiko ribą arba sutriko tinklas iki tiekėjo. & Klientas pakartoja, tada iškelia. \\
+0 \code{GATEWAY_TIMEOUT} & Asistento paslauga neatsakė per kliento laiko limitą. & Pakartojama, tada iškeliama. \\
+0 \code{GATEWAY_UNREACHABLE} & Nėra ryšio su asistento paslauga. & Pakartojama penkis kartus (kviečiančiajam, kuris neleidžia pakartojimų, -- nė karto), tada iškeliama. \\
+403 \code{INTERNAL_ONLY} & Bendrosios paslapties nėra arba ji neteisinga. & Iškeliama iš karto; konfigūracijos defektas. \\
+\code{PromptNotConfigured} & Ne iškvietimo klaida: instrukcija neturi aktyvios versijos. & \code{run_prompt} iškelia ją prieš bet kokį iškvietimą. \\
+\end{xltabular}
+
+Ką kviečiantysis daro su iškelta klaida, priklauso nuo to, ar jis gali apsieiti be modelio.
+Ataskaitos etapai negali: išimtis užbaigia užduotį, o ataskaita užrašo pranešimą
+(\code{failure_message} faile \file{analysis/pipeline.py}; \cref{ch:report}). Keli mažesni
+skaitytojai gali, ir kiekvienas turi nustatytą atsarginį sprendimą:
+
+\begin{itemize}
+  \item nuorodų patikra vertina pagal žodžių sutapimą, o ne modeliu
+    (\file{corpus/citations.py}) -- išskyrus tai, kad ataskaitos viduje 402 iškeliama kaip bet
+    kuri kita etapo nesėkmė, kad be biudžeto parengta ataskaita nebūtų palaikyta išsamia;
+  \item standarto struktūros skaitymas grįžta vien prie struktūros taisyklių, o kai šios nieko
+    neranda -- prie standarto skaidymo pagal puslapius (\code{read_standard} faile
+    \file{corpus/outline.py});
+  \item akto apimties ir jo sankcijų nuostatų skaitymas užrašo nesėkmę žurnale ir palieka aktą
+    neperskaitytą, kad vėlesnis paleidimas klaustų dar kartą (\file{corpus/scope.py},
+    \file{corpus/sanctions.py});
+  \item paieška, kurios užklausos nepavyksta vektorizuoti, vykdoma vien pagal raktažodžius
+    (\file{corpus/search.py}, \file{companies/search.py});
+  \item instrukcijų redaktoriaus bandomasis paleidimas atsako 502~\code{MODEL_ERROR} su
+    priežastimi.
+\end{itemize}
+
+Kiekvieno kelio skyriai nurodo, ką atsarginis sprendimas reiškia rezultatui.
+
+
+\section{Sąnaudos: kas užrašoma apie kiekvieną iškvietimą}\label{sec:models:usage}
+
+Kiekvienas modelio iškvietimas palieka vieną eilutę lentelėje \code{llm_calls}. Eilutę įrašo
+\code{record_call} faile \file{assistant/usage.py}, kurią naudoja keturių rūšių
+kviečiantieji: \code{run_prompt} -- kiekvienam struktūrizuotam generavimui, instrukcijų
+redaktoriaus bandomasis paleidimas (\code{test_run} faile \file{prompts/api/views.py}),
+vektorių kviečiantieji -- kiekvienam paketui, ir vidinis maršrutas
+\route{POST}{/internal/assistant/turn-log}, per kurį asistento paslauga užrašo kiekvieną
+pokalbio ėjimą ir kiekvieną savo parašytą pokalbio pavadinimą.
+
+\subsection{Penki skaičiai}
+
+Iškvietimo kaina priklauso ne vien nuo to, kiek žetonų įėjo, nes tiekėjas tris įvesties rūšis
+apmokestina trimis kainomis (\cref{sec:models:cache}). Todėl iškvietimas skaičiuojamas penkiais
+skaičiais, kuriuos iš SDK pateikiamų duomenų paima \code{usageOf} faile \file{llm/usage.js}:
+
+\begin{enumerate}
+  \item \code{inputTokens} -- visa įvestis;
+  \item \code{cachedInputTokens} -- įvesties dalis, kurią tiekėjas nuskaitė iš savo
+    instrukcijų podėlio;
+  \item \code{cacheWriteTokens} -- įvesties dalis, kurią tiekėjas įrašė į tą podėlį;
+  \item \code{outputTokens} -- visa išvestis;
+  \item \code{reasoningTokens} -- išvesties dalis, kuri buvo modelio samprotavimas.
+\end{enumerate}
+
+Tiekėjas, kuris apie podėlį nepraneša, antrąjį ir trečiąjį skaičius palieka nuliais. Pokalbio
+ėjimui, kurį sudaro keli modelio žingsniai, penki skaičiai yra žingsnių sumos
+(\code{addUsage}).
+
+\subsection{Iškvietimo kaina}
+
+\code{cost_of} skaičius paverčia JAV doleriais. Tegu $I$ -- įvesties žetonai, iš kurių $c$
+nuskaityti iš podėlio, o $w$ į jį įrašyti, $O$ -- išvesties žetonai, ir tegu modelis turi
+keturias kainas už žetoną: $p$ -- įvesčiai, $p_r$ -- iš podėlio nuskaitytai įvesčiai, $p_w$ --
+į podėlį įrašytai įvesčiai, $p_o$ -- išvesčiai. Tada
+\[
+  \mathrm{kaina} \;=\; p\,(I - c - w) \;+\; p_r\,c \;+\; p_w\,w \;+\; p_o\,O ,
+\]
+suapvalinta iki milijonosios dolerio dalies. Trys detalės užtikrina, kad skaičius būtų sąžiningas. Abi dalys
+apribojamos taip, kad niekada negalėtų sudaryti daugiau nei visa įvestis ($c \le I$,
+$w \le I - c$). Modeliui, kuriam kainoraštis nenurodo podėlio kainos, ta dalis apmokestinama
+paprasta įvesties kaina. O modelis visai be kainos kainuoja 0, ir tai užrašoma žurnale vieną
+kartą kiekvienam modeliui -- sąnaudų eilutė vis tiek įrašoma su savo žetonais.
+
+Pavyzdys su \model{gpt-6.1-sol} kainomis (tą pačią aritmetiką įtvirtina testas faile
+\file{tests/test_prompts.py}): iškvietimas su 60\,000 įvesties žetonų, iš kurių 55\,000
+nuskaityti iš podėlio, o 4\,000 į jį įrašyti, ir 3\,000 išvesties žetonų kainuoja
+$1\,000 \times 2 + 55\,000 \times 0{,}10 + 4\,000 \times 2{,}50 + 3\,000 \times 10$ milijonųjų
+dolerio dalių, t.~y. 0,0475~\$. Įkainotas vien pagal žetonų skaičius, jis būtų užrašytas kaip
+0,15~\$.
+
+\subsection{Kainoraštis}
+
+Kainos į kodą neįrašomos kaip tiesa; jos skaitomos iš DI tinklų sąsajos. \code{price_table}
+paprašo asistento paslaugos modelių sąrašo, kuriame prie kiekvieno modelio nurodyta įvesties ir
+išvesties žetono kaina, o kur DI tinklų sąsaja jas nurodo, -- ir dvi podėlio kainos. Lentelė
+laikoma atmintyje valandą (\code{PRICE_TTL_S} = 3600; pati asistento paslauga DI tinklų sąsajos
+sąrašą laiko podėlyje dešimt minučių). Už jos stovi trys sluoksniai, kad DI tinklų sąsajos
+trikdis nei pamestų sąnaudų eilutės, nei nunulintų biudžeto:
+
+\begin{enumerate}
+  \item kiekvienas sėkmingas gavimas taip pat išsaugomas lentelėje \code{model_prices} (po
+    eilutę kiekvienam modeliui: keturios kainos ir laikas);
+  \item nepavykęs gavimas grįžta prie tos išsaugotos lentelės, kuri tada valandą tarnauja kaip
+    šviežia; tik kai ir ten nieko nėra, gauti bandoma vėl po penkių minučių
+    (\code{PRICE_RETRY_S} = 300);
+  \item po abiem slypi \code{KNOWN_PRICES} -- kainos, žinomos rašant kodą
+    (\cref{tab:models:prices}), skirtos diegimui, kuris niekada nepasiekė DI tinklų sąsajos,
+    ir modeliui, kurio gautas sąrašas nenurodo.
+\end{enumerate}
+
+\begin{table}[H]
+\caption{Kainos, kurias kodas pateikia kaip paskutinę atsarginę priemonę (\code{KNOWN_PRICES}
+faile \file{assistant/usage.py}), JAV doleriais už milijoną žetonų. Tai DI tinklų sąsajos
+kainos 2026 m. rugsėjo 27 d.; GPT-6 modelių ir visos podėlio kainos -- 2026 m. lapkričio
+10 d. Brūkšnys reiškia, kad sąraše tokios kainos nėra ir taikoma įvesties
+kaina.}\label{tab:models:prices}
+\begin{tabularx}{\textwidth}{@{}Yrrrr@{}}
+\toprule
+\hd{Modelis} & \hd{Įvestis} & \hd{Išvestis} & \hd{Nuskaityta iš podėlio} & \hd{Įrašyta į podėlį} \\
+\midrule
+\model{azure/gpt-6-astra} & 10 & 50 & 1,00 & 12,50 \\
+\model{azure/gpt-6.1-sol} & 2 & 10 & 0,10 & 2,50 \\
+\model{azure/gpt-6-sol} & 2 & 10 & 0,20 & 2,50 \\
+\model{azure/gpt-5.5} & 5 & 30 & 0,50 & --- \\
+\model{azure/gpt-5.6-sol} & 4 & 20 & --- & --- \\
+\model{azure/gpt-5.6-terra} & 2 & 12 & 0,20 & 2,50 \\
+\model{azure/gpt-5.6-luna} & 0,20 & 1,20 & 0,02 & 0,25 \\
+\model{azure/text-embedding-3-large} & 0,13 & 0 & --- & --- \\
+\model{azure/text-embedding-3-small} & 0,02 & 0 & --- & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Įvertis, rodomas prieš pradedant ataskaitą (\file{analysis/estimate.py}; \cref{ch:report}),
+naudoja tą patį \code{cost_of} ir tą pačią lentelę, kiekvieno etapo aktyvios instrukcijos
+versijos modeliui. Ataskaitos etapų įvestį jis įkainoja kaip įrašytą į podėlį -- tiek tiekėjas
+ima už įvestį, kurią mato pirmą kartą, -- o atitikties spragų analizę kaip vieną iškvietimą,
+kuris įrašo bendrąjį bloką, ir likusius, kurie jį nuskaito; vienkartinis dar neperskaityto akto
+pareigų išskyrimas įkainojamas paprasta įvesties kaina. Kai kuris nors paleidimo modelis neturi
+kainos, įvertis tai pasako (\code{pricesKnown} yra false), užuot pateikęs sumą, kuri tėra
+apatinė riba.
+
+\subsection{Eilutė}
+
+\Cref{tab:models:llmcalls} išvardija visus eilutės laukus. Du iš jų verti paaiškinimo.
+
+\code{kind} yra viena iš keturių reikšmių, kurias užtikrina duomenų bazės apribojimas:
+\code{chat}, \code{job_step}, \code{embed}, \code{prompt_test}. \code{run_prompt} visada rašo
+\code{job_step}, taip pat ir tiems keliems iškvietimams, kuriuos atlieka ne užduotyje (nuorodų
+patikra iš teisės aktų bazės puslapio); tokia eilutė tiesiog neturi užduoties etapo.
+
+\code{purpose} nurodo, kam iškvietimas buvo skirtas, ne daugiau kaip 80 simbolių.
+Struktūrizuotam generavimui tai instrukcijos identifikatorius, nebent kviečiantysis nurodo kitą
+(nuorodų vertintojas rašo \code{citations.check}; vertinimo rinkiniai rašo \texttt{eval:} ir
+rinkinio pavadinimą, išskyrus nuorodų rinkinį, kurio iškvietimai eina per nuorodų vertintoją ir
+neša jo paskirtį). Vektoriams tai viena iš keturių paskirčių (\cref{tab:models:embedcallers});
+pokalbiui -- \code{chat} ėjimui ir \code{chat_title} pavadinimui.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{Lentelės \code{llm_calls} eilutės laukai (\file{assistant/models.py}, \code{LlmCall})}\label{tab:models:llmcalls}\\
+\toprule
+\hd{Laukas} & \hd{Saugo} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Laukas} & \hd{Saugo} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{id} & Pačios eilutės identifikatorius. \\
+\code{kind} & \code{chat}, \code{job_step}, \code{embed} arba \code{prompt_test}. \\
+\code{purpose} & Kam iškvietimas buvo skirtas: instrukcijos identifikatorius arba viena iš aukščiau nurodytų fiksuotų paskirčių. \\
+\code{user} & Naudotojas, kuriam priskiriama iškvietimo kaina; bendram darbui tuščias (\cref{tab:models:charged}). Dienos biudžetas sumuojamas pagal šį lauką. \\
+\code{thread_id} & Pokalbio ėjimui -- pokalbis. \\
+\code{job_step_id} & Foniniam darbui -- užduoties etapas. Etapui pasibaigus, užduočių vykdytojas etapo eilutes -- iškvietimus, žetonus, kainą, pagal modelį -- susumuoja į paties etapo įrašą (\file{jobs/runner.py}); iš ten ir imama ataskaitos kaina pagal etapus. \\
+\code{prompt_version_id} & Instrukcijos versija, kurios instrukcijos buvo vykdytos; tuščias vektoriams ir neišsaugoto projekto bandomajam paleidimui. \\
+\code{model} & Modelis, kuris buvo vykdomas, \texttt{provider:model} forma; iškvietimui per generavimo ar vektorizavimo maršrutą -- toks, kokį asistento paslauga nurodė savo atsakyme. \\
+\code{input_tokens}, \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens}, \code{reasoning_tokens} & Penki skaičiai. \\
+\code{cost_usd} & Kaina, kurią \code{cost_of} apskaičiavo įrašant eilutę, šešių skaitmenų po kablelio tikslumu. Vėlesnis kainų pasikeitimas jos nekeičia. \\
+\code{duration_ms} & Kiek truko iškvietimas. \\
+\code{tool_calls} & Pokalbio ėjimui -- modelio iškviestų įrankių sąrašas. \\
+\code{outcome} & \code{ok} arba, pokalbio ėjimui, kaip jis kitaip baigėsi (pvz., \code{timeout}, \code{budget}, \code{error}); pavadinimui -- \code{empty}, kai modelis jo neparašė. \\
+\code{transcript} & Pokalbio ėjimui: naudotojo žinutė (daugiausia 20\,000 simbolių) ir asistento atsakymas (daugiausia 100\,000); pavadinimui -- pirmosios žinutės pradžia ir parašytas pavadinimas. Visiems kitiems iškvietimams tuščias. \\
+\code{created_at} & Kada eilutė įrašyta (UTC). \\
+\end{xltabular}
+
+\paragraph{Stenograma.} Pokalbis yra vienintelė funkcija, kurios iškvietimai saugo savo turinį
+sąnaudų eilutėje: ėjimui -- ko naudotojas klausė ir ką asistentas atsakė; pavadinimui -- ką
+modelis perskaitė ir parašė. Duomenų modelio antraštinis komentaras tai vadina \enquote{auditu, ką
+asistentas kam pasakė}. Ji pateikiama tik iškvietimo išsamiame rodinyje
+(\route{GET}{/api/usage/calls/{id}}), kurį naudotojas gali skaityti savo iškvietimams, o
+administratorius -- bet kuriems. Konvejerio iškvietimų įvestys ir išvestys į \code{llm_calls}
+nekopijuojamos; jų rezultatai saugomi kiekvieno kelio lentelėse.
+
+\paragraph{Telemetrija niekada nesugadina kviečiančiojo darbo.} \code{record_call} įterpimą
+vykdo atskirame išsaugojimo taške ir sugauna kiekvieną išimtį: nepavykęs eilutės įrašymas
+užrašomas žurnale, o modelio atsakymas vis tiek naudojamas.
+
+\paragraph{Kas neužrašoma.} Du dalykai eilutės nepalieka. Pirmasis yra sąmoningas ir nurodytas
+\file{docs/markdown/en/architecture.md}: paieškos užklausos vektorius, keli žetonai per paiešką,
+sukuriamas be sąnaudų eilutės. Antrasis išplaukia iš kodo tvarkos: \code{run_prompt} ir
+vektorių kviečiantieji iškvietimą užrašo tik gavę atsakymą, todėl nepavykęs užduočių vykdytojo
+iškvietimas -- įskaitant tą, kurio atsakymą atmetė schemos patikra, -- eilutės neturi, nors
+tiekėjas jo žetonus galėjo apmokestinti. Nepavykęs pokalbio ėjimas užrašomas su savo
+\code{outcome}.
+
+Konsolės sąnaudų puslapis šias eilutes skaito per \route{GET}{/api/usage} ir
+\route{GET}{/api/usage/calls}: kaina per dieną, pagal rūšį, pagal modelį ir --
+administratoriui -- pagal naudotoją (\cref{ch:console,ch:api}).
+
+
+\section{Biudžetai}\label{sec:models:budgets}
+
+Ką sistema gali išleisti, riboja du biudžetai. Vienas priklauso DI tinklų sąsajai ir apima visą
+diegimą; kitas yra pačios sistemos ir apima vieną naudotoją vienai dienai.
+
+\subsection{DI tinklų sąsajos rakto komandos biudžetas}
+
+Raktas, kuriuo asistento paslauga kviečia DI tinklų sąsają, turi \term{komandos biudžetą},
+kurį nustato ir skaičiuoja DI tinklų sąsaja. Niekas šioje sistemoje jo pakeisti negali. Kai jis
+išnaudojamas, DI tinklų sąsaja į kiekvieną iškvietimą atsako HTTP~402, o sistema tai pasako
+aiškiai, užuot pranešusi apie bendrą nesėkmę: asistento paslauga atsisakymą paverčia
+402~\code{AI_BUDGET_EXHAUSTED} vidinėse duryse ir tuo pačiu kodu pokalbyje; taip nepavykusi
+ataskaita užrašo pranešimą, prasidedantį tuo kodu, ir išsaugo viską, už ką jau buvo sumokėjusi
+-- dokumentų inventorių ir išskirtų pareigų kitas paleidimas nebeperka iš naujo.
+
+Dvi klasifikacijos (\code{classifyProviderError} faile \file{middleware/errors.js}) detalės
+vertos dėmesio. 402 visada reiškia išnaudotą biudžetą; 400, 403, 429 ar klaida be būsenos
+laikoma tokia tik tada, kai jos tekste yra ir pinigų žodis (budget, quota, billing, credit
+balance), ir pasibaigimo žodis. Be to, dažnio limito formuluotė niekada nelaikoma išnaudotu
+biudžetu, net jei mini kvotą: abu atvejai reikalauja priešingų reakcijų -- laukti arba sustoti.
+\code{finalBudgetRefusals} tada biudžeto atsisakymą pažymi kaip nekartotiną, nes kitaip SDK
+kartotų 429, kurio nepašalins joks kelių sekundžių laukimas.
+
+\file{docs/markdown/en/operations.md} užrašo, kad komandos biudžetas 2026 m. rugsėjo 27 d., tą dieną,
+kai buvo pasiektas, buvo 10~\$.
+
+\subsection{Naudotojo dienos biudžetas}
+
+Pačios sistemos biudžetas \enquote{tik neleidžia vienai paskyrai ištuštinti bendro rakto}, kaip
+sakoma \file{docs/markdown/en/operations.md}. Kiekvienas naudotojas per UTC parą gali išleisti
+nustatytą sumą:
+
+\begin{itemize}
+  \item numatytoji suma -- parametras \code{LLM_DAILY_BUDGET_USD}, nuo 2026~m. lapkričio 20~d.
+    10,00~\$. Anksčiau ji buvo 2,00~\$, nustatyta rugsėjį, kai pokalbio ėjimas kainavo centus.
+    Nuo lapkričio naudojamu pokalbio modeliu ėjimas, kuriuo perskaitomi įmonės dokumentai,
+    kainuoja apie 2,90~\$, o vėlesnis juos perskaičiusio pokalbio ėjimas -- apie 1,00~\$
+    (veikiančios sistemos lapkričio 17~d. ėjimų mediana buvo 1,02~\$), todėl pirmas dokumentų
+    perdavimas išnaudodavo įprastos paskyros dieną, o kitas jos klausimas būdavo atmetamas;
+  \item administratorius paskyrai gali nustatyti savą sumą (naudotojo \code{daily_budget_usd};
+    konsolėje -- puslapyje \ui{Naudotojai}): tuščia reiškia numatytąją, 0 reiškia neribotą,
+    kitaip -- suma iki 10\,000~\$;
+  \item paties administratoriaus paskyra neribota, nebent jai nustatyta suma.
+\end{itemize}
+
+\code{budget_status(user_id)} faile \file{assistant/usage.py} apskaičiuoja būklę: limitą,
+panaudotą sumą -- \code{cost_usd} sumą per naudotojo eilutes lentelėje \code{llm_calls} nuo
+00:00~UTC -- ir likutį (nieko, kai limitas 0, t.~y. neribotas). Kadangi biudžetas sumuojamas
+per sąnaudų eilutes, jis skaičiuoja lygiai tai, ką \cref{tab:models:charged} nurodo kaip
+priskiriamą naudotojui, ir nieko daugiau.
+
+Biudžetas tikrinamas \emph{prieš} pradedant darbą, niekada ne jo viduryje
+(\cref{tab:models:budgetchecks}). Kad būtų pradėta ataskaita ar programos dokumentas, turi būti
+likę 0,25~\$ (\code{MIN_BUDGET_TO_START_USD}); pradėtas paleidimas niekada nesustabdomas
+pusiaukelėje, net jei viršija limitą. Apie paleidimo dydį naudotojui pasako įvertis, kurį jis
+patvirtina prieš pradžią (\cref{ch:report}).
+
+\begin{table}[H]
+\caption{Kur tikrinamas dienos biudžetas ir kas atsitinka, kai jis išnaudotas}\label{tab:models:budgetchecks}
+\begin{tabularx}{\textwidth}{@{}L{31mm}L{50mm}Y@{}}
+\toprule
+\hd{Funkcija} & \hd{Kur tikrinama} & \hd{Kai biudžetas išnaudotas} \\
+\midrule
+Pokalbio ėjimas & asistento paslauga, \file{routes/chat.js}, \code{checkBudget}, prieš kiekvieną ėjimą (klausia API per \code{/internal/assistant/budget}) & Kai nieko nelikę, ėjimas atmetamas su 429~\code{BUDGET_EXCEEDED}. Jei nepavyksta pati patikra, ėjimas vis tiek leidžiamas. \\
+Ataskaitos pradžia & \file{analysis/api/views.py}, \route{POST}{/api/reports} & Atmetama su 429~\code{BUDGET_EXCEEDED}, kai likę mažiau nei 0,25~\$. \\
+Ataskaitos apimties patvirtinimas & \file{analysis/api/views.py}, \route{POST}{/api/reports/{id}/scope} & Tas pats: brangiajai antrajai daliai reikia likusių 0,25~\$. \\
+Programos dokumento pradžia & \file{programme/api/views.py}, \route{POST}{/api/companies/{id}/programme} & Tas pats. \\
+Bandomasis paleidimas instrukcijų redaktoriuje & \file{prompts/api/views.py}, \code{test_run} & Kai nieko nelikę, atmetama su 429~\code{BUDGET_EXCEEDED}. \\
+Nuorodų patikra iš teisės aktų bazės puslapio ar pokalbio & \file{corpus/api/views.py}, \route{POST}{/api/corpus/check-citations} & Neatmetama: patikra vykdoma, vertinant pagal žodžių sutapimą, o ne modeliu. \\
+Įkelto dokumento indeksavimas & \file{companies/indexing.py}, užduotis \code{documents.index} & Niekas nevektorizuojama. Užduotis pati save vėl įrašo į eilę kitos dienos 00:05~UTC ir praneša, kad laukia biudžeto. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Paskutinė eilutė turi savo priežastį, nurodytą kode: be laukimo dokumentą cikle įkeliant ir
+ištrinant, jis būtų vektorizuojamas be galo, o DI tinklų sąsajai būtų mokama be paliovos.
+
+\subsection{Kam kas priskiriama}
+
+Ar iškvietimas skaičiuojamas naudotojui, lemia vienas argumentas: \code{user_id}, kurį
+kviečiantysis perduoda \code{run_prompt} ar \code{record_call}. Pasirinkimų taisyklė tokia:
+darbas, atliktas \emph{vieno naudotojo įmonei}, priskiriamas tam naudotojui, o darbas,
+atliktas \emph{su bendra teisės aktų baze} -- kurią pakartotinai naudoja kiekviena vėlesnė
+kiekvienos įmonės ataskaita, -- niekam (\cref{tab:models:charged}). Bendras darbas vis tiek
+naudoja DI tinklų sąsajos rakto komandos biudžetą; jis tik neskaičiuojamas į žmogaus dienos
+biudžetą.
+
+\begin{table}[H]
+\caption{Kam priskiriama modelio iškvietimo kaina}\label{tab:models:charged}
+\begin{tabularx}{\textwidth}{@{}L{62mm}Y@{}}
+\toprule
+\hd{Darbas} & \hd{Priskiriama} \\
+\midrule
+Pokalbio ėjimas ir naujam pokalbiui parašytas pavadinimas & Besikalbančiam naudotojui. \\
+Ataskaita: dokumentų inventoriai, teisės aktų nuorodų patikra, taikytinumas, atitikties spragų analizė, veiksmų planas ir santrauka; ataskaitos aptiktų neindeksuotų dokumentų indeksavimas & Naudotojui, kuris pradėjo ataskaitą; po apimties peržiūros antrosios dalies iškvietimai priskiriami tam, kas patvirtino apimtį (tos dalies užduotis yra jo). \\
+Įmonės vidaus reikalavimai, perskaityti iš jos politikų ir įvertinti ataskaitoje & Naudotojui, kuris pradėjo ataskaitą. \\
+Programos dokumentas & Naudotojui, kuris jį pradėjo, išskyrus nuorodų vertintojo iškvietimą jo nuorodų etape: jis užrašomas prie užduoties etapo be naudotojo. \\
+Įkelto dokumento indeksavimas (vektoriai) & Įkėlusiajam. \\
+Nuorodų patikra iš teisės aktų bazės puslapio ar pokalbio & Naudotojui, kuris paprašė. \\
+Bandomasis paleidimas instrukcijų redaktoriuje & Administratoriui, kuris jį paleido. \\
+Pareigų išskyrimas, kurį ataskaita sukelia, nes aktas niekada nebuvo perskaitytas & Niekam: bendras teisės aktų bazės darbas. \\
+Pareigų išskyrimas arba akto pareigų vertintojas, į eilę įrašyti administratoriaus & Tam administratoriui. \\
+Akto apimties ir jo sankcijų nuostatų skaitymas; standarto struktūros skaitymas & Niekam. \\
+Akto įkėlimas (jo fragmentų vektoriai); pareigų vektoriai & Niekam. \\
+Paieškos užklausos vektorius & Visai neužrašoma. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{humanbox}{Ką sprendžia administratorius}
+Jokio biudžeto sistema pati nenustato ir nepanaikina. Administratorius sprendžia kiekvienos
+paskyros dienos sumą ir gali ją panaikinti; DI tinklų sąsajos operatoriai sprendžia komandos
+biudžetą. Administratorius taip pat kiekvienai instrukcijai sprendžia, kuris modelis vykdo
+(\cref{sec:models:defaults}), -- tai didžiausias atskiras svertas, lemiantis, kiek kainuoja
+ataskaita. Naudotojas nusprendžia pradėti paleidimą, pamatęs jo kainos įvertį.
+\end{humanbox}
+
+
+\section{Instrukcijų podėlis}\label{sec:models:cache}
+
+Už DI tinklų sąsajos esantis tiekėjas laiko \term{instrukcijų podėlį} (angl. \en{prompt
+cache}): kai užklausa prasideda tekstu, kurį jis jau apdorojo, tą pradžią jis nuskaito iš
+podėlio ir apmokestina nedidele įvesties kainos dalimi. Sistema to nesirinko, tačiau jos
+sprendimai turėjo prie to prisitaikyti, nes didžiausi ataskaitos iškvietimai didžiąją dalį
+savo įvesties kartoja.
+
+\subsection{Kas laikoma podėlyje, o kas ne}
+
+Ką tiksliai tiekėjas laiko podėlyje, nustatyta matuojant, ir rezultatas siauresnis nei
+\enquote{viskas, kas kartojasi}.
+
+\begin{lessonbox}{Išmatuota 2026 m. lapkričio 10--11 d., gpt-6.1-sol}
+Tas pats 8\,800 žetonų blokas buvo išsiųstas du kartus iš eilės keliose pozicijose. Antrą
+kartą jis buvo \textbf{nuskaitytas iš podėlio}, kai stovėjo užklausos instrukcijose. Jis buvo
+\textbf{įrašytas iš naujo} -- apmokestintas visa kaina, -- kai stovėjo naudotojo žinutės,
+kurios pabaiga skyrėsi, pradžioje; kai buvo atskira žinutė prieš kitokią žinutę; kai su juo
+buvo išsiųstas podėlio raktas; ir kai su juo buvo išsiųsta saugojimo trukmės užuomina.
+Užklausa, kuri nuo pat pradžios žodis į žodį kartojo ar pratęsė ankstesnę užklausą, tai, ką
+kartojo, nuskaitė iš podėlio.
+
+Taigi tiekėjas podėlyje laiko du dalykus: užklausos \emph{instrukcijas} ir \emph{visą
+ankstesnę užklausą}, kurią vėlesnė kartoja ar pratęsia. Iš žinutės, kuri tik prasideda kaip
+ankstesnė, podėlyje nelieka nieko.
+
+Tos dienos \model{gpt-6.1-sol} kainos: iš podėlio nuskaityta įvestis -- 0,10~\$ už milijoną
+žetonų, dvidešimtoji įvesties kainos dalis; kiekvienas kitas įvesties žetonas apmokestinamas
+kaip įrašytas į podėlį -- 2,50~\$, ketvirčiu daugiau nei 2~\$ įvesties kaina.
+\end{lessonbox}
+
+\subsection{Trys pasekmės sprendimams}
+
+\paragraph{1. Tai, kas bendra etapo iškvietimams, dedama po instrukcijų.} Ataskaitos atitikties
+spragų analizė su kiekvienu iškvietimu siunčia įmonės dokumentus. Jei jie būtų likę naudotojo
+žinutėje, prieš pareigas, kurios kiekviename iškvietime skiriasi, kiekvienas iškvietimas už
+juos būtų mokėjęs visą kainą. Todėl jie siunčiami atskirai, kaip \code{shared}, o generavimo
+maršrutas juos prijungia prie instrukcijų -- vienintelės vietos, kurią tiekėjas laiko
+podėlyje (\cref{fig:models:anatomy}).
+
+\paragraph{2. Pirmasis tokio etapo iškvietimas vykdomas vienas.} Podėlis bloką laiko tik tada,
+kai apdorotas iškvietimas, kuris jį nešė. \code{shared_first} vykdo vieną iškvietimą, jo
+palaukia ir tik tada pradeda kitus po keturis vienu metu. Juo naudojasi ataskaitos
+taikytinumo etapas ir atitikties spragų analizė, taip pat įmonės vidaus reikalavimų vertinimas.
+
+\paragraph{3. Sąnaudos užrašomos ir įkainojamos dalis po dalies.} Tai ir yra
+penkių skaičių (\cref{sec:models:usage}) priežastis. Iki 2026 m. lapkričio 11 d. kiekvienas
+įvesties žetonas buvo įkainojamas paprasta įvesties kaina; \file{docs/markdown/en/architecture.md}
+užrašo, kad pokalbio ėjimas, kuris kiekviename savo žingsnyje vėl siunčia instrukcijas, tada
+buvo užrašomas iki dviejų kartų didesne nei tikroji kaina. Biudžetai ir ataskaitos kaina pagal
+etapus remiasi pataisytais skaičiais.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{seg/.style={draw=ink, line width=.6pt, minimum height=9mm, align=center,
+                       inner sep=2pt, font=\sffamily\footnotesize, text=body}}
+  % the parts of the request
+  \node[seg, fill=paper, minimum width=24mm, anchor=west] (i0) at (26,0) {instrukcijos};
+  \node[seg, fill=paper, minimum width=66mm, anchor=west] (s0) at (50,0) {bendrasis blokas: profilis ir dokumentai};
+  \node[seg, fill=paper, minimum width=30mm, anchor=west] (d0) at (116,0) {iškvietimo duomenys};
+  \node[note, anchor=east] at (24,0) {viena užklausa};
+  \draw[decorate, decoration={brace, amplitude=4pt}, draw=muted] (26,6.5) -- node[note, above=4pt, align=center] {siunčiama kaip instrukcijos -- dalis, kurią tiekėjas laiko podėlyje} (116,6.5);
+  \draw[decorate, decoration={brace, amplitude=4pt}, draw=muted] (116,6.5) -- node[note, above=4pt, align=center] {naudotojo žinutė} (146,6.5);
+  % the first call
+  \node[seg, fill=warnbg, minimum width=120mm, anchor=west] (a) at (26,-17) {įrašyta į podėlį: apie 59\,000 žetonų po 2,50~\$ už milijoną};
+  \node[note, anchor=east, align=right] at (24,-17) {pirmasis\\iškvietimas,\\vienas};
+  % later calls
+  \node[seg, fill=goodbg, minimum width=90mm, anchor=west] (b1) at (26,-31) {nuskaityta iš podėlio: apie 55\,000 žetonų po 0,10~\$ už milijoną};
+  \node[seg, fill=warnbg, minimum width=30mm, anchor=west] (b2) at (116,-31) {įrašyta};
+  \node[note, anchor=east, align=right] at (24,-31) {kiekvienas\\vėlesnis\\iškvietimas};
+\end{tikzpicture}
+\caption{Užklausos, nešančios bendrąjį bloką, sandara, su pavyzdinės įmonės atitikties spragų
+analizės skaičiais (26 politikos, 261\,000 simbolių; išmatuota 2026 m. lapkričio 10--11 d.).
+Instrukcijos ir bendrasis blokas kiekviename etapo iškvietime yra vienodi ir nuskaitomi iš
+tiekėjo podėlio, kai pirmasis iškvietimas juos įrašė; kiekvieno iškvietimo duomenys kaskart
+yra nauja įvestis.}\label{fig:models:anatomy}
+\end{figure}
+
+\subsection{Išmatuotas poveikis}
+
+Pavyzdinėje įmonėje kiekvienas atitikties spragų analizės iškvietimas neša apie 59\,000
+įvesties žetonų, beveik visi jie -- 26 įmonės politikos. \Cref{fig:models:cachecost} rodo, kiek
+vienas iškvietimas kainavo trimis atvejais, kaip juos užrašo \file{docs/markdown/en/architecture.md}
+(2026 m. lapkričio 10--11 d., \model{gpt-6.1-sol}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, width=92mm, height=50mm,
+  xmin=0, xmax=0.22, bar width=6.5mm,
+  enlarge y limits=0.28,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick=data, symbolic y coords={before,read,write},
+  yticklabels={{dokumentai naudotojo žinutėje\\(iki pakeitimo)},
+               {vėlesnis iškvietimas: blokas\\nuskaitytas iš podėlio},
+               {pirmasis iškvietimas: blokas\\įrašytas į podėlį}},
+  yticklabel style={align=right, text width=50mm, font=\sffamily\footnotesize, text=body},
+  xtick={0,0.05,0.10,0.15,0.20},
+  xticklabel style={font=\sffamily\footnotesize, text=muted, /pgf/number format/fixed,
+                    /pgf/number format/precision=2, /pgf/number format/fixed zerofill,
+                    /pgf/number format/use comma},
+  scaled x ticks=false,
+  xlabel={JAV doleriai už vieną iškvietimą}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  nodes near coords={\pgfmathprintnumber[fixed, precision=3, use comma]{\pgfplotspointmeta}~\$},
+  nodes near coords style={font=\sffamily\footnotesize, text=body, anchor=west},
+  point meta=x]
+  \addplot[fill=mid, draw=ink] coordinates {(0.17,before) (0.045,read) (0.18,write)};
+\end{axis}
+\end{tikzpicture}
+\caption{Vieno pavyzdinės įmonės atitikties spragų analizės iškvietimo kaina (apie 59\,000
+įvesties žetonų, \model{gpt-6.1-sol}, išmatuota 2026 m. lapkričio 10--11 d.). Pirmasis etapo
+iškvietimas sumoka 0,18~\$ už bendrojo bloko įrašymą; kiekvienas vėlesnis iškvietimas 55\,000
+jo žetonų nuskaito iš podėlio ir kainuoja apie 0,045~\$. Iki pakeitimo, kai dokumentai buvo
+naudotojo žinutėje, kiekvienas iškvietimas kainavo 0,17~\$.}\label{fig:models:cachecost}
+\end{figure}
+
+\file{docs/markdown/en/architecture.md}, remdamasis 2026 m. lapkričio 11 d. paleidimu duomenų bazės
+kopijoje, kurioje kiekvieno akto pareigos buvo apkarpytos iki pirmųjų penkiolikos, ekstrapoliuoja,
+kad visa ataskaita tada būtų pareikalavusi apie 82 tokių iškvietimų ir kainavusi maždaug 5~\$, palyginti su
+16,04~\$ už dieną anksčiau parengtą ataskaitą; prie šio skirtumo prisideda ir kiti konvejerio
+pakeitimai tarp abiejų paleidimų (\cref{ch:report}). Pirmoji visa ataskaita veikiančioje
+sistemoje, 2026 m. lapkričio 13 d., su iki 68 įjungtų aktų išaugusia teisės aktų baze, atliko
+154 atitikties spragų analizės iškvietimus: jie išsiuntė 9,12 milijono įvesties žetonų, iš
+kurių 8,44 milijono (92,5~\%) buvo nuskaityti iš tiekėjo podėlio, o 0,68 milijono į jį
+įrašyti. Tas pats mechanizmas be jokio papildomo sprendimo tarnauja ir pokalbiui: kiekvienas
+ėjimo žingsnis pratęsia ankstesnio žingsnio užklausą, todėl žingsnis savo instrukcijas ir
+ankstesnius žingsnius nuskaito iš podėlio, o visą kainą moka tik už tai, ką pridėjo paskutinis
+žingsnis (\cref{ch:chat}).
+
+Podėlis priklauso tiekėjui, ir sistemos teisingumas nuo jo nepriklauso. Iškvietimas, radęs
+tuščią podėlį, grąžina tą patį atsakymą ir kainuoja daugiau; sąnaudų eilutė rodo, kuris iš šių
+dviejų atvejų įvyko.
+
+
+\section{Dažnio limitai}\label{sec:models:ratelimits}
+
+Be pinigų, tiekėjas riboja pralaidumą: jis skaičiuoja, kiek žetonų raktas išsiunčia per
+minutę. Daugybė didelių ataskaitos iškvietimų tą limitą gali pasiekti per kelias minutes.
+
+\begin{lessonbox}{Nesėkmė, 2026 m. lapkričio 10 d.}
+Keturi atitikties spragų analizės iškvietimai po 59\,000 žetonų, vykdomi vienu metu, per dvi
+minutes pasiekė tiekėjo žetonų per minutę limitą. Trumpi kliento pakartojimai -- po 2, 6 ir
+18~sekundžių -- vėl atsimušė į limitą, ir ataskaita nepavyko. Nuo tada užduoties etapui
+atliekamas iškvietimas dažnio limito išlaukia -- tiek, kiek prašo tiekėjas, ir iš viso iki
+penkiolikos minučių (\code{RATE_LIMIT_PATIENCE_S}), -- užuot paversdamas savo etapą
+nesėkmingu.
+\end{lessonbox}
+
+\paragraph{Kaip ateina dažnio limitas.} Jis ateina viena iš dviejų formų, ir
+\code{providerPause} faile \file{middleware/errors.js} skaito abi. Įprasta forma -- HTTP 429,
+kuris nėra biudžeto atsisakymas, su antrašte \code{Retry-After} arba be jos. Kita forma buvo ta,
+su kuria susidurta lapkričio 10 d.: tiekėjas jau buvo pradėjęs savo srautą ir apie limitą
+pranešė kaip apie klaidos įvykį jo viduje, visai be HTTP būsenos; SDK tai perduoda kaip srauto
+analizės nesėkmę. Tokia klaida atpažįstama iš jos žodžių (\enquote{rate limit},
+\enquote{call rate}, \enquote{retry after} ir skaičius). Laukimas imamas iš antraštės, jei ji
+yra, kitaip -- iš pranešime nurodytų sekundžių, kitaip jis nežinomas.
+
+\paragraph{Kas su juo daroma.} SDK asistento paslaugoje pirmiausia du kartus pakartoja
+iškvietimą. Limitas, kuris trunka ilgiau, arba limitas, atėjęs srauto viduje, API perduodamas
+kaip 429 su lauku \code{retryAfterS}, jei tiekėjas nurodė laukimą. Nuo čia taikomos
+taisyklės (\cref{tab:models:retries}): užduoties etapas laukia ir klausia dar kartą, nelaikydamas
+to nesėkme; iškvietimas, kurio laukia žmogus, trumpai kartojamas, o tada nepavyksta su
+pranešimu. Pokalbyje dažnio limitas rodomas kaip pranešimas pabandyti dar kartą
+(\cref{ch:chat}).
+
+Ataskaitos etapas vienu metu vykdo keturis iškvietimus (\code{WORKERS} faile
+\file{analysis/pipeline.py}); limitą sugeria kiekvieno iškvietimo kantrybė.
+
+\paragraph{Pačios sistemos pokalbio ėjimų limitas.} Vienas dažnio limitas yra pačios sistemos
+ir susijęs su žmonėmis, ne su žetonais: naudotojas per minutę gali pradėti daugiausia 12
+pokalbio ėjimų (\code{RATE_LIMIT_TURNS}, fiksuotas \code{RATE_LIMIT_WINDOW_MS} = 60\,000~ms
+langas, kurį atmintyje laiko \file{services/ratelimit.js}). Limitą viršijantis ėjimas
+atmetamas su 429~\code{RATE_LIMITED} ir lange likusių sekundžių skaičiumi (\cref{ch:chat}).
+
+
+\section{Kiekvieno etapo numatytasis modelis}\label{sec:models:defaults}
+
+Kuriuo modeliu vykdoma instrukcija, yra jos aktyvios versijos laukas, ir administratorius jį
+gali pakeisti instrukcijų redaktoriuje (\cref{ch:prompts}). Su sistema pristatomos versijos
+nurodo tris kalbos modelius ir vieną vektorizavimo modelį. \Cref{tab:models:defaults} pateikia
+kiekvienos instrukcijos numatytąjį modelį ir užrašytą jo priežastį. Kiekviena priežastis -- tai
+datuotas stebėjimas, atliktas su pavyzdinės įmonės medžiaga; nė viena nėra bendras modelių
+reitingas.
+
+\begin{xltabular}{\textwidth}{@{}L{36mm}L{40mm}Y@{}}
+\caption{Kiekvienos instrukcijos numatytasis modelis su užrašyta priežastimi. Kainos -- JAV doleriai už milijoną įvesties ir išvesties žetonų.}\label{tab:models:defaults}\\
+\toprule
+\hd{Instrukcijos} & \hd{Numatytasis modelis} & \hd{Kodėl} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Instrukcijos} & \hd{Numatytasis modelis} & \hd{Kodėl} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\prompt{chat.assistant} & \model{gpt-6-astra} (10 / 50) & Pristatomas pokalbio numatytasis modelis; prieš jį buvo \model{gpt-5.5}. Saugyklos dokumentuose pokalbiui jokio palyginimo neužrašyta. Naudotojas pokalbiui gali pasirinkti kitą modelį (\cref{ch:chat}). \\
+\prompt{chat.title} & \model{gpt-5.6-luna} (0,20 / 1,20) & Keli žodžiai, parašyti pagal pirmosios pokalbio žinutės pradžią: mažasis modelis. \\
+Ataskaita: \prompt{report.inventory}, \prompt{report.applicability}, \prompt{report.gap_analysis}, \prompt{report.action_plan}, \prompt{report.plan_merge}, \prompt{report.summary}; įmonės vidaus reikalavimai: \prompt{company.internal_requirements}, \prompt{report.internal_gap} & \model{gpt-6.1-sol} (2 / 10) & Išmatuota 2026 m. lapkričio 10 d. su tikromis pavyzdinės įmonės užklausomis -- trimis atitikties spragų analizės paketais po penkiolika pareigų ir dviem taikytinumo paketais po keturis aktus: \model{gpt-6.1-sol} ir \model{gpt-6-astra} 43 iš 45 pareigų nustatė tą pačią būseną ir visiems aštuoniems aktams -- tą patį verdiktą, už penktadalį kainos; \model{gpt-5.6-terra} skyrėsi penkiose pareigose, kiekvieną kartą praleisdamas ištrauką arba reikalaudamas iš politikos to, ko pareiga nereikalauja. Veiksmų planas ir santrauka, kiekvieno modelio parašyti iš tų pačių dvidešimties atvirų išvadų, apėmė visas dvidešimt. \\
+\prompt{corpus.extract_obligations}, \prompt{corpus.extract_requirements} & \model{gpt-6.1-sol} & Vienkartinis teisės aktų bazės darbas, kurį pakartotinai naudoja kiekviena ataskaita, todėl -- kruopščiausias išmatuotas skaitytojas. 2026 m. lapkričio 10 d., dviem paketais (MiCA 68--75 str. ir Pinigų plovimo ir teroristų finansavimo prevencijos įstatymo, PPTFPĮ, 10--13 str.): \model{gpt-5.6-terra} išvardijo 44 ir 25 pareigas, \model{gpt-6.1-sol} -- 56 ir 32, \model{gpt-6-astra} -- 55 ir 31, maždaug penkis kartus brangiau. \\
+\prompt{corpus.standard_outline}, \prompt{corpus.scope}, \prompt{corpus.sanctions} & \model{gpt-6.1-sol} & Taip pat vienkartinis teisės aktų bazės darbas; \file{docs/markdown/en/architecture.md} standarto struktūrą ir akto apimtį priskiria tai pačiai grupei kaip išskyrimą. Šioms trims savo palyginimo neužrašyta. \\
+\prompt{corpus.check_citations} & \model{gpt-6.1-sol} & Trumpi palyginimai, keli iškvietimai ataskaitai. Patikra pirmiausia buvo išmatuota su \model{gpt-5.6-luna}: jis teisingai įvertino visas 12 klaidingų pavyzdinės įmonės nuorodų į MiCA, o vektorių panašumas buvo ne geresnis už atsitiktinumą. \\
+\prompt{corpus.verify_obligations} (vertintojas) & \model{gpt-6.1-sol} & Vienkartinis teisės aktų bazės darbas: viso 5\,960 pareigų registro įvertinimas 2026 m. lapkričio 13 d. pareikalavo 369 iškvietimų ir 9,80~\$. \\
+Šešios programos dokumentų instrukcijos, kurių identifikatoriai prasideda \prompt{programme.} & \model{gpt-6.1-sol} & Du iškvietimai vienam dokumentui per visą įmonės dokumentų rinkinį; antrasis rinkinį nuskaito iš podėlio. Dokumentas kainuoja apie 0,4--0,5~\$ (\file{docs/markdown/en/architecture.md}). \\
+Vektoriai (be instrukcijos) & \model{text-embedding-3-large}, 1536 matmenys (0,13) & 2026 m. rugsėjo 28 d. palyginimas (\cref{tab:models:embedcompare}). \\
+\end{xltabular}
+
+\paragraph{Vienas modelis visai ataskaitai.} \file{docs/markdown/en/architecture.md} iš lapkričio 10 d.
+matavimo daro išvadą: \model{gpt-6-astra} kainuoja penkis kartus daugiau nei
+\model{gpt-6.1-sol} už sutapusius atsakymus -- apie 57~\$ palyginti su 11~\$ už pavyzdinės
+įmonės 2\,200 pareigų atitikties spragų analizę, -- todėl kiekvienas ataskaitos etapas
+vykdomas \model{gpt-6.1-sol}. Tas pats dokumentas nurodo ir šio pasirinkimo kainą laiku: tą
+dieną GPT-6 modeliai rašė apie 70 žetonų per sekundę, perpus lėčiau nei
+\model{gpt-5.6-terra}, todėl tankus paketas trunka nuo keturių iki šešių minučių, o
+viršutinės ribos (\cref{tab:models:timeouts}) yra tokios, kokios yra.
+
+\paragraph{Vektorizavimo modelis.} 2026 m. rugsėjo 28 d. su pačios sistemos duomenimis buvo
+palyginti du DI tinklų sąsajos modeliai (\cref{tab:models:embedcompare}). Didesnysis aiškiai
+geresnis būtent ten, kur sistemai to reikia: ieškant lietuviškos nuostatos pagal anglišką tekstą.
+Pokalbis dažnai ieško angliškai, įmonių dokumentai dažnai būna anglų kalba, o teisės aktų
+bazė yra lietuviška. \file{docs/markdown/en/architecture.md} didesniojo modelio kainą nurodo apie
+0,13~\$ už milijoną žetonų, maždaug 0,30~\$ už viso turinio pakartotinį vektorizavimą.
+
+\begin{table}[H]
+\caption{Du palyginti vektorizavimo modeliai, 2026 m. rugsėjo 28 d. (pagal \file{docs/markdown/en/architecture.md}). Pirmosios trys eilutės skaičiuoja, kiek kartų iš 40 pareigos tekstas tarp lietuviškų akto fragmentų rado savo paties straipsnį.}\label{tab:models:embedcompare}
+\begin{tabularx}{\textwidth}{@{}Yrr@{}}
+\toprule
+\hd{Bandymas} & \hd{-large} & \hd{-small} \\
+\midrule
+Angliškas pareigos tekstas, MiCA & 38 & 23 \\
+Angliškas pareigos tekstas, DORA & 33 & 29 \\
+Angliškas pareigos tekstas, PPTFPĮ & 37 & 34 \\
+Lietuviškos užklausos (MiCA / DORA / PPTFPĮ) & 39 / 35 / 37 & 36 / 37 / 36 \\
+Įmonės įrodymai: tinkamas dokumentas tarp šešių artimiausių pareigos ištraukų, iš 41 & 38 & 35 \\
+Tas pats, vidutinis atvirkštinis rangas & 0,83 & 0,79 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ką modeliams sakoma kiekvienoje iš šių instrukcijų ir kaip jų atsakymai tikrinami ne tik pagal formą,
+aptariama tolesniuose skyriuose; \cref{app:prompts} išvardija kiekvieną instrukciją, o
+\cref{ch:control} surenka visai ataskaitai išmatuotas kainas.

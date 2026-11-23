@@ -1,0 +1,246 @@
+% STATUS: reviewed
+\chapter{Terminų žodynas ir santrumpos}\label{app:glossary}
+
+Čia surinkti žodžiai, kuriais šis dokumentas vadina pačios sistemos dalykus, užrašai, kuriuos
+konsolė abiem savo kalbomis rodo kiekvienai būsenai, ir teisės aktų bei institucijų santrumpos,
+kurių skaitytojas ne iš Lietuvos gali nežinoti.
+
+\section{Sistemos terminai}\label{sec:glossary:terms}
+
+\begin{xltabular}{\textwidth}{@{}L{36mm}Y@{}}
+\toprule
+\hd{Terminas} & \hd{Reikšmė šioje sistemoje} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Terminas} & \hd{Reikšmė šioje sistemoje} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Apimties peržiūra (\en{scope review}) & Sustojimas ataskaitos rengimo viduryje, kai žmogus
+  patvirtina teisės aktų sąrašą, prieš pradedant brangiąją dalį. \\
+Ataskaita (\en{report}) & Vienos įmonės atitikties ataskaita, parengta tam tikru metu. \\
+DI tinklų sąsaja (\en{gateway}) & Fakulteto DI tinklų sąsaja: aprašytame diegime vienintelis
+  kelias, kuriuo sistema pasiekia kalbos modelį. \\
+Dokumentų rinkinys (\en{library}) & Visi vienos įmonės dokumentai. \\
+Fragmentas (\en{chunk}) & Teisės akto ar įmonės dokumento ištrauka, saugoma kartu su jos
+  vektoriumi paieškai. \\
+Instrukcija, instrukcijos versija (\en{prompt, prompt version}) & Saugomi nurodymai vienos rūšies
+  modelio iškvietimui ir viena nekeičiama jų versija. \\
+Inventorius (\en{inventory}) & Tai, ką nustato vienas įmonės dokumentas, vieną kartą perskaitytas
+  ir užrašytas struktūrizuotu įrašu: kontrolės priemonės su citatomis, rolės, registrai, patvirtinimas,
+  nuostatos, kurias jis cituoja. \\
+Išvada (\en{finding}) & Vienos pareigos rezultatas vienoje ataskaitoje: būsena, vertinimas,
+  cituojami įrodymai, rekomendacija, pasekmė ir, jei peržiūrėtojas ją įrašė, priežastis. \\
+Katalogas (\en{catalogue}) & Teisės aktų, su kuriais produktas pateikiamas, sąrašas ir jų
+  šaltiniai. \\
+Kelio kortelė (\en{path card}) & Šiame dokumente: dešimties eilučių lentelė, aprašanti vieną
+  vietą, kur iškviečiamas modelis. \\
+Nuorodų patikra (\en{citation check}) & Dokumente cituojamo straipsnio patikra: ar tokia
+  nuostata egzistuoja ir ar ji reglamentuoja tai, ką dokumentas jai priskiria. Ataskaitoje tai
+  vadinama \emph{teisės aktų nuorodų patikra}. \\
+Nuostata, vienetas (\en{provision, unit}) & Teisės akto straipsnis, dalis, punktas ar sąlyga;
+  kaip saugoma eilutė --- vienetas. \\
+Pareiga (\en{obligation}) & Teisės akto nustatyta prievolė, vieną kartą užrašyta nurodant, kas ją
+  turi vykdyti, kokiai sąlygai esant, kiek ji reikšminga ir iš kurių nuostatų ji kyla. \\
+Pareigų registras (\en{register of obligations}) & Visos visų teisės aktų pareigos su jų
+  peržiūros būsena. \\
+Pasekmė (\en{consequence}) & Kiek gali kainuoti išvados nuostatos pažeidimas; kodas ją
+  nustato pagal teisės akto sankcijų pakopas: tai teisės akte numatyta maksimali bauda, o ne
+  prognozė. Ji rodoma tik spragai. \\
+Patvirtinimas (\en{sign-off}) & Baigtos ataskaitos patvirtinimas, kurį atlieka žmogus. Jis
+  atnaujina veiksmų registrą. \\
+Programos dokumentas (\en{work product}) & Sistemos parengtas atitikties programos dokumentas:
+  politika, valdymo struktūra su procesu ir atsakomybių matrica, rizikos registras. \\
+Redakcija (\en{version}) & Vienas saugomas teisės akto teksto variantas. \\
+Reikšmingumas (\en{severity}) & Kiek pareiga svarbi: kritinė, aukšta, vidutinė ar žema. Tai
+  pareigos, o ne išvados savybė. \\
+Sankcijų pakopa (\en{tier, sanction tier}) & Viena teisės akto sankcijų nuostatų taisyklė:
+  kokie pažeidimai, kokia maksimali bauda, kokios kitos priemonės. \\
+Taikytinumas (\en{applicability}) & Sprendimas, ar teisės aktas įmonei privalomas: taikoma,
+  netaikoma arba neaišku (konsolė rašo \enquote{tikslintinas}). \\
+Teisės aktas (\en{act}) & Teisės aktų bazėje saugomas teisinis tekstas: reglamentas, direktyva, įstatymas,
+  nutarimas, įsakymas, gairės, licencijavimo puslapis. Standartas saugomas taip pat ir
+  vadinamas standartu. \\
+Teisės akto vertinimas (\en{assessment of an act}) & Ką ataskaita daro su teisės aktu:
+  \emph{vertinamas}; \emph{dar netaikomas} --- vertinamas pasirengimo tikslu, nes privalomas
+  nuo vėlesnės datos; \emph{tikslintinas} --- nevertinamas, kol įmonė neatsako į atvirus
+  klausimus; \emph{taikomas netiesiogiai} --- direktyva, kuri įmonę pasiekia per ją
+  perkeliantį nacionalinį įstatymą, arba teisės aktas, kuris tik nustato institucijos
+  sąrangą ir įmonę pasiekia per tos institucijos sprendimus. \\
+Teisės aktų bazė (\en{corpus, legal corpus}) & Visi teisės aktai su jų tekstu, saugomu
+  redakcijomis ir suskaidytu į nuostatas. \\
+Užduočių vykdytojas (\en{worker}) & Procesas, vykdantis užduotis. \\
+Užduotis, etapas (\en{job, step}) & Foninio darbo vienetas ir jo dalys. Ataskaitą parengia
+  užduotis \code{report.analyze} aštuoniais etapais, o kai vertinami ir įmonės vidaus
+  reikalavimai --- devyniais; ataskaita, pradėta su apimties peržiūra, vykdoma kaip dvi tokios
+  užduotys: viena prieš patvirtinimą, kita po jo. \\
+Veiksmų planas (\en{action plan}) & Ataskaitos siūlomų veiksmų sąrašas; kiekviena atvira išvada
+  priskirta lygiai vienam iš jų. \\
+Veiksmų registras (\en{action register}) & Įmonės veiksmų sąrašas, išliekantis nuo vienos
+  ataskaitos iki kitos. Kodas jį keičia tik tada, kai žmogus patvirtina ataskaitą arba patvirtinimas
+  atšaukiamas; tarp šių momentų kiekvieną veiksmą žmogus prižiūri rankiniu būdu. \\
+Vektorius (\en{embedding}) & Teksto ištrauką atspindintis vektorius, leidžiantis rasti panašios
+  reikšmės ištraukas. \\
+Vertintojas (\en{judge}) & Antras modelio iškvietimas, kuris pirmojo išvestį tikrina pagal
+  šaltinį: atskiras iškvietimas su savo instrukcija, nebūtinai kitas modelis (veikiančioje
+  sistemoje visi vertintojai veikia su \model{gpt-6.1-sol}). Jis abejoja arba pritaria; nieko
+  netvirtina. \\
+Vidaus reikalavimas (\en{own requirement}) & Reikalavimas, kurį įmonė sau nustatė vienoje iš savo
+  politikų, išskirtas tam, kad ataskaita galėtų patikrinti, ar procedūros jį įgyvendina. \\
+\end{xltabular}
+
+\section{Būsenos ir jų užrašai}\label{sec:glossary:labels}
+
+Kodas būseną saugo angliškuoju raktu; konsolė rodo užrašą sąsajos kalba. Šis dokumentas
+būsenas vadina pagal saugomus pavadinimus, o \code{unknown} vadina \enquote{neįrodyta}.
+
+\begin{xltabular}{\textwidth}{@{}L{26mm}L{26mm}L{40mm}Y@{}}
+\toprule
+\hd{Objektas} & \hd{Saugoma kaip} & \hd{Užrašas lietuviškai} & \hd{Užrašas angliškai} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Objektas} & \hd{Saugoma kaip} & \hd{Užrašas lietuviškai} & \hd{Užrašas angliškai} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Išvada & \code{met} & Atitinka & \en{Met} \\
+ & \code{partial} & Iš dalies & \en{Partial} \\
+ & \code{missing} & Neatitinka & \en{Not met} \\
+ & \code{unknown} & Neįrodyta & \en{Not evidenced} \\
+ & \code{not_applicable} & Netaikoma & \en{Not applicable} \\
+\midrule
+Reikšmingumas & \code{critical} & Kritinė & \en{Critical} \\
+ & \code{high} & Aukšta & \en{High} \\
+ & \code{medium} & Vidutinė & \en{Medium} \\
+ & \code{low} & Žema & \en{Low} \\
+\midrule
+Taikytinumas & \code{applies} & Taikomas & \en{Applies} \\
+ & \code{not_applies} & Netaikomas & \en{Does not apply} \\
+ & \code{uncertain} & Tikslintinas & \en{To be confirmed} \\
+\midrule
+Ataskaita & \code{queued} & Laukia eilėje & \en{Queued} \\
+ & \code{running} & Vykdoma & \en{Running} \\
+ & \code{scope_review} & Laukia apimties patvirtinimo & \en{Awaiting scope approval} \\
+ & \code{done} & Baigta & \en{Finished} \\
+ & \code{failed} & Nepavyko & \en{Failed} \\
+ & \code{cancelled} & Atšaukta & \en{Cancelled} \\
+\midrule
+Pareiga & \code{proposed} & Pasiūlyta & \en{Proposed} \\
+ & \code{approved} & Patvirtinta & \en{Approved} \\
+ & \code{rejected} & Atmesta & \en{Rejected} \\
+\midrule
+Vertintojo verdiktas & \code{supported} & Pagrįsta & \en{Supported} \\
+ & \code{partly} & Iš dalies & \en{Partly} \\
+ & \code{unsupported} & Nepagrįsta & \en{Unsupported} \\
+\midrule
+Veiksmas & \code{open} & Atviras & \en{Open} \\
+ & \code{in_progress} & Vykdomas & \en{In progress} \\
+ & (išvestinė) & Vėluojantis & \en{Late} \\
+ & \code{done} & Įvykdytas, laukia patikros & \en{Done, awaiting re-test} \\
+ & \code{closed} & Uždarytas & \en{Closed} \\
+\midrule
+Programos dokumentas & \code{queued} & Laukia eilėje & \en{Queued} \\
+ & \code{running} & Generuojama & \en{Generating} \\
+ & \code{draft} & Projektas & \en{Draft} \\
+ & \code{approved} & Patvirtinta & \en{Approved} \\
+ & \code{failed} & Nepavyko & \en{Failed} \\
+ & \code{cancelled} & Atšaukta & \en{Cancelled} \\
+\end{xltabular}
+
+\section{Teisės aktų santrumpos}\label{sec:glossary:acts}
+
+Sistema teisės aktą vadina trumpuoju pavadinimu; Lietuvos įstatymo trumpasis pavadinimas yra
+santrumpa, kurią vartoja Lietuvos teisininkai. Visus teisės aktus su jų reguliavimo dalyku
+išvardija \cref{app:acts}.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}YY@{}}
+\toprule
+\hd{Trumpinys} & \hd{Lietuviškai} & \hd{Angliškai} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Trumpinys} & \hd{Lietuviškai} & \hd{Angliškai} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+ADTAĮ & Asmens duomenų teisinės apsaugos įstatymas & \en{Law on the Legal Protection of Personal Data} \\
+BĮ & Bankų įstatymas & \en{Law on Banks} \\
+EPEPĮĮ & Elektroninių pinigų ir elektroninių pinigų įstaigų įstatymas & \en{Law on Electronic Money and Electronic Money Institutions} \\
+FĮĮ & Finansų įstaigų įstatymas & \en{Law on Financial Institutions} \\
+KRĮ & Kriptoturto rinkų įstatymas & \en{Law on Markets in Crypto-Assets} \\
+KSĮ & Kibernetinio saugumo įstatymas & \en{Law on Cyber Security} \\
+KUĮ & Kredito unijų įstatymas & \en{Law on Credit Unions} \\
+LBĮ & Lietuvos banko įstatymas & \en{Law on the Bank of Lithuania} \\
+MĮ & Mokėjimų įstatymas & \en{Law on Payments} \\
+MĮĮ & Mokėjimo įstaigų įstatymas & \en{Law on Payment Institutions} \\
+NTSKĮ & Su nekilnojamuoju turtu susijusio kredito įstatymas & \en{Law on Credit Related to Immovable Property} \\
+PAĮ & Pranešėjų apsaugos įstatymas & \en{Law on the Protection of Whistleblowers} \\
+PPTFPĮ & Pinigų plovimo ir teroristų finansavimo prevencijos įstatymas & \en{Law on the Prevention of Money Laundering and Terrorist Financing} \\
+VKĮ & Vartojimo kredito įstatymas & \en{Law on Consumer Credit} \\
+\midrule
+AMLAR & Reglamentas (ES) 2024/1620, kuriuo įsteigiama Kovos su pinigų plovimu ir teroristų finansavimu institucija & \en{Regulation (EU) 2024/1620 establishing the Authority for Anti-Money Laundering and Countering the Financing of Terrorism} \\
+AMLD6 & Direktyva (ES) 2024/1640 dėl mechanizmų, kuriuos valstybės narės turi įdiegti kovai su pinigų plovimu ir teroristų finansavimu & \en{Directive (EU) 2024/1640 on the mechanisms Member States put in place against money laundering and terrorist financing} \\
+AMLR & Reglamentas (ES) 2024/1624 dėl pinigų plovimo ir teroristų finansavimo prevencijos & \en{Regulation (EU) 2024/1624 on the prevention of money laundering and terrorist financing} \\
+CCD2 & Direktyva (ES) 2023/2225 dėl vartojimo kredito sutarčių & \en{Directive (EU) 2023/2225 on credit agreements for consumers} \\
+CRA & Reglamentas (ES) 2024/2847, Kibernetinio atsparumo aktas & \en{Regulation (EU) 2024/2847, the Cyber Resilience Act} \\
+DORA & Reglamentas (ES) 2022/2554 dėl finansų sektoriaus skaitmeninės veiklos atsparumo & \en{Regulation (EU) 2022/2554 on digital operational resilience for the financial sector} \\
+DSA & Reglamentas (ES) 2022/2065, Skaitmeninių paslaugų aktas & \en{Regulation (EU) 2022/2065, the Digital Services Act} \\
+ECSPR & Reglamentas (ES) 2020/1503 dėl Europos sutelktinio finansavimo paslaugų teikėjų & \en{Regulation (EU) 2020/1503 on European crowdfunding service providers} \\
+eIDAS~2 & Reglamentas (ES) Nr.~910/2014 dėl elektroninės atpažinties ir elektroninių operacijų patikimumo užtikrinimo paslaugų, iš dalies pakeistas 2024~m. & \en{Regulation (EU) No 910/2014 on electronic identification and trust services, as amended in 2024} \\
+EMD2 & Direktyva 2009/110/EB dėl elektroninių pinigų įstaigų & \en{Directive 2009/110/EC on electronic money institutions} \\
+GDPR & Reglamentas (ES) 2016/679, Bendrasis duomenų apsaugos reglamentas & \en{Regulation (EU) 2016/679, the General Data Protection Regulation} \\
+MAR & Reglamentas (ES) Nr.~596/2014 dėl piktnaudžiavimo rinka & \en{Regulation (EU) No 596/2014 on market abuse} \\
+MiCA & Reglamentas (ES) 2023/1114 dėl kriptoturto rinkų & \en{Regulation (EU) 2023/1114 on markets in crypto-assets} \\
+NIS2 & Direktyva (ES) 2022/2555 dėl aukšto bendro kibernetinio saugumo lygio visoje Sąjungoje & \en{Directive (EU) 2022/2555 on a high common level of cybersecurity across the Union} \\
+PSD2 & Direktyva (ES) 2015/2366 dėl mokėjimo paslaugų vidaus rinkoje & \en{Directive (EU) 2015/2366 on payment services in the internal market} \\
+TFR & Reglamentas (ES) 2023/1113 dėl informacijos, teikiamos kartu su lėšų ir tam tikro kriptoturto pervedimais & \en{Regulation (EU) 2023/1113 on information accompanying transfers of funds and certain crypto-assets} \\
+\end{xltabular}
+
+\section{Kitos santrumpos}\label{sec:glossary:other}
+
+\begin{xltabular}{\textwidth}{@{}L{24mm}Y@{}}
+\toprule
+\hd{Santrumpa} & \hd{Reikšmė} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Santrumpa} & \hd{Reikšmė} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CASP & Kriptoturto paslaugų teikėjas (angl. \en{crypto-asset service provider}). \\
+CELEX & Europos Sąjungos teisės dokumento identifikatorius (pavyzdžiui, \code{32023R1114} ---
+  MiCA). \\
+CELLAR & Europos Sąjungos leidinių biuro saugykla, iš kurios sistema atsisiunčia ES teisės
+  aktus. \\
+EBA & Europos bankininkystės institucija (angl. \en{European Banking Authority}). \\
+e-TAR & Teisės aktų registras --- Lietuvos teisės aktų duomenų bazė, iš kurios sistema atsisiunčia
+  Lietuvos įstatymus, Lietuvos banko nutarimus ir FNTT įsakymą; Lietuvos banko gairės ir
+  licencijavimo puslapiai paimami iš paties banko svetainės. \\
+FNTT & Finansinių nusikaltimų tyrimo tarnyba. \\
+HNSW & Hierarchinis naršomas mažojo pasaulio grafas (angl. \en{hierarchical navigable small
+  world}): indekso rūšis, naudojama artimiausių kaimynų paieškai tarp vektorių. \\
+ISMS & Informacijos saugumo valdymo sistema (angl. \en{information security management
+  system}). \\
+ITS, RTS & Techniniai įgyvendinimo ir techniniai reguliavimo standartai: Komisijos reglamentai,
+  nustatantys, kaip įgyvendinama pagrindinio reglamento nuostata (\enquote{antrasis lygmuo}). \\
+LB & Lietuvos bankas, finansų rinkos priežiūros institucija. \\
+MCP & Modelio konteksto protokolas (angl. \en{Model Context Protocol}): protokolas, per kurį
+  pokalbių asistentas gali naudoti įrankius, kuriuos siūlo administratoriaus užregistruotas
+  išorinis serveris. \\
+ML/TF & Pinigų plovimas ir teroristų finansavimas (angl. \en{money laundering and terrorist
+  financing}). \\
+RACI & Atsakingas, atskaitingas, konsultuojamas, informuojamas (angl. \en{responsible,
+  accountable, consulted, informed}): keturi būdai, kuriais rolė dalyvauja proceso etape. \\
+RRF & Atvirkštinių rangų sujungimas (angl. \en{reciprocal rank fusion}): būdas, kuriuo vektorinės
+  paieškos ir viso teksto paieškos rezultatai sujungiami į vieną reitingą. \\
+SNI & Serverio vardo nurodymas (angl. \en{Server Name Indication}): serverio
+  vardas, kurį klientas nurodo užmegzdamas šifruotą ryšį. Vienintelis sistemos kelias į
+  internetą ryšius leidžia pagal šį vardą. \\
+\end{xltabular}

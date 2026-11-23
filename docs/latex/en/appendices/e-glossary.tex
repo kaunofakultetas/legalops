@@ -1,0 +1,230 @@
+% STATUS: verified
+\chapter{Glossary and abbreviations}\label{app:glossary}
+
+The words this document uses for the system's own things, the labels the console prints for
+each status in its two languages, and the abbreviations of acts and institutions that a reader
+from outside Lithuania may not know.
+
+\section{The system's vocabulary}\label{sec:glossary:terms}
+
+\begin{xltabular}{\textwidth}{@{}L{36mm}Y@{}}
+\toprule
+\hd{Term} & \hd{Meaning in this system} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Term} & \hd{Meaning in this system} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Act & A legal text of the corpus: a regulation, a directive, a law, a resolution, an order, a
+  guideline, a licensing page. A standard is kept the same way and called a standard. \\
+Action plan & The list of actions a report proposes; every open finding is under exactly one
+  of them. \\
+Action register & A company's list of actions that lives across reports. Code moves it only
+  when a person signs a report off or the signature is taken back; between those, a person
+  keeps each action up by hand. \\
+Applicability & The verdict on whether an act binds a company: applies, does not apply, or
+  uncertain (the console says \enquote{to be confirmed}). \\
+Assessment (of an act) & What a report does with an act: \emph{assessed}; \emph{upcoming} ---
+  assessed as preparation because it binds from a later date; \emph{unconfirmed} --- not
+  assessed until the company answers the open questions; \emph{indirect} --- a directive,
+  which reaches the company through the national law that transposes it, or an act that only
+  organises an authority, which reaches it through the authority's decisions. \\
+Catalogue & The list of acts the product ships with, and their sources. \\
+Chunk & A passage of an act or of a company document, stored with its embedding for search. \\
+Citation check & The check of an article a document cites: does the provision exist, and does
+  it regulate what the document says it does. Inside a report it is the \emph{citation audit}. \\
+Consequence & What a breach of a finding's provision can cost, joined by code from the act's
+  sanction tiers: the ceiling the act provides, not a forecast. It is shown only for a gap. \\
+Corpus (legal corpus) & All the acts with their text, in versions, parsed into provisions. \\
+Embedding & A vector that represents a passage of text, so that passages of similar meaning
+  can be found. \\
+Finding & The result for one obligation in one report: a status, an assessment, the evidence
+  quoted, a recommendation, the consequence, and --- if a reviewer wrote one --- a cause. \\
+Gateway & The faculty's model gateway: in the deployment described, the only way the system
+  reaches a language model. \\
+Inventory & What one company document establishes, read once into a structured record:
+  controls with quotations, roles, registers, approval, the provisions it cites. \\
+Job, step & A unit of background work and its parts. A report is made by the job
+  \code{report.analyze} in eight steps, nine when the company's own requirements are assessed
+  too; a report started with the scope review runs as two such jobs, one before the approval
+  and one after it. \\
+Judge & A second model call that checks the output of a first against the source: a separate
+  call with a prompt of its own, not necessarily another model (on the live system every judge runs on
+  \model{gpt-6.1-sol}). It doubts or supports; it approves nothing. \\
+Library & All the documents of one company. \\
+Obligation & A duty an act imposes, written down once with who owes it, under what condition,
+  how gravely, and the provisions it comes from. \\
+Own requirement & A requirement a company set itself in one of its policies, read out so that
+  a report can check whether the procedures carry it out. \\
+Path card & In this document: the table of ten rows that describes one place where a model is
+  called. \\
+Prompt, prompt version & The stored instructions for one kind of model call, and one immutable
+  edition of them. \\
+Provision, unit & An article, paragraph, point or clause of an act; as a stored row, a unit. \\
+Register of obligations & All the obligations of all the acts, with their review status. \\
+Report & The compliance report of one company at one time. \\
+Scope review & The stop in the middle of a report at which a person approves the list of acts
+  before the costly part runs. \\
+Severity & How much an obligation matters: critical, high, medium or low. It belongs to the
+  obligation, not to a finding. \\
+Sign-off & A person's confirmation of a finished report. It moves the action register. \\
+Tier (sanction tier) & One rule of an act's sanction provisions: which infringements, what
+  ceiling of fine, what other measures. \\
+Version & One stored edition of an act. \\
+Work product & A document of a compliance programme drafted by the system: the policy, the
+  structure with the process and the responsibility matrix, the risk register. \\
+Worker & The process that runs jobs. \\
+\end{xltabular}
+
+\section{Statuses and their labels}\label{sec:glossary:labels}
+
+The code stores a status under an English key; the console prints a label in the language of
+the interface. This document uses the stored names, with \enquote{not evidenced} for
+\code{unknown}.
+
+\begin{xltabular}{\textwidth}{@{}L{26mm}L{26mm}L{40mm}Y@{}}
+\toprule
+\hd{Of} & \hd{Stored as} & \hd{Lithuanian label} & \hd{English label} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Of} & \hd{Stored as} & \hd{Lithuanian label} & \hd{English label} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+A finding & \code{met} & \lt{Atitinka} & Met \\
+ & \code{partial} & \lt{Iš dalies} & Partial \\
+ & \code{missing} & \lt{Neatitinka} & Not met \\
+ & \code{unknown} & \lt{Neįrodyta} & Not evidenced \\
+ & \code{not_applicable} & \lt{Netaikoma} & Not applicable \\
+\midrule
+Severity & \code{critical} & \lt{Kritinė} & Critical \\
+ & \code{high} & \lt{Aukšta} & High \\
+ & \code{medium} & \lt{Vidutinė} & Medium \\
+ & \code{low} & \lt{Žema} & Low \\
+\midrule
+Applicability & \code{applies} & \lt{Taikomas} & Applies \\
+ & \code{not_applies} & \lt{Netaikomas} & Does not apply \\
+ & \code{uncertain} & \lt{Tikslintinas} & To be confirmed \\
+\midrule
+A report & \code{queued} & \lt{Laukia eilėje} & Queued \\
+ & \code{running} & \lt{Vykdoma} & Running \\
+ & \code{scope_review} & \lt{Laukia apimties patvirtinimo} & Awaiting scope approval \\
+ & \code{done} & \lt{Baigta} & Finished \\
+ & \code{failed} & \lt{Nepavyko} & Failed \\
+ & \code{cancelled} & \lt{Atšaukta} & Cancelled \\
+\midrule
+An obligation & \code{proposed} & \lt{Pasiūlyta} & Proposed \\
+ & \code{approved} & \lt{Patvirtinta} & Approved \\
+ & \code{rejected} & \lt{Atmesta} & Rejected \\
+\midrule
+The judge's verdict & \code{supported} & \lt{Pagrįsta} & Supported \\
+ & \code{partly} & \lt{Iš dalies} & Partly \\
+ & \code{unsupported} & \lt{Nepagrįsta} & Unsupported \\
+\midrule
+An action & \code{open} & \lt{Atviras} & Open \\
+ & \code{in_progress} & \lt{Vykdomas} & In progress \\
+ & (derived) & \lt{Vėluojantis} & Late \\
+ & \code{done} & \lt{Įvykdytas, laukia patikros} & Done, awaiting re-test \\
+ & \code{closed} & \lt{Uždarytas} & Closed \\
+\midrule
+A work product & \code{queued} & \lt{Laukia eilėje} & Queued \\
+ & \code{running} & \lt{Generuojama} & Generating \\
+ & \code{draft} & \lt{Projektas} & Draft \\
+ & \code{approved} & \lt{Patvirtinta} & Approved \\
+ & \code{failed} & \lt{Nepavyko} & Failed \\
+ & \code{cancelled} & \lt{Atšaukta} & Cancelled \\
+\end{xltabular}
+
+\section{Abbreviations of acts}\label{sec:glossary:acts}
+
+The system names an act by its short title, which for a Lithuanian law is the abbreviation
+Lithuanian lawyers use. \Cref{app:acts} lists every act with its subject.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}YY@{}}
+\toprule
+\hd{Short title} & \hd{In Lithuanian} & \hd{In English} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Short title} & \hd{In Lithuanian} & \hd{In English} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+ADTAĮ & \lt{Asmens duomenų teisinės apsaugos įstatymas} & Law on the Legal Protection of Personal Data \\
+BĮ & \lt{Bankų įstatymas} & Law on Banks \\
+EPEPĮĮ & \lt{Elektroninių pinigų ir elektroninių pinigų įstaigų įstatymas} & Law on Electronic Money and Electronic Money Institutions \\
+FĮĮ & \lt{Finansų įstaigų įstatymas} & Law on Financial Institutions \\
+KRĮ & \lt{Kriptoturto rinkų įstatymas} & Law on Markets in Crypto-Assets \\
+KSĮ & \lt{Kibernetinio saugumo įstatymas} & Law on Cyber Security \\
+KUĮ & \lt{Kredito unijų įstatymas} & Law on Credit Unions \\
+LBĮ & \lt{Lietuvos banko įstatymas} & Law on the Bank of Lithuania \\
+MĮ & \lt{Mokėjimų įstatymas} & Law on Payments \\
+MĮĮ & \lt{Mokėjimo įstaigų įstatymas} & Law on Payment Institutions \\
+NTSKĮ & \lt{Su nekilnojamuoju turtu susijusio kredito įstatymas} & Law on Credit Related to Immovable Property \\
+PAĮ & \lt{Pranešėjų apsaugos įstatymas} & Law on the Protection of Whistleblowers \\
+PPTFPĮ & \lt{Pinigų plovimo ir teroristų finansavimo prevencijos įstatymas} & Law on the Prevention of Money Laundering and Terrorist Financing \\
+VKĮ & \lt{Vartojimo kredito įstatymas} & Law on Consumer Credit \\
+\midrule
+AMLAR & & Regulation (EU) 2024/1620 establishing the Authority for Anti-Money Laundering and Countering the Financing of Terrorism \\
+AMLD6 & & Directive (EU) 2024/1640 on the mechanisms Member States put in place against money laundering and terrorist financing \\
+AMLR & & Regulation (EU) 2024/1624 on the prevention of money laundering and terrorist financing \\
+CCD2 & & Directive (EU) 2023/2225 on credit agreements for consumers \\
+CRA & & Regulation (EU) 2024/2847, the Cyber Resilience Act \\
+DORA & & Regulation (EU) 2022/2554 on digital operational resilience for the financial sector \\
+DSA & & Regulation (EU) 2022/2065, the Digital Services Act \\
+ECSPR & & Regulation (EU) 2020/1503 on European crowdfunding service providers \\
+eIDAS~2 & & Regulation (EU) No 910/2014 on electronic identification and trust services, as amended in 2024 \\
+EMD2 & & Directive 2009/110/EC on electronic money institutions \\
+GDPR & & Regulation (EU) 2016/679, the General Data Protection Regulation \\
+MAR & & Regulation (EU) No 596/2014 on market abuse \\
+MiCA & & Regulation (EU) 2023/1114 on markets in crypto-assets \\
+NIS2 & & Directive (EU) 2022/2555 on a high common level of cybersecurity across the Union \\
+PSD2 & & Directive (EU) 2015/2366 on payment services in the internal market \\
+TFR & & Regulation (EU) 2023/1113 on information accompanying transfers of funds and certain crypto-assets \\
+\end{xltabular}
+
+\section{Other abbreviations}\label{sec:glossary:other}
+
+\begin{xltabular}{\textwidth}{@{}L{24mm}Y@{}}
+\toprule
+\hd{Abbreviation} & \hd{Stands for} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Abbreviation} & \hd{Stands for} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+CASP & Crypto-asset service provider. \\
+CELEX & The identifier of a legal document of the European Union (for example
+  \code{32023R1114} for MiCA). \\
+CELLAR & The repository of the Publications Office of the European Union, from which the
+  system fetches EU acts. \\
+EBA & European Banking Authority. \\
+e-tar & \lt{Teisės aktų registras}, Lithuania's register of legal acts, from which the system
+  fetches the Lithuanian laws, the Bank of Lithuania's resolutions and the FNTT's order; the
+  Bank of Lithuania's guidelines and licensing pages come from its own website. \\
+FNTT & \lt{Finansinių nusikaltimų tyrimo tarnyba}, the Financial Crime Investigation Service. \\
+HNSW & Hierarchical navigable small world: the kind of index used for nearest-neighbour search
+  over embeddings. \\
+ISMS & Information security management system. \\
+ITS, RTS & Implementing and regulatory technical standards: Commission regulations that
+  specify how a provision of a parent regulation is carried out (\enquote{level~2}). \\
+LB & \lt{Lietuvos bankas}, the Bank of Lithuania, the supervisor of the financial market. \\
+MCP & Model Context Protocol: a protocol through which the chat assistant can use tools
+  offered by an external server an administrator has registered. \\
+ML/TF & Money laundering and terrorist financing. \\
+RACI & Responsible, accountable, consulted, informed: the four ways a role takes part in a
+  step of a process. \\
+RRF & Reciprocal rank fusion: the way the results of vector search and of full-text search are
+  merged into one ranking. \\
+SNI & Server Name Indication: the host name a client names when it opens an encrypted
+  connection. The system's only way out to the internet allows connections by this name. \\
+\end{xltabular}

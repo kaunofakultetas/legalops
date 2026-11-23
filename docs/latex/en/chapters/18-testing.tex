@@ -1,0 +1,779 @@
+% STATUS: verified
+\chapter{Testing}\label{ch:testing}
+
+This chapter describes the automated tests of the \product{}: what each suite runs, what it
+puts in the place of the parts it does not run, and what a passing run does and does not say
+about the system. It opens with the one division a reader of an AI system's tests has to keep
+in mind, then takes the three suites in turn --- the API's, the assistant service's and the
+console's --- followed by the conventions the suites share, the numbers
+of 13~November 2026 and the list of what no test covers.
+
+
+\section{What a passing run proves}\label{sec:testing:principle}
+
+The repository holds three regression suites, one for each service that carries logic: the API
+(Django), the assistant service and the console. Each is started by a script of its own, each
+runs in throwaway containers so that the host needs nothing but Docker, and none of them calls
+a language model. Where the product would call a model or the embedding model, a test puts a
+\term{double} in its place: test code that answers as the real part would, with content the
+test knows in advance.
+
+That choice decides what the suites can say. With the model replaced, everything a test
+observes was produced by the product's own code: the data assembled for a prompt, the parsing
+of the answer, the references joined back to rows, the quotations located in documents, the
+provisions looked up in the corpus, the scores computed, the rows stored. The suites therefore
+prove three things: the \emph{plumbing} (the right data reaches the right place in the right
+shape), the \emph{rules} (what code enforces whatever a model says) and the \emph{failure
+paths} (a budget refused, a job cancelled, a judge that is down, a malformed answer).
+
+\begin{notebox}{The division to keep in mind}
+The three suites say nothing about whether a prompt is good. A fake model that always answers
+\enquote{applies} cannot show that the real model judges applicability well; it shows that the
+report does the right thing with the verdict \enquote{applies}. Whether the model's answers
+are right is measured separately, by the eval suites: labelled cases put to the \emph{real}
+model through the code the product runs, scored against a recorded baseline
+(\cref{ch:control}). A green test run and a good eval score are two different statements, and
+the system needs both. The labels of those cases were made on 12~November 2026 by the AI coding
+assistant used to build the system (Claude, a model of Anthropic), not by a compliance expert,
+and no person has yet confirmed or overruled one; a score measures agreement with that reading.
+\end{notebox}
+
+\Cref{fig:testing:real} sets the kinds of run side by side. A model is called in exactly one
+row of it. The eval runner itself is covered by the regression suite as well:
+\file{tests/test_evals.py} of the API checks that the case files of all six suites are well
+formed and puts cases of five of them through the eval runner against the fake model, which, in the words of its banner, \enquote{proves
+the plumbing, not the prompts}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\matrix[matrix of nodes, row sep=1.4mm, column sep=1.5mm,
+        nodes={text width=18.5mm, align=center, font=\sffamily\scriptsize}] {
+  & |[lanelabel]| Console & |[lanelabel]| API (Django) & |[lanelabel]| Database
+  & |[lanelabel]| Assistant service & |[lanelabel]| Model \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| The API's suite
+  & |[text=muted]| —
+  & |[svc]| real, under test
+  & |[svc]| throwaway Postgres with pgvector
+  & |[ext]| fake model, fake embedder
+  & |[text=muted]| — \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| The assistant service's suite
+  & |[text=muted]| —
+  & |[ext]| scripted stand-in
+  & |[text=muted]| —
+  & |[svc]| real, under test
+  & |[ext]| scripted models, a local fake gateway \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| The console's suite
+  & |[svc]| real, rendered in jsdom
+  & |[ext]| in-process double
+  & |[text=muted]| —
+  & |[ext]| in-process double
+  & |[text=muted]| — \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Live smoke (by hand)
+  & |[text=muted]| —
+  & |[svc]| running: one identity check
+  & |[text=muted]| —
+  & |[svc]| the running service
+  & |[svc]| model list read, no call \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Eval suites
+  & |[text=muted]| —
+  & |[svc]| the product's own code
+  & |[svc]| the installation's corpus
+  & |[svc]| real
+  & |[ai]| the real model \\
+};
+\end{tikzpicture}
+\caption{What is real and what is a stand-in in each kind of run. A white box is the real
+part, a dashed box a double that test code scripts, a dash a part that is absent. The yellow
+box is the only place where a model is called: the eval suites
+(\cref{ch:control}).}\label{fig:testing:real}
+\end{figure}
+
+
+\section{The three runners}\label{sec:testing:runners}
+
+\Cref{tab:testing:runners} summarises the scripts. All three build an image first, so that a
+run tests the dependencies that ship and not whatever a developer's machine has installed.
+
+\begin{table}[H]
+\caption{The runners of the three regression suites}\label{tab:testing:runners}
+\begin{tabularx}{\textwidth}{@{}L{38mm}L{44mm}Y@{}}
+\toprule
+\hd{Runner} & \hd{Builds} & \hd{Runs} \\
+\midrule
+\file{django/runTests.sh} &
+\code{legalops-postgres} and \code{legalops-django-test}, the current source baked in &
+A throwaway Postgres with pgvector (data on a tmpfs) on a network made for the run; the
+migration check, then Django's test runner with four parallel workers. \\
+\file{assistant/runTests.sh} &
+The production image, as \code{legalops-assistant-check} &
+Node's built-in test runner with no network, a read-only root, user id 1000, 4~CPUs and 3~GB.
+The tests and the service's README are mounted read-only. \\
+\file{vite/runTests.sh} &
+The builder stage of the production image, as \code{legalops-vite-check}: the locked
+dependencies and the production build &
+vitest in jsdom with no network, four workers, 6~CPUs and 6~GB. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The assistant service's and the console's containers are started with \code{--network}
+\code{none}: a test that reaches past the loopback interface fails instead of calling out. The
+API's suite needs its database, so its container sits on a network created for the run that
+holds only the database container; its settings point the assistant service's address at a
+host name that cannot resolve (\code{ASSISTANT_URL} is \code{http://gateway.invalid} in
+\file{tests/settings.py}), and the tests that fetch from official sources replace the HTTP
+layer. No test container is given the stack's secrets, so no test can spend the model budget.
+
+\begin{humanbox}{Nothing runs the suites for you}
+No runner is part of a deployment: the stack's update script runs none of them
+(\file{docs/markdown/en/operations.md} §12). Running the suites before a code change is deployed is a
+person's step, and so is the one check that needs a running system, the live smoke layer
+(\cref{sec:testing:assistant}).
+\end{humanbox}
+
+
+\section{The API's suite}\label{sec:testing:api}
+
+The API's suite is 30 modules under \file{tests/} (paths in this section are given from
+\file{django/compliance/}). It runs under the production settings on a real database engine,
+with the model and the embedder replaced, together with the two things that go with them
+(\cref{sec:testing:api:fake}).
+
+\subsection{A throwaway database and the migration check}\label{sec:testing:api:db}
+
+\file{django/runTests.sh} builds the two images, creates a Docker network, starts a Postgres
+container on it whose data directory is a tmpfs, and waits until the database answers. It
+then starts the test container on the same network, which runs two commands in order:
+
+\begin{codeblock}
+python3 manage.py makemigrations --check --dry-run --settings=compliance.tests.settings
+python3 manage.py test compliance.tests --settings=compliance.tests.settings --parallel 4 -v 1
+\end{codeblock}
+
+The first is the \term{migration check}. The project's migrations are written by hand, so a
+change to a model that no migration carries would otherwise surface only when the live
+database is migrated. With \code{--check} the command exits with an error when models and
+migrations disagree, and the suite never starts. A cleanup trap removes the database container
+and the network however the run ends: nothing survives it, and nothing that is running is
+touched.
+
+\file{tests/settings.py} imports the production \file{settings.py} whole and changes only
+what a throwaway run must not depend on: the database comes from \code{TEST_DATABASE_URL}
+(the module refuses to load without it), uploads go to a temporary folder, and logging is
+silenced because the suite provokes many 4xx and 5xx answers on purpose. The database is a
+real Postgres with pgvector because, as the banner puts it, \enquote{the corpus search, SKIP
+LOCKED and the functional unique indexes need the real engine}. Under \code{--parallel} every
+worker gets a test database of its own from Django; \file{tests/runner.py} also gives each a
+fresh upload folder, because with a shared one a worker's test sees another worker's files
+appear, and the sweep of orphaned files could delete a file that another worker's database still
+names. \file{tests/utils.py} supplies the accounts:
+\code{signed_in} returns a client holding a freshly minted session, so every request passes
+the real authentication.
+
+\subsection{The fake model}\label{sec:testing:api:fake}
+
+Every model call of the API goes through one function, \code{gateway.generate} in
+\file{assistant/gateway.py}, which sends the request to the assistant service
+(\cref{ch:models}). The context manager \code{fake_models()} in \file{tests/fakes.py} replaces
+that function, and \code{gateway.embed} beside it, for the duration of a test:
+
+\begin{codefile}{\file{tests/fakes.py} --- what \code{fake_models()} replaces}
+@contextmanager
+def fake_models():
+    model = FakeModel()
+    with mock.patch.object(gateway, "generate", side_effect=model), \
+            mock.patch.object(gateway, "embed", side_effect=fake_embed), \
+            mock.patch("compliance.assistant.usage.price_table", return_value={}), \
+            mock.patch("compliance.analysis.pipeline.parallel_map",
+                       side_effect=lambda fn, items, workers=4: [fn(item) for item in items]):
+        yield model
+\end{codefile}
+
+Two more things are replaced with them. The price table is empty, so no cost depends on live
+prices. The report pipeline's \code{parallel_map} runs its items one after another in the
+test's own thread, because a Django test keeps its rows in one uncommitted transaction that a
+worker thread's own connection could not see. The code that runs is the same; only the
+concurrency is gone.
+
+\begin{codebox}{How the fake model answers}
+\code{FakeModel} is called with the same arguments as the real function. It looks at one of
+them, the \emph{schema name} --- the name under which a prompt's JSON schema is sent, such as
+\code{findings} or \code{applicability} --- and calls its own method of that name; a name it
+has no method for is answered with an empty object. Each method reads the short references
+the product put into the prompt (\code{A1} for an act, \code{P1} for a provision, \code{O2}
+for an obligation, \code{F3} for a finding, \code{C1} for a citation, \code{D1} for a
+document) and returns an object that fits the strict schema and names those references.
+Nothing in it is random and nothing in it is intelligent: the answer is a fixed function of
+the prompt's text.
+\end{codebox}
+
+Because the answer names real references, everything after the call runs for real: the
+pipeline parses the object, joins \code{O2} back to an obligation row, looks for the quoted
+sentence in the document and stores the result. \Cref{fig:testing:fake} shows the path, and
+\cref{tab:testing:fake} what the fake answers for each schema name.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=8mm and 7mm]
+  \node[svc, text width=22mm] (step) {a job step of the product};
+  \node[svc, text width=28mm, right=of step] (rp) {\code{run_prompt}: the stored prompt, the data, the schema};
+  \node[ext, text width=27mm, right=of rp] (gen) {\code{gateway.generate}, replaced for the test};
+  \node[chk, text width=29mm, right=of gen] (fake) {\code{FakeModel}: one method per schema name};
+  \node[chk, text width=62mm, below=of $(rp.south)!.5!(gen.south)$] (checks) {the product's own code: parse the answer, join the references to rows, place the quotations, look up the provisions};
+  \node[store] (rows) at (step |- checks) {rows};
+  \node[data, text width=34mm, above=of fake] (script) {the test sets \code{verdicts}, \code{scopes}, \code{checks}, \code{tiers}; it reads \code{calls}, \code{shared}, \code{instructions}};
+  \draw[flow] (step) -- (rp);
+  \draw[flow] (rp) -- (gen);
+  \draw[flow] (gen) -- (fake);
+  \draw[flow] (fake.south) |- node[lbl, pos=.75] {the answer} (checks.east);
+  \draw[flow] (checks) -- (rows);
+  \draw[opt, <->] (script) -- (fake);
+\end{tikzpicture}
+\caption{A model call in the API's suite. Only the dashed box and the fake behind it differ from
+production: the function that would send the request to the assistant service is replaced by
+the fake. What
+is done with the answer is the product's own code.}\label{fig:testing:fake}
+\end{figure}
+
+\begin{xltabular}{\textwidth}{@{}L{33mm}L{39mm}Y@{}}
+\caption{What the fake model answers, by schema name}\label{tab:testing:fake}\\
+\toprule
+\hd{Schema name} & \hd{Prompt} & \hd{The fake's answer} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Schema name} & \hd{Prompt} & \hd{The fake's answer} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{inventory} & \prompt{report.inventory} &
+A fixed inventory of a policy, with the four references of \code{CITATIONS}: against the test
+corpus one for each outcome of the citation check --- right, wrong, no such article, act not
+in the corpus. \\
+\code{scope} & \prompt{corpus.scope} &
+For every act in the prompt, the institution types a test set in \code{scopes}; none
+otherwise. \\
+\code{applicability} & \prompt{report.applicability} &
+Every act \code{applies}, confidence 0.9, effect \code{direct}; \code{verdicts} replaces
+fields for an act named by its short title. \\
+\code{obligations}, \code{requirements} & \prompt{corpus.extract_obligations},
+\prompt{corpus.extract_requirements} &
+One obligation for each of the first two provisions of the batch (one requirement for each of
+the first three), citing that provision. \\
+\code{checks} & \prompt{corpus.verify_obligations} &
+\code{supported} for every obligation; \code{checks} replaces the verdict for an obligation
+named by its title. \\
+\code{sanctions} & \prompt{corpus.sanctions} &
+The tiers in \code{tiers}; by default one tier for a company on Article~59. \\
+\code{verdicts} & \prompt{corpus.check_citations} &
+\code{match} when the claimed subject holds every longer word of the provision's real heading,
+\code{mismatch} otherwise. \\
+\code{outline} & \prompt{corpus.standard_outline} &
+Marks the lines that open with a control code and the lines printed in capitals; adds whatever
+a test put into \code{extra_headings} --- what a model might invent. \\
+\code{findings} & \prompt{report.gap_analysis}, \prompt{report.internal_gap} &
+One finding for each obligation, the statuses cycling through \code{STATUS_CYCLE}
+(\code{missing}, \code{partial}, \code{met}, \code{unknown}). Each quotes the first line of
+the first document shown --- and one sentence no document holds. \\
+\code{action_plan} & \prompt{report.action_plan} &
+One action a call, closing the first three findings the call listed. \\
+\code{plan_merge} & \prompt{report.plan_merge} & An empty list: nothing is merged. \\
+\code{summary} & \prompt{report.summary} & A fixed title and a fixed summary. \\
+\code{internal_requirements} & \prompt{company.internal_requirements} &
+Three requirements: one sound; one with a quotation the document does not hold and a category
+and a severity outside the allowed values; one without a title. \\
+\code{policy}, \code{documents}, \code{structure}, \code{raci}, \code{risk_criteria},
+\code{risk_scenarios} & the six \code{programme.*} prompts &
+A fixed draft of each part of a work product. The \code{documents} answer bases a missing
+document on an Article~999 of MiCA, which does not exist. \\
+\end{xltabular}
+
+Several of these answers are wrong on purpose, and the tests assert that the code catches
+them. The sentence no document holds must leave the gap analysis without a place: the true
+quotation is stored with its position, the invented one with none
+(\file{tests/test_pipeline.py}). The requirement without a title must be dropped and the
+values outside the allowed ones replaced (\file{tests/test_internal.py}). The Article~999 must
+be reported as not found and break a blocking rule, so that the drafted policy cannot be
+approved (\file{tests/test_programme.py}). Headings a model \enquote{invents} --- a line that
+does not exist, a paragraph called a heading --- must not enter a standard's tree
+(\file{tests/test_standard_outline.py}).
+
+A test \term{scripts} an answer in one of two ways. For the common cases it sets an attribute
+of the fake that the context manager yields. \file{tests/test_assessment.py}, for example,
+assigns \code{model.verdicts} a dictionary in which one act applies only from a date in the
+year 2099, one is \code{uncertain} with a question to verify and one has the effect
+\code{institutional}, and then asserts that the report assesses the first as preparation
+(\enquote{upcoming}), leaves the second unconfirmed and lists the third as indirect. For anything else a test replaces one of the fake's methods on the instance with
+a function of its own: the same module returns a plan that leaves an open finding out and
+names a finding that does not exist, and asserts what the pipeline made of it.
+
+The fake also records what it was sent: \code{model.calls} holds the schema name and the full
+text of every call, \code{model.shared} the block a step shares between its calls
+(\cref{ch:models}), and \code{model.instructions} the rendered prompt of every call. Tests
+read them to assert what the model \emph{was given} --- that the
+company's profile is the shared block of the applicability calls, that a gap-analysis call
+carries every document whole and the same in every call, or that no prompt of a whole report
+reaches the model with a placeholder left unfilled.
+
+\subsection{The fake embedder}\label{sec:testing:api:embed}
+
+\code{fake_embed} turns a text into a vector of \code{DIMENSIONS}~=~1536 numbers without a
+model: every word of three or more characters is hashed to one position, and the counts are
+normalised to length one. Texts that share words are near each other, texts that share none
+are far apart. That is enough for the hybrid search, the selection of evidence and the ranking
+of documents to behave as in production --- with the limit that the fake knows shared
+words, not meaning. Whether the real embedding model brings an English policy near a
+Lithuanian obligation is not something this suite can show.
+
+\subsection{Real publications as fixtures}\label{sec:testing:api:fixtures}
+
+The parsers of official sources are tested on real publications. \file{tests/fixtures/corpus/}
+keeps seven trimmed files fetched on 27~September 2026: MiCA from CELLAR in Lithuanian, as the
+Official Journal published it and as a consolidated version, with the answer of the query that
+lists its versions; the \lt{Mokėjimo įstaigų įstatymas} (Law on Payment Institutions) from
+e-tar with the page that lists its editions; resolution 03-126 of the Bank of Lithuania from
+e-tar; and a licensing page of the Bank of Lithuania's website. \file{tests/test_sources.py}
+parses each in the sandbox the product uses, checks the structure that comes out, and runs one
+whole ingestion from CELLAR with the HTTP layer answered from the fixtures: the act is created
+through the API, the job fetches, parses, chunks, embeds and activates a version, and a second
+refresh of the same consolidated version adds nothing. Standards are licensed documents and
+cannot be kept in the repository; their fixtures are written for the tests, with layouts
+copied from what the text extractor gave for real copies.
+
+\begin{lessonbox}{From a failure on a real document to a test}
+Several modules exist because the code failed on real material, and their banners say so.
+\file{tests/test_standard_layouts.py} lists the shapes that broke the clause parser on real
+standards in November 2026, or would have broken it --- a stamp of several lines under every page, a contents entry
+wrapped over two lines --- with one case for each. \file{tests/test_evidence.py} records that
+on 28~September 2026, on the sample company, the Lithuanian vector of an obligation alone put
+every English passage above the cut-off, so that the model reported gaps the policies plainly
+close; an English vector was added beside it, and the test keeps it there.
+\end{lessonbox}
+
+\subsection{A whole report, end to end}\label{sec:testing:api:report}
+
+\code{test_full_run_review_and_exports} in \file{tests/test_pipeline.py} is the suite's
+longest path, and it enters the system the way a user does. The set-up creates a company, a
+credential and an uploaded policy through the API's routes. The test ingests an act through
+the administrator's routes and the real ingestion job, starts a report with
+\route{POST}{/api/reports}, and lets the worker's own function (\code{run_once}) take jobs
+until the queue is empty. It then asserts that the report is \code{done} with its findings
+ordered worst first, that the first piece of evidence is the company's credential and a
+citation links to the official text, and that the report's statistics name the prompts and the
+corpus versions used. It overrides a finding as a reviewer and checks that the effective
+status changes while the model's is kept, that the stored counts follow and that the Excel
+export shows the override. It exports the PDF and the workbook, signs the report off, checks
+that a later change to a finding withdraws the sign-off, uploads a newer version of the act
+and checks that the report is marked outdated, and ends as another user, who gets 404 for the
+report and its export.
+
+\subsection{The test modules}\label{sec:testing:api:modules}
+
+\Cref{tab:testing:modules} lists the 30 modules with the number of test methods in each, as
+the code stands on 16~November 2026: 417 in all. Twelve of them were added that day, in the
+modules \code{test_scope_review}, \code{test_citation_audit}, \code{test_programme},
+\code{test_corpus}, \code{test_sanctions} and \code{test_sources}, and are not in the count of the run of 13~November
+(\cref{tab:testing:numbers}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}rY@{}}
+\caption{The modules of the API's suite}\label{tab:testing:modules}\\
+\toprule
+\hd{Module} & \hd{Tests} & \hd{What it proves} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Module} & \hd{Tests} & \hd{What it proves} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{test_pipeline} & 16 & A report from the request to the exports; its guards and failure paths; locating a quotation. \\
+\code{test_assessment} & 11 & What a report assesses: acts assessed, upcoming, unconfirmed, indirect or screened out; a plan that closes every open finding. \\
+\code{test_scope_review} & 6 & A report waits for a person to approve its scope, with acts taken in and left out; its second part reads the company again and shows it as it was judged. \\
+\code{test_citation_audit} & 27 & The citation audit: a reference judged once, batches, the word-overlap fallback when the judge is down, the exports; no prompt of a report reaches the model with a placeholder unfilled. \\
+\code{test_internal} & 4 & A company's own requirements read from its policies and judged as a group apart. \\
+\code{test_sanctions} & 6 & Sanction provisions read into tiers once per version; the tier that covers a finding's provision; a technical standard's consequence through the article it was adopted under, and the catalogue's key for it. \\
+\code{test_evidence} & 5 & Which passages an obligation is judged on; a full re-embedding. \\
+\code{test_register} & 7 & The action register: what a sign-off brings in, confirms and closes, and what its withdrawal takes back. \\
+\code{test_programme} & 19 & Work products: the rules of each kind, scores computed by code, a person's edit and approval, the exports; a legal basis that names an inserted article. \\
+\code{test_corpus} & 21 & Structure parsers, ingestion through the real job, an edition issued again with the same text, hybrid search, the lookup of an inserted article under either spelling, the link of an act of the register, the citation check, extraction of obligations and their review. \\
+\code{test_sources} & 13 & The parsers on real publications; the fetchers' rules for outbound requests; the labels of a page and of a file of the Bank of Lithuania. \\
+\code{test_standards} & 18 & A standard's clause tree, lookups, requirements, adoption by a company, its place in a report. \\
+\code{test_standard_layouts} & 16 & The clause parser against the layouts of real copies; secured PDFs. \\
+\code{test_standard_outline} & 30 & Standards not numbered the ISO way: the rules, then the model, then the pages; what a model invents is not taken. \\
+\code{test_verify_obligations} & 5 & The judge of the register marks and orders, and decides nothing. \\
+\code{test_evals} & 7 & The eval case files are well formed; the eval runner works and refuses a score below the baseline. \\
+\code{test_prompts} & 15 & The prompt store and its upgrade rules, usage and budgets, prices of cached input, retries, patience on a rate limit. \\
+\code{test_jobs} & 25 & The queue and the worker: claiming, retry, recovery of abandoned jobs, cancelling, what a step records of its model calls. \\
+\code{test_indexing} & 3 & Indexing a document waits when the uploader's daily budget is spent. \\
+\code{test_chat} & 19 & Chat threads and stored messages; only the internal door writes an answer; the title; the model per thread. \\
+\code{test_mcp} & 8 & The settings for external tool servers: validation, header values never returned. \\
+\code{test_companies} & 8 & Companies, credentials, documents: validation, upload and extraction, tenancy. \\
+\code{test_company_profile} & 10 & Three-valued profile flags, roles, text windows, passage search kept to its owner, the upload quota. \\
+\code{test_auth_flow} & 17 & Login, sessions, roles, rate limits. \\
+\code{test_users_admin} & 8 & The account directory: creation, deactivation, purging. \\
+\code{test_audit} & 8 & The audit trail is written and never raises; its paging skips and repeats nothing. \\
+\code{test_authz_matrix} & 32 & Every route against every kind of caller; the body fuzz (\cref{sec:testing:api:matrix}). \\
+\code{test_security_review} & 43 & A regression test for each finding of the security review of September 2026, and the checks it found sound, pinned (\cref{ch:security}). \\
+\code{test_ops} & 9 & The operator's commands and the daily maintenance. \\
+\code{test_health} & 1 & The readiness probe answers without credentials. \\
+\end{xltabular}
+
+\subsection{The authorisation matrix and the body fuzz}\label{sec:testing:api:matrix}
+
+Most modules test one feature. \file{tests/test_authz_matrix.py} tests one property across
+all of them: who may call what. Its table \code{ROUTES} classifies every route of
+\file{urls.py} --- 83 patterns --- by method, with one of six policies
+(\cref{tab:testing:policies}). The table is checked against the code in both directions: the
+test reads the URL patterns themselves, so a route added without a row fails
+\code{test_every_route_is_classified}, and a view that accepts a method its row does not
+declare, or refuses one it does, fails as well. A route cannot be added without stating who
+may call it.
+
+\begin{table}[H]
+\caption{The six policies of the authorisation matrix}\label{tab:testing:policies}
+\begin{tabularx}{\textwidth}{@{}L{21mm}Y@{}}
+\toprule
+\hd{Policy} & \hd{Who is let in, and what everyone else gets} \\
+\midrule
+\code{public} & Health and login: no session needed. \\
+\code{signed-in} & Any active account; the path names no row. \\
+\code{admin} & Administrators only; a user gets 403 \code{FORBIDDEN}. \\
+\code{owned} & The path names rows of one user: their owner and the administrators. Anyone
+else gets 404 --- never 403, which would confirm that the id exists. \\
+\code{personal} & As \code{owned}, but administrators are refused too: another user's chat
+thread and its messages. \\
+\code{internal} & The routes under \code{/internal/}: 403 \code{INTERNAL_ONLY} without the
+secret the services share. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The fixture gives two users and an administrator one record of every kind each, linked as the
+product links them, and the tests walk the table. Six kinds of caller without a live session
+(no token, a made-up one, an expired one, a deactivated account's, the wrong scheme, an empty
+token) get 401 on every route that is neither public nor internal. A user gets 403 on every
+administrator's route. User B gets 404 on every route and method that names a row of user A
+--- sent with a body that \emph{would succeed} on the owner's row (\code{TENANT_BODIES}), so
+that a missing ownership check shows as a success and does not hide behind a validation error
+--- and A's rows are verified untouched afterwards. Every write an administrator can make has
+a case in \code{AUDIT_CASES} and must leave an audit row.
+
+The last class, \code{NoServerErrorTests}, is a \term{fuzz}: it sends bodies that are wrong
+in systematic ways and requires that no route answers with a server error. It needs no list of
+each route's fields. For every route with a JSON body it sends one valid request through a
+\code{Recorder} --- a dictionary that notes every key the view reads --- and so learns the
+fields; a field added later is fuzzed without anyone listing it. Each field is then replaced,
+one at a time, by each value of \code{CONFUSED}: five shapes that reach a set, a hash, a
+length or the database adapter when a type check is missing (a nested object, a list of lists,
+a lone surrogate character as a value and as a key, a boolean). No answer may have status 500
+or above, every answer must be JSON, and the session must still be valid. A second test sends
+the ten bodies of \code{MALFORMED} --- a list, a bare string, \code{null}, cut-off JSON,
+\code{NaN}, an overflowing number, a lone surrogate, a NUL character, lists and objects nested
+forty deep --- to every write route. Two further tests fix what an error looks like from
+outside: a crash inside a view answers only the bare envelope (\enquote{Internal server error},
+code \code{SERVER_ERROR}), and the refusal of a malformed body carries no traceback, file path
+or library name.
+
+
+\section{The assistant service's suite}\label{sec:testing:assistant}
+
+The assistant service makes every model call of the system and runs the chat
+(\cref{ch:models,ch:chat}). Its suite is 37 files for Node's built-in test runner under
+\file{tests/} (paths in this section are given from \file{assistant/app/}). It drives the
+\emph{real} Express application and replaces its two neighbours.
+
+\paragraph{The API is a scripted stand-in.} \file{tests/stubDjango.mjs} starts an HTTP server
+on a random local port. A test gives it routes --- a method, a path pattern and the answer ---
+and the stand-in records every request it receives with its method, path, query, body, bearer
+token, forwarded client address and internal secret, so that a test can assert exactly what
+the API was asked, and as whom. A route nobody scripted answers 404 in the API's own error
+envelope. A second helper, \file{tests/helpers/rawServer.mjs}, is the misbehaving neighbour:
+HTML pages, empty bodies, bodies cut off, silence.
+
+\paragraph{Models are scripts.} \file{tests/mockModel.mjs} builds scripted models on the mock
+class of the AI SDK's own test kit: \code{textStream} (one text answer), \code{toolCallStream}
+(one tool call) and \code{scripted}, which answers each call with the next step of a list, so
+that a test reads as the script of what the model says. A step may be a function that receives
+the call's options, which lets a test inspect what the model was sent. Two more doubles cover
+what a script cannot. \file{tests/helpers/liveModel.mjs} produces streams with a provider's
+timing that stop on an abort the way a provider's do; every turn a test stops mid-answer runs
+on it. \file{tests/helpers/fakeGateway.mjs} is a local gateway in the OpenAI wire format,
+against which the \emph{real} provider code is run. External tool servers (MCP) are local
+doubles too.
+
+The test runner starts every file in a process of its own, and the service's \file{config.js}
+reads the environment once per process; each file therefore first imports
+\file{tests/env.mjs}, which sets a known internal secret, a gateway address that can never be
+reached and a turn limit high enough not to throttle the tests. Time is never waited out:
+caches and rate windows are tested with the clock replaced. \Cref{tab:testing:assistant}
+groups the files by what they cover.
+
+\begin{xltabular}{\textwidth}{@{}L{31mm}Y@{}}
+\caption{What the assistant service's suite covers}\label{tab:testing:assistant}\\
+\toprule
+\hd{Area} & \hd{What is pinned} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Area} & \hd{What is pinned} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+A chat turn (11~files) & One turn from the request to the stored answer: every refusal before
+any model spend, in its order; the transcript rebuilt from the API; the prompt with the
+company, the role and the locale; the stream's wire format, read the way the console's own
+transport reads it; stream errors as codes; status, stop and supersede; the turn limit; a turn
+that survives the browser leaving; the model-written title. \\
+The chat tools (8~files) & The 32 tools by name (\cref{app:tools}); strict input schemas;
+every call of every tool reaching the API as the user --- with the user's token and address
+and no parameter that could name another user; a failure of the API reaching the model as a
+result with the API's code, never as a crash; each tool's requests and results; the cost gates
+of the report tools. \\
+The internal door (5~files) & The routes the worker calls --- generate, embed, the model
+list: the shared secret checked before the body is read, in constant time; answers forced to a
+schema and checked; a stream that fails after it began is a failed call, never a shorter
+answer; provider failures by class, the exhausted budget among them; the five token counts of
+a call. \\
+External tool servers (3~files) & Tools offered and labelled as external, allow-lists,
+credentials never leaking, a broken server skipped, the administrator's connection test. \\
+The service's clients (3~files) & The calls to the API: which headers travel through which
+door, a neighbour that is down, silent or stalled; the identity cache; the prompt cache. \\
+The process and the source (6~files) & Every wrong method and unknown path answered as JSON;
+body limits; the error envelope; every environment variable's default and range; the server
+started for real and stopped by a signal (turns finish and are stored, new connections are
+refused); source-level rules. \\
+\end{xltabular}
+
+The source-level rules (\file{tests/structural.test.mjs}) are checked by reading the code
+instead of running it: the route table is exactly the expected list and every route is named
+in the service's README; no logging call is handed a credential, request headers or the
+environment; every outbound \code{fetch} carries a timeout; only \file{config.js} reads the
+environment, beside an exact list of call-time re-reads. Secrets in the tests are distinctive strings, so that a leak into a log, a
+response body or a model prompt is unmistakable; several tests assert that nothing leaked.
+
+\paragraph{The live smoke layer.} One more file, \file{tests/live-smoke.test.mjs}, is of
+another kind: it checks the \emph{running} assistant service after a deployment. It is opt-in
+--- skipped unless \code{RUN_LIVE} is set, so the runner never executes it --- and it costs
+nothing, because it starts no chat turn and asks for no completion and no embedding. Its seven
+tests check that \code{/health} answers and names a configured model; that an unknown path and
+a wrong method get the JSON envelopes; that the chat refuses a request without a token before
+asking anybody, and a made-up token after asking the API (which proves that the API answers
+the assistant service); that the internal door refuses a missing and a wrong secret; that the
+gateway's model list holds the configured models; and that no answer carries the gateway key
+or the internal secret. The file's banner states the limit of the model-list check: the list
+is cached and a failure keeps the last good one, so a pass proves only that the gateway
+answered at some point since the process started.
+
+
+\section{The console's suite}\label{sec:testing:console}
+
+The console's suite is the largest: 94 test files under \file{vite/app/tests/} (paths in this
+section are given from \file{vite/app/}), run by vitest in jsdom --- a browser's document model
+implemented in Node, without a browser and without layout. Every page, shared component, hook
+and utility under \file{src/} is rendered or called there (the public site's pages too, under
+\file{tests/site/}). A console page runs inside the production frame: the helpers of
+\file{tests/support/render.jsx} wrap it in the providers, router and query
+client the application uses, and \code{renderApp} renders the real route table through the
+real session check.
+
+\subsection{A double that must know every endpoint}\label{sec:testing:console:double}
+
+The console never talks to a real service in this suite. The library msw intercepts every
+request the code under test sends --- through the shared HTTP client with its interceptors and
+through the chat's streaming \code{fetch} --- and answers from handlers.
+\file{tests/support/backend/handlers.js} holds a default handler for every endpoint the
+console calls, of the API and of the assistant service alike. The handlers answer the happy
+path from \file{tests/support/backend/fixtures.js}: one body per endpoint in the shape the
+API's serializers produce, together forming one coherent fictional world, so that a page that
+joins two answers sees rows that agree. They keep no state between requests. A test declares
+only its deviation, with the one-line overrides of \code{given} in
+\file{tests/support/backend/server.js} (\code{given.apiError}, \code{given.hang},
+\code{given.capture} to inspect a request body, and others), which hold until that test ends.
+
+The double is strict, and \file{tests/support/setup.js} enforces it after every test. A
+request that no handler answered is recorded and fails the test (it cannot reach anything
+else, since the container has no network)
+--- a page calling an endpoint the double does not know is exactly the drift between the
+console and its double that the suite exists to catch. A defect that React reports on the
+error console fails the test as well: a missing list key, a state update while another
+component renders, an unknown DOM property, invalid nesting, an input that switches between
+controlled and uncontrolled. So does a render crash, even when an error boundary caught it. A
+test that provokes one of these on purpose has to say so first.
+
+\subsection{Every page against a matrix of answers}\label{sec:testing:console:matrix}
+
+A page test covers behaviour: what the user sees and what the console sends, queried by role,
+label and text as a user reads them. Tests read English by default and every page has at
+least one test in Lithuanian; the two sessions of \file{tests/support/auth.js}, an
+administrator and a plain user, cover both roles.
+
+On top of that, a page is put through a \term{contract matrix} for each endpoint it reads.
+\code{describeEndpointContract} in \file{tests/support/backend/contract.js} takes the
+endpoint, its fixture, how to render the page and how to recognise its frame, and generates
+one test per entry of \code{VARIANTS} --- 26 ways in which the answer can be broken, wrong,
+late or missing (\cref{tab:testing:variants}). The tests call it 58 times, 57 of them in the page tests. A variant that
+makes no sense for a page is skipped with its reason written beside it --- for example a 404
+for a conversation that is gone, which the chat treats as a notice and not as a failure.
+
+\begin{xltabular}{\textwidth}{@{}L{23mm}YL{43mm}@{}}
+\caption{The 26 variants of the contract matrix}\label{tab:testing:variants}\\
+\toprule
+\hd{Group} & \hd{The answer the page receives} & \hd{What the page must do} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Group} & \hd{The answer the page receives} & \hd{What the page must do} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Failures (12) & The API's error envelope with status 500, 403, 404, a 400 with the API's own
+sentence, a 429 with a waiting time, the exhausted model budget (402) and a code the console
+has never seen; a proxy's HTML error page; a 500 and a 503 with no body; a dropped connection;
+a 401. &
+Show an alert with the translated sentence for that failure (for the 400, the API's own),
+never the raw code, and keep its own frame. For the 401: drop the token and go to the login page. \\
+Wrong bodies (12) & An empty body, \code{null}, a string, a number, a list where an object
+belongs, an empty object, rows with every field missing, every value \code{null}, numbers and
+strings swapped, unknown extra fields, 300 rows, and hostile text --- markup and odd
+characters --- in every string. &
+Not crash: no render error, its frame still standing. With extra fields, still show the data.
+Markup in a string is rendered as text, never as elements. \\
+Timing (2) & A request that never answers; an answer after 200~ms. &
+Hold the loading state without an alert; then show the data. \\
+\end{xltabular}
+
+\subsection{The route sweep and the structural tests}\label{sec:testing:console:sweep}
+
+The per-page tests cannot prove that no page was forgotten.
+\file{tests/contract/route-sweep.test.jsx} can: it reads the real route table and renders
+each of its 19 framed routes (every route but the login page and the catch-all) under eight
+conditions: under the administrator's session, where the page must title the browser tab and
+make only requests the double knows; as a plain user, where an administrator's page must show
+\enquote{Access restricted} without fetching anything; in Lithuanian; with every GET answering
+500; with a 401, which must lead to the login page with the page as the place to return to;
+and with every GET answering a string, an empty object, or never. A route added to the table
+is swept without anyone writing a test for it.
+
+\file{tests/core/structural.test.js} holds rules about the code as a whole. The most
+important one keeps the double honest \emph{statically}: it extracts every call to the API
+from the source --- direct calls, the path constants they are built from, the addresses of
+queued jobs, the downloads, the chat's stream --- and requires a default handler for each. The
+others: only the login page calls the HTTP library directly; every toast goes through one
+utility; every route is titled by a message that exists in both languages; the
+administrator-only routes are exactly the pages the sidebar hides from a plain user; every
+page folder has a page test.
+
+\subsection{Lint and the translation guard}\label{sec:testing:console:lint}
+
+The console speaks two languages and its runtime has no fallback between them: a key missing
+from the active language would show its dotted path to the user.
+\file{scripts/check-messages.js} keeps that out of a release. It fails on a key present in one
+language and not the other; on placeholders that differ between the two for the same key; on
+an English string identical to its Lithuanian one, unless it holds no letters outside its
+placeholders or is on a short list of names that are not translated; and on a literal key passed to a translation call that resolves nowhere.
+It runs before eslint in \code{npm run lint}, as a test of the structural file, and before the
+production build in \code{npm run build} --- so the console's image cannot be built with a
+broken message tree, and the test runner, which builds that image first, cannot start either.
+
+
+\section{Conventions}\label{sec:testing:conventions}
+
+\paragraph{A known defect is pinned, not hidden.} A \term{pin} is a test that asserts the
+correct behaviour and is marked as expected to fail. In the assistant service's suite it is a
+test with the option \code{expectFailure} and the defect's identifier in its name. While the
+defect exists the test fails as expected and the run passes; once the defect is fixed the test
+passes --- and that \emph{fails the run}, which is the cue to remove the mark and keep the
+test as a guard. A \enquote{to do} test is refused for this purpose, because the runner counts
+one that passes as a pass, so a fixed defect would stay marked unnoticed; the suite's
+structural rules reject such tests and pins without an identifier. The console's suite has the
+same device (\code{it.fails}, or \code{pins} in a contract matrix). Neither suite holds an
+open pin in the code of 16~November 2026.
+
+\paragraph{Running one part.} Each runner passes its arguments on, so one module, one file or
+one test runs through the same containers:
+
+\begin{codeblock}
+django/runTests.sh compliance.tests.test_audit.AuditPagingTests
+assistant/runTests.sh tests/server.test.mjs
+vite/runTests.sh tests/pages/users.test.jsx
+\end{codeblock}
+
+For quick work on one file of the assistant service or the console,
+\file{docs/markdown/en/operations.md} §12 gives a faster form that mounts the working tree into a plain
+Node container, still without a network. In that form the assistant service's README is not
+mounted and the rules that read it are skipped with the reason, so the full runner is the run
+that counts before a deployment.
+
+\paragraph{Running side by side.} The three runners can run at the same time, and each beside
+a second run of itself. The API's runner names its database container and its network after
+the run (\code{legalops-test-db-} and \code{legalops-test-net-} followed by the process id
+and a random number), and every parallel worker has its own upload folder; the other two name
+their containers after the process id.
+
+
+\section{The numbers on 13 November 2026}\label{sec:testing:numbers}
+
+Each suite was run whole once on 13~November 2026, in throwaway containers.
+\Cref{tab:testing:numbers} gives the results beside the approximate size, in lines, of the
+code that is tested and of the tests.
+
+\begin{table}[H]
+\caption{The suites on 13 November 2026: one whole run of each}\label{tab:testing:numbers}
+\begin{tabularx}{\textwidth}{@{}Yrrrrrr@{}}
+\toprule
+\hd{Suite} & \hd{Files} & \hd{Tests} & \hd{Passed} & \hd{Skipped} & \hd{Lines of code} & \hd{Lines of tests} \\
+\midrule
+API (Django) & 30 & 405 & 405 & 0 & 33,600 & 11,400 \\
+Assistant service & 37 & 509 & 502 & 7 & 10,700 & 17,800 \\
+Console & 94 & 5,180 & 5,164 & 16 & 46,800 & 64,800 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The seven skipped tests of the assistant service are the live smoke layer; the sixteen of the
+console are variants of the contract matrix that a page skips with a stated reason. The
+console's count is large because much of it is generated: each of the 58 contract matrices
+produces up to 26 tests, and the route sweep eight for each of 19 routes. On the same day
+eslint passed on the console, and the translation guard reported 2,824 keys in each of the two
+languages and 2,093 translation calls verified. The API's 405 is the count of that run: the
+twelve tests added on 16~November 2026 (\cref{sec:testing:api:modules}) came after it.
+
+These counts say how much of the code is exercised, not how well the system reasons. A reader
+weighing the AI part of the system should read them beside the eval scores in
+\cref{ch:control}.
+
+
+\section{What the tests do not cover}\label{sec:testing:gaps}
+
+The limits follow from the design. They are listed so that a green run is not read for more
+than it says.
+
+\begin{itemize}
+  \item \textbf{The quality of any prompt.} No regression test calls a model. The eval suites
+        measure six prompts against the real model (\cref{ch:control}); for the prompts
+        outside them, nothing measures the model's answers.
+  \item \textbf{The real gateway.} The assistant service's provider code runs against a local
+        fake gateway. The live smoke layer reads the gateway's model list and asks for no
+        completion and no embedding, because those spend the budget.
+  \item \textbf{The services together.} Each suite tests one service against doubles of its
+        neighbours. The two sides of a seam are pinned separately --- the API's suite fixes
+        the answer it expects from the assistant service, the assistant service's suite its
+        internal door, the console's fixtures the bodies of the API --- and nothing checks
+        mechanically that the two sides still agree. The joins are exercised only by the
+        live smoke layer's identity check and, from the API
+        through the assistant service to the model, by the eval suites.
+  \item \textbf{The ingress and the egress proxy.} No suite tests the Caddy configuration that
+        routes requests into the stack, or the allow-list for outbound requests. A comment in
+        the authorisation matrix refers to a runner for the ingress that pins that
+        \code{/internal/} is never proxied; no such runner is in the repository.
+  \item \textbf{Layout and appearance.} jsdom measures nothing: the console's suite proves
+        what is in the document, not how it looks.
+  \item \textbf{Meaning in embeddings, and real concurrency.} The fake embedder knows shared
+        words only (\cref{sec:testing:api:embed}), and the report pipeline's parallel calls
+        run one at a time under the fake (\cref{sec:testing:api:fake}).
+\end{itemize}

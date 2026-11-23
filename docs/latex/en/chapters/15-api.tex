@@ -1,0 +1,1408 @@
+% STATUS: verified
+\chapter{The API}\label{ch:api}
+
+% One route of a table: the methods and the path on a line of their own, across both columns;
+% the row under it says who may call and what the route does.
+\providecommand{\apiroute}[2]{\multicolumn{2}{@{}l@{}}{\route{#1}{#2}}\\*}
+
+This chapter is the reference of the system's HTTP interface: every route, who may call it, what
+it takes and what it refuses. It has five parts. \Cref{sec:api:conventions} gives the
+conventions all routes share --- where a request goes, the token, the error envelope, paging,
+limits. \Cref{sec:api:routes} lists the routes of the API (Django) area by area, one table for
+each. \Cref{sec:api:assistant} gives the three public routes of the assistant service, which
+carry the chat. \Cref{sec:api:internal} describes the internal doors the two services open to
+each other and to nobody else. \Cref{sec:api:client} gathers what a program calling the API has
+to know about work that outlasts a request, and about files. A \term{client} in this chapter is
+any program that calls the API: the console, the assistant service acting for a user, or a
+script.
+
+The chapter says what each route does, not why: the reasons are in the chapter on the route's
+subject, named beside each table. The file \file{urls.py} of the API is the table of contents
+of the interface --- every route of the API is one line there --- and each views module opens
+with a list of its routes and their bodies.
+
+
+% ============================================================
+\section{Conventions}\label{sec:api:conventions}
+% ============================================================
+
+\subsection{Three families of paths}\label{sec:api:families}
+
+The system has one public address. Behind it stands the \term{ingress}, the Caddy server
+\code{legalops-endpoint}, configured in \file{endpoint/Caddyfile}. It listens on port~80 ---
+the only port the installation publishes --- and sorts every request by its path, the first
+match winning (\cref{fig:api:routing}):
+
+\begin{enumerate}
+  \item \code{/api/assistant/*} goes to the assistant service (\code{legalops-assistant},
+    port 3000). These are the chat's three routes (\cref{sec:api:assistant}).
+  \item \code{/api/*} goes to the API (\code{legalops-django}, port 8000): every other route
+    of this chapter that a client can reach.
+  \item Everything else goes to the web server of the console and the public site
+    (\code{legalops-vite}), which answers with files, never with data (\cref{ch:console}).
+\end{enumerate}
+
+One more path stands in front of these three: \code{/dbgate/*} leads to DBGate, the database
+administration tool. Before the ingress passes such a request on, it asks the API whether the
+caller is an administrator (\route{GET}{/api/auth/checkauth/admin}) and hands a refusal back as
+it is (\cref{ch:ops}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=4mm and 12mm]
+  \node[svc, minimum width=44mm] (assistant) {assistant service\\{\scriptsize\code{legalops-assistant:3000}}};
+  \node[svc, minimum width=44mm, below=of assistant] (django) {the API (Django)\\{\scriptsize\code{legalops-django:8000}}};
+  \node[svc, minimum width=44mm, below=of django] (vite) {console and public site\\{\scriptsize\code{legalops-vite:80}}};
+  \node[svc, minimum width=44mm, below=of vite] (dbgate) {DBGate\\{\scriptsize\code{legalops-dbgate:3000}}};
+  \node[svc, minimum height=16mm, anchor=east] (in) at ([xshift=-36mm]$(django.west)!.5!(vite.west)$) {ingress\\{\scriptsize\code{legalops-endpoint}}\\{\scriptsize port 80}};
+  \node[ext, left=8mm of in] (client) {browser\\or script};
+  \node[note, below=3mm of in, text width=34mm] {before a \code{/dbgate/*} request it asks the API whether the caller is an administrator};
+  \draw[flow] (client) -- (in);
+  \draw[flow] (in.east) -- ++(4mm,0) |- (assistant.west) node[lbl, pos=.8] {\code{/api/assistant/*}};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (django.west) node[lbl, pos=.8] {\code{/api/*}};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (vite.west) node[lbl, pos=.8] {everything else};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (dbgate.west) node[lbl, pos=.8] {\code{/dbgate/*}};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(assistant)(django)(vite)(dbgate)] (lane) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (lane.north west) {isolated network: no port of its own};
+\end{tikzpicture}
+\caption{Where a request goes. The ingress is the only service with a published port; it
+chooses the service by the path alone. Nothing under \code{/internal/} or \code{/health} is
+forwarded to the API or to the assistant service.}\label{fig:api:routing}
+\end{figure}
+
+Three things the ingress does concern every client. A request whose \code{Origin} header names
+another site is answered 403 with an empty body before it reaches any service. The ingress
+passes on the \code{X-Forwarded-For} header it received and copies it into \code{X-Real-IP};
+that header is the address by which the API counts login attempts and writes audit rows
+(\code{client_ip} in \file{common/http.py}). The value is whatever the incoming request
+carried; without one, the API falls back to the address of the connection, which is the
+ingress's own. And when the service behind a path is down or
+restarting, the ingress itself answers 502 with an empty body. The security headers it adds to
+every answer but its own 403 are described in \cref{ch:security}.
+
+\subsection{Requests and answers}\label{sec:api:json}
+
+The API speaks JSON only: a request body is a JSON object, and every answer --- an error
+included --- is JSON written by \code{json_response} in \file{common/http.py}, with UTF-8 kept
+literal. The exceptions are few and named in the tables: two uploads take
+\code{multipart/form-data}, three exports answer a file, one route answers an SVG drawing, and
+the chat answers a stream.
+
+\begin{description}[style=unboxed, leftmargin=0pt]
+  \item[Paths.] No path ends in a slash (\code{APPEND_SLASH} is off); the same path with one is
+    a 404. An unknown path answers 404 \code{NOT_FOUND} and a method the route does not serve
+    answers 405 \code{METHOD_NOT_ALLOWED} with an \code{Allow} header, both as JSON, never as an
+    HTML page.
+  \item[Field names.] camelCase (\code{displayName}, \code{companyId}). Two places differ: the
+    chat's history rows keep the names of the chat runtime that reads them (\code{parent_id}),
+    and the internal doors use snake\_case (\code{user_id}, \code{input_tokens}).
+  \item[Values.] A datetime is ISO~8601 with its offset, as \code{2026-09-27T18:00:00+00:00};
+    a date is \code{YYYY-MM-DD}; a cost is a number of US dollars.
+  \item[Ids.] Every row a route creates gets a uuid4 string as its id. Prompts are addressed
+    by their slug and a prompt version by its number. An id that arrives in a body or a query
+    is accepted only as a non-empty string of at most 64 characters (\code{str_id}); anything
+    else is treated as no id at all, so an object or a list never reaches a database lookup.
+  \item[Transactions.] Every request runs in one database transaction (\code{ATOMIC_REQUESTS}
+    in \file{settings.py}): a request that fails leaves nothing half-written. Four routes that
+    wait on something slow stand outside it --- the health probe, the document upload, the
+    prompt test run and the MCP connection test.
+\end{description}
+
+\subsection{The token and who may call}\label{sec:api:auth}
+
+A client signs in with \route{POST}{/api/auth/login} and sends the token it receives in every
+later request, as \code{Authorization: Bearer <token>}. The token is an opaque random string
+(256 random bits; the database keeps only its SHA-256), valid for \code{SESSION_DAYS}~=~30 days;
+an account keeps its \code{SESSIONS_PER_USER}~=~10 newest sessions, so an eleventh login ends
+the oldest. The account is loaded again on every request, so a deactivated account is locked
+out at once. There is no self-registration and no cookie authentication: the one cookie the
+API sets, \code{compliance_gate}, is read only by the gate in front of DBGate. A request
+without a valid token answers 401 \code{AUTH_REQUIRED}. The mechanism is in
+\file{users/auth.py}; why it is built this way is argued in \cref{ch:security}.
+
+There are two roles, \code{user} and \code{admin}. The tables of \cref{sec:api:routes} say who
+may call a route with one of four words:
+
+\begin{table}[H]
+\caption{Who may call a route --- the words used in the route tables}\label{tab:api:who}
+\begin{tabularx}{\textwidth}{@{}L{22mm}Y@{}}
+\toprule
+\hd{Word} & \hd{Means} \\
+\midrule
+public & No token is needed. Only the health probe and the login are public. \\
+signed in & Any active account with a valid token (\code{@require_auth}). \\
+owner & Any signed-in user, on the rows that are theirs; an administrator, on every row. Which
+  rows are a user's own is the \term{tenancy rule}, below. \\
+admin & Administrators only (\code{@require_role("admin")}, or a role check inside the view).
+  A user gets 403 \code{FORBIDDEN}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The tenancy rule is written once per kind of row, as a function that returns the rows a caller
+may touch, and every route of that kind starts from it:
+
+\begin{itemize}
+  \item A \emph{company} belongs to the user who created it (\code{visible_companies} in
+    \file{companies/api/company_views.py}). Its credentials, adopted standards, roles, reports,
+    findings, actions and work products follow the company.
+  \item A \emph{document} belongs to the user who uploaded it (\code{visible_documents}),
+    whether or not it is attached to a company.
+  \item A \emph{job} belongs to the user who caused it (\code{_visible} in
+    \file{jobs/api/views.py}), and a \emph{model call} in the usage log to the user it is
+    charged to.
+  \item A \emph{chat thread} belongs to its user, and here an administrator is no exception
+    (\code{visible_threads} in \file{chat/api/views.py}): nobody reads another person's
+    conversations through the thread routes.
+  \item The \emph{legal corpus} and the register of obligations are readable by everyone
+    signed in. A user sees only the acts that are enabled; an administrator sees all. A
+    company's own requirements are never listed by the obligation routes.
+\end{itemize}
+
+\paragraph{What a 404 means.} A row the caller may not see does not exist for that caller: the
+route answers 404 \code{NOT_FOUND}, the same answer as for an id that was never issued, so the
+API never confirms that someone else's company, document, report or thread exists. 403 is kept
+for two cases where nothing is revealed by it: a user calling a route that only administrators
+may call, and a user asking the usage routes for other accounts' figures.
+
+\subsection{Errors}\label{sec:api:errors}
+
+Every error of the API has one shape, the \term{error envelope} (\code{json_error} in
+\file{common/http.py}):
+
+\begin{codeblock}
+{"error": "An analysis of this company is already running", "code": "ALREADY_RUNNING"}
+\end{codeblock}
+
+\code{error} is a sentence in English for a person; \code{code} is the stable name a client
+branches on. The HTTP status carries the class of the failure. \Cref{tab:api:codes} lists every
+code the API answers; the route tables name the ones particular to a route and leave out those
+that any route can answer (\code{INVALID_BODY}, \code{AUTH_REQUIRED}, \code{FORBIDDEN},
+\code{NOT_FOUND}, \code{METHOD_NOT_ALLOWED}).
+
+\begin{table}[H]
+\caption{The error codes of the API (Django), by HTTP status}\label{tab:api:codes}
+\begin{tabularx}{\textwidth}{@{}L{12mm}Y@{}}
+\toprule
+\hd{Status} & \hd{Codes} \\
+\midrule
+400 & \code{INVALID_BODY} (no JSON object in the body), \code{MISSING_FIELDS},
+  \code{INVALID_FIELD}, \code{INVALID_QUERY} (a query parameter), \code{EMPTY_UPDATE} (nothing
+  to change), \code{MISSING_FILE}, \code{BAD_REQUEST} (a NUL character in the path or query),
+  \code{INVALID_VALUE} (a value the database cannot take: out of range or malformed), \code{INVALID_EMAIL},
+  \code{INVALID_ROLE}, \code{WEAK_PASSWORD}, \code{WRONG_PASSWORD}, \code{LAST_ADMIN},
+  \code{SELF_LOCKOUT}, \code{UNKNOWN_MODEL}, \code{NOTHING_TO_ASSESS}, \code{NOTE_REQUIRED} \\
+401 & \code{AUTH_REQUIRED} (no session, or a dead one), \code{INVALID_CREDENTIALS} (login) \\
+403 & \code{FORBIDDEN} (the role), \code{ROLE_NOT_ALLOWED} (a chat message that is not the
+  user's own), \code{INTERNAL_ONLY} (the internal door without its secret) \\
+404 & \code{NOT_FOUND}; on the internal door also \code{PROMPT_NOT_CONFIGURED} \\
+405 & \code{METHOD_NOT_ALLOWED}, with an \code{Allow} header \\
+409 & The request is well formed but the row is not in a state for it:
+  \code{ALREADY_RUNNING}, \code{STILL_RUNNING}, \code{NOT_CANCELLABLE}, \code{NOT_FINISHED},
+  \code{NOT_WAITING}, \code{NOT_DRAFT}, \code{NOT_APPROVED}, \code{NOT_READY},
+  \code{NEWER_VERSION}, \code{RULES_BROKEN}, \code{CLOSED_BY_REPORT}, \code{CORPUS_EMPTY},
+  \code{NOT_INGESTED}, \code{NO_FILE}, \code{NO_DOCUMENTS}, \code{UNCHANGED},
+  \code{UNKNOWN_KIND}; or a name is taken: \code{EMAIL_TAKEN}, \code{DUPLICATE_NAME},
+  \code{SLUG_TAKEN}, \code{ALREADY_ADOPTED}, \code{MESSAGE_ID_TAKEN} \\
+413 & \code{FILE_TOO_LARGE}, \code{QUOTA_EXCEEDED}, \code{MESSAGE_TOO_LARGE} \\
+429 & \code{RATE_LIMITED} (with a \code{Retry-After} header), \code{BUDGET_EXCEEDED} (the
+  caller's daily budget for model calls) \\
+500 & \code{SERVER_ERROR}; the traceback goes to the log, never to the client. A value that
+  passed the API's own validation and breaks a constraint of the database --- other than a
+  taken name, which is a 409 --- ends here too, on purpose: it shows a gap in that validation,
+  which a 400 would hide \\
+502 & \code{MODEL_ERROR} (a prompt test run whose model call failed) \\
+503 & \code{MODELS_UNAVAILABLE} (the gateway's list of models cannot be read) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The assistant service wraps its errors differently, because the chat runtime in the console
+expects that shape (\code{errorMiddleware} in the assistant service's
+\file{middleware/errors.js}):
+
+\begin{codeblock}
+{"message": "Too many questions in a row — wait a moment",
+ "error": {"code": "RATE_LIMITED", "message": "Too many questions in a row — wait a moment", "retryAfterS": 41}}
+\end{codeblock}
+
+\code{retryAfterS} appears only on a 429 and is repeated in a \code{Retry-After} header. The
+codes of the assistant service are listed in \cref{sec:api:assistant}.
+
+\subsection{Lists: paging and filters}\label{sec:api:paging}
+
+A list route answers an object with the rows under a plural name (\code{companies},
+\code{reports}) and, where it pages, the count of all matching rows as \code{total}. Only the
+long lists page; the others return everything up to a fixed cap (\cref{tab:api:paging}). Two
+readers of numbers are in use, and they treat a bad value differently: \code{query_int} refuses
+a value outside its range with 400 \code{INVALID_QUERY}, while the jobs, audit and units routes
+clamp it into the range and refuse only what is not a number.
+
+\begin{table}[H]
+\caption{How the list routes page}\label{tab:api:paging}
+\begin{tabularx}{\textwidth}{@{}L{55mm}L{27mm}Y@{}}
+\toprule
+\hd{List} & \hd{\code{limit}: default, most} & \hd{Paging} \\
+\midrule
+\code{/api/documents} & 500, 500 & \code{limit}, \code{offset}; answers \code{total}; out of range: 400 \\
+\code{/api/obligations} & 500, 2000 & \code{limit}, \code{offset}; answers \code{total}; out of range: 400 \\
+\code{/api/usage/calls} & 50, 200 & \code{limit}, \code{offset}; answers \code{total}; out of range: 400 \\
+\code{/api/corpus/documents/{id}/units} & 200, 1000 & \code{limit}, \code{offset}, clamped; answers \code{total}, \code{offset}, \code{limit} \\
+\code{/api/jobs} & 100, 500 & \code{limit} only, clamped; newest first \\
+\code{/api/audit} & 100, 500 & a cursor: \code{before} and \code{beforeId}, taken from the \code{next} of the page before \\
+\code{/api/documents/{id}/text} & 20\,000, 100\,000 & a window of characters: \code{offset}, \code{limit}; answers \code{total} \\
+companies, chat threads, reports, work products, actions & --- & none; at most 500, 300, 200, 300 and 500 rows \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Filters are query parameters named after the field they filter (\code{companyId},
+\code{status}, \code{kind}, \code{jurisdiction}). \code{q} is a text search wherever it
+appears. \code{scope=own} narrows an administrator's list of companies or documents to the rows
+that are the administrator's own, which is what the chat assistant asks for; \code{scope=all}
+and \code{userId} on the usage routes widen an administrator's view the other way. A filter
+value outside its list is ignored by the corpus and obligation lists and refused with 400
+\code{INVALID_QUERY} by the jobs and usage lists; in the list of reports an unknown
+\code{status} matches nothing.
+
+\subsection{Languages}\label{sec:api:languages}
+
+The API itself has one language: its error sentences are English, and a client that shows its
+own wording keys it on \code{code}. Where a route produces text for a reader, the request says
+in which of the product's two languages. A report and a work product take \code{language},
+\code{lt} or \code{en}, Lithuanian when absent, and keep it for life. The export of the action
+register takes \code{language} as a query parameter. Obligation extraction takes
+\code{language: "en"} and is Lithuanian otherwise. A chat turn takes \code{locale} in its body;
+without it the \code{Accept-Language} header decides, English when it begins with \code{en} and
+Lithuanian in every other case (\code{turnLanguage} in the assistant service's
+\file{routes/chat.js}). The \code{language} of an act in the corpus is a fact about its text,
+not a choice of output.
+
+\subsection{Limits}\label{sec:api:limits}
+
+\paragraph{Rate limits.} Two things are rate-limited, both with a fixed window per key. The
+login counts attempts per client address --- \code{LOGIN_RATE_PER_IP}, 60 by default, in
+\code{LOGIN_WINDOW_S}~=~60 seconds --- and per account: \code{EMAIL_LIMIT}~=~10 attempts in
+\code{EMAIL_WINDOW_S}~=~600 seconds, a window the password check of
+\route{POST}{/api/auth/change-password} shares. The windows are rows of the table
+\code{rate_limit_windows} (\file{common/ratelimit.py}), so every process of the API counts
+together, and a refused attempt still counts. The chat allows \code{RATE_LIMIT_TURNS}~=~12
+turns per user in \code{RATE_LIMIT_WINDOW_MS}~=~60 seconds, counted in the memory of the
+assistant service; there a refused turn does not count. Both answer 429 \code{RATE_LIMITED}
+with a \code{Retry-After} header. No other route is rate-limited.
+
+\paragraph{The daily budget.} What bounds the costly routes is money, not request counts. Every
+user has a daily budget for model calls in US dollars (\code{LLM_DAILY_BUDGET_USD}, \$10.00 by
+default, or the account's own \code{dailyBudgetUsd}; an administrator's is unlimited unless
+set). A chat turn and a prompt test run are refused with 429 \code{BUDGET_EXCEEDED} once
+nothing remains; starting a report, approving its scope and starting a work product need
+\code{MIN_BUDGET_TO_START_USD}~=~\$0.25 left. The citation checker is the one route that
+degrades instead of refusing. \Cref{ch:models} describes how calls are priced and counted.
+
+\paragraph{Sizes.} The ingress caps no body; each service applies its own limits. The API
+reads a body other than an uploaded file up to \code{DATA_UPLOAD_MAX_MEMORY_SIZE}~=~8~MiB
+(\file{settings.py}); Django refuses a larger one before any route sees it. A company
+document may be 50~MiB (\code{MAX_FILE_BYTES}) and a file for the corpus 60~MiB
+(\code{MAX_UPLOAD_BYTES}); beyond that the upload answers 413 \code{FILE_TOO_LARGE}. An account
+may store \code{UPLOAD_QUOTA_FILES}~=~1000 documents and \code{UPLOAD_QUOTA_BYTES}~=~2~GiB in
+all; beyond that, 413 \code{QUOTA_EXCEEDED}. A stored chat message may be 400\,000 characters
+as JSON (413 \code{MESSAGE_TOO_LARGE}). The assistant service accepts 512~kB of JSON for a chat
+turn (413 \code{PAYLOAD_TOO_LARGE}). Text fields have their own caps, given in the tables where
+they matter.
+
+\begin{codebox}{Strict reading of JSON}
+The one reader of request bodies, \code{get_json_object} in \file{common/http.py}, accepts a
+JSON \emph{object} and nothing else. It refuses, as if no body had been sent:
+\begin{itemize}
+  \item an array or a bare value at the top;
+  \item \code{NaN} and \code{Infinity}, spelled out or reached by overflow (\code{1e999});
+  \item a NUL character or a lone UTF-16 surrogate in any key or string --- no database text
+    can hold them;
+  \item nesting deeper than \code{MAX_JSON_DEPTH}~=~32.
+\end{itemize}
+Most routes then answer 400 \code{INVALID_BODY}; a route whose body is optional reads a refused
+body as an empty one. Fields are read with typed readers: \code{strict_bool} takes a JSON
+boolean and never the string \code{"false"}, \code{bounded_int} takes a whole number within its
+range and never a string. A key a route does not know is ignored. In front of all routes,
+\code{RequestGuardMiddleware} (\file{common/middleware.py}) answers 400 \code{BAD_REQUEST} to a
+NUL character in the path or the query, and turns a value the database cannot take, one out
+of range or malformed, into 400
+\code{INVALID_VALUE} instead of a 500. A constraint of the database that a value breaks is
+left a 500 (\cref{tab:api:codes}).
+\end{codebox}
+
+
+% ============================================================
+\section{The routes of the API}\label{sec:api:routes}
+% ============================================================
+
+\file{urls.py} holds 83 URL patterns: 77 under \code{/api/}, listed in this section, and 6
+under \code{/internal/assistant/}, listed in \cref{sec:api:internal}. Counted by method, the 83
+patterns serve 119 method--path pairs. Each table below has one entry per pattern: the methods
+and the path on the first line, then who may call (\cref{tab:api:who}) and what the route does.
+In a path, \code{{id}} stands for the id of the row. \enquote{Errors} names the refusals
+particular to the route.
+
+Two boxes first sort the routes by the question this document asks of every part of the
+system: who is acting.
+
+\begin{aibox}{Routes that call a model before they answer}
+Almost every route that needs a model only queues a job and answers at once; the model is then
+called by the worker (\cref{ch:arch}). Five kinds of request wait for a model themselves:
+\begin{itemize}
+  \item \route{POST}{/api/corpus/check-citations} --- one call of the judge behind the citation
+    check, when the request says what a provision is claimed to be about (\cref{ch:company});
+  \item \route{POST}{/api/prompts/{slug}/test} --- one call with a prompt under test
+    (\cref{ch:prompts});
+  \item \route{POST}{/api/corpus/search} and \route{GET}{/api/documents/search} --- one
+    embedding of the query (\cref{ch:corpus});
+  \item \route{POST}{/api/obligations} and a \code{PATCH} that changes an obligation's title or
+    text --- one embedding of the obligation (\cref{ch:obligations});
+  \item \route{POST}{/api/assistant/chat} --- the chat turn itself (\cref{ch:chat}).
+\end{itemize}
+\end{aibox}
+
+\begin{humanbox}{Routes through which a person decides}
+The decisions the system never takes itself each enter through one route, are stamped with who
+decided and when, and are written to the audit trail: approving the scope of a report
+(\route{POST}{/api/reports/{id}/scope} with \code{approved: true}); overriding a finding and
+writing its cause (\route{PATCH}{/api/reports/{id}/findings/{fid}}); signing a report off
+(\route{PATCH}{/api/reports/{id}}); approving, correcting or rejecting an obligation
+(\route{PATCH}{/api/obligations/{id}}, \route{POST}{/api/obligations/review}); approving a work
+product (\route{PATCH}{/api/programme/{id}}); marking a credential as verified
+(\route{PATCH}{/api/companies/{id}/credentials/{cid}}, or the \code{POST} that files it with
+that status); closing an action by hand, with a note
+(\route{PATCH}{/api/actions/{id}}).
+\end{humanbox}
+
+\subsection{Health}\label{sec:api:health}
+
+One public probe says whether the API can do its work (\file{ops/api/views.py}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: health}\label{tab:api:health}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET HEAD}{/api/health}
+public & Readiness: the database answers a trivial query and the upload directory is writable.
+  200 with \code{status: "ok"}, \code{service: "legalops-django"}, \code{database},
+  \code{uploads}; or 503 with \code{status: "error"} and \code{reason}, the first check that
+  failed (\code{database} or \code{uploads}) --- which check, never why: the cause is in the
+  log. \\
+\end{xltabular}
+
+\subsection{Authentication}\label{sec:api:authroutes}
+
+The caller's own session (\file{users/api/auth_views.py}). A \code{user} in an answer is the
+account as \code{serialize_user} writes it: \code{id}, \code{email}, \code{displayName},
+\code{role}, \code{active}, \code{dailyBudgetUsd}, \code{createdAt}, \code{lastLoginAt}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: authentication}\label{tab:api:auth}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/api/auth/login}
+public & Body \code{email}, \code{password}. Answers \code{token} and \code{user}, and sets the
+  gate cookie. The e-mail is matched without regard to case. An unknown e-mail, a wrong
+  password and a deactivated account get the same answer, 401 \code{INVALID_CREDENTIALS}, at
+  the same cost in time. Successes and failures are audited. \emph{Errors:} 400
+  \code{MISSING_FIELDS}; 429 \code{RATE_LIMITED}. \\
+\addlinespace
+\apiroute{GET}{/api/auth/me}
+signed in & The caller's own \code{user}. The console calls it at every start; the assistant
+  service calls it to turn a token into a user. \\
+\addlinespace
+\apiroute{GET}{/api/auth/checkauth/admin}
+admin & The gate the ingress asks before a request to \code{/dbgate/}. The session is taken
+  from the token or, because a tool opened in the browser sends only cookies, from the gate
+  cookie. 200 with the \code{user} for an active administrator; 401 \code{AUTH_REQUIRED}; 403
+  \code{FORBIDDEN} for any other role. \\
+\addlinespace
+\apiroute{POST}{/api/auth/logout}
+signed in & Ends the session of the presented token and expires the gate cookie. Other devices
+  stay signed in. \\
+\addlinespace
+\apiroute{POST}{/api/auth/logout-all}
+signed in & Ends every session of the caller, the presented one included. Audited. \\
+\addlinespace
+\apiroute{POST}{/api/auth/change-password}
+signed in & Body \code{currentPassword}, \code{newPassword}. Every \emph{other} session of the
+  account ends. A password has at least 10 characters and at most 72 bytes. \emph{Errors:} 400
+  \code{WRONG_PASSWORD} (audited), \code{WEAK_PASSWORD}; 429 \code{RATE_LIMITED}. \\
+\end{xltabular}
+
+\subsection{Users}\label{sec:api:users}
+
+The directory of accounts, for administrators (\file{users/api/users_views.py}). Every change
+is audited. Two guards hold on every change of role or state and on deletion: the last active administrator can be neither
+demoted, deactivated nor deleted (400 \code{LAST_ADMIN}), and nobody can do any of these to
+their own account (400 \code{SELF_LOCKOUT}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: users}\label{tab:api:users}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/users}
+admin & \code{GET}: every account, deactivated ones included, oldest first, as \code{users}.
+  \code{POST}: body \code{email}, \code{displayName}, \code{password} and \code{role}
+  (\code{user} when absent); answers 201 with the account. The e-mail is stored in lower case.
+  \emph{Errors:} 400 \code{INVALID_EMAIL}, \code{MISSING_FIELDS}, \code{INVALID_ROLE},
+  \code{WEAK_PASSWORD}; 409 \code{EMAIL_TAKEN} (in any casing). \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/users/{id}}
+admin & \code{PATCH}: any of \code{displayName}, \code{role}, \code{active},
+  \code{dailyBudgetUsd} (0 to 10\,000; \code{null} means the default and 0 means unlimited).
+  \code{DELETE} deactivates the account and ends its sessions; the rows stay. \code{DELETE}
+  with \code{purge=true} deletes the account for good together with its companies, documents
+  and conversations, and answers what it removed. \emph{Errors:} 400 \code{EMPTY_UPDATE},
+  \code{INVALID_FIELD}; 409 \code{STILL_RUNNING} (a purge while a report of one of the
+  account's companies is queued or running). \\
+\addlinespace
+\apiroute{POST}{/api/users/{id}/reset-password}
+admin & Body \code{password}. Sets a new password for the account and ends all its
+  sessions. \emph{Errors:} 400 \code{WEAK_PASSWORD}. \\
+\end{xltabular}
+
+\subsection{Companies}\label{sec:api:companies}
+
+The company profile and what hangs on it: credentials, adopted standards and roles
+(\file{companies/api/company_views.py}, \file{companies/api/standard_views.py},
+\file{companies/api/role_views.py}). What
+these fields mean to a report is the subject of \cref{ch:company}. Every write is audited.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: companies, credentials, standards and roles}\label{tab:api:companies}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/companies}
+owner & \code{GET}: the caller's companies as \code{companies}, most recently updated first,
+  at most 500. \code{q} matches word by word against the name and the registration code;
+  punctuation, legal forms (UAB, LTD) and the word \enquote{company} are skipped.
+  \code{scope=own} narrows an administrator to their own. \code{POST}: \code{name} and any
+  profile fields; answers 201 with the company; the caller becomes its owner. \emph{Errors:}
+  400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET PUT DELETE}{/api/companies/{id}}
+owner & \code{GET}: the profile with its \code{credentials}, \code{standards}, \code{roles}
+  and \code{documents}. \code{PUT} is a partial update: any subset of the profile fields.
+  \code{DELETE} removes the company with its credentials, adopted standards, roles, reports and
+  work products; its documents are detached, not deleted. \emph{Errors:} 400
+  \code{INVALID_FIELD}; 409 \code{STILL_RUNNING} (a report or a work product is in work). \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/credentials}
+owner & A credential is a licence, certificate, permit or registration the company holds.
+  \code{POST}: \code{kind} (\code{certificate}, \code{license}, \code{permit},
+  \code{registration}), \code{name}, and optionally \code{issuer}, \code{identifier},
+  \code{validFrom}, \code{validTo}, \code{scope}, \code{notes}, \code{status},
+  \code{evidenceDocumentId}. A new credential is \code{claimed} unless the body says
+  \code{verified}. \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{PATCH DELETE}{/api/companies/{id}/credentials/{cid}}
+owner & \code{PATCH}: any subset of the same fields. Setting \code{status} to \code{verified}
+  stamps who verified it and when; \code{claimed} clears the stamp. The evidence must be one of
+  the company's own documents. \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/standards}
+owner & The standards the company has adopted. \code{POST}: \code{documentId} (a standard of
+  the corpus), \code{status} (\code{certified}, \code{implementing}, \code{planned};
+  \code{implementing} when absent), \code{scope}, \code{certificateId} (one of the company's
+  credentials), \code{notes}. \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409
+  \code{ALREADY_ADOPTED}. \\
+\addlinespace
+\apiroute{PATCH DELETE}{/api/companies/{id}/standards/{sid}}
+owner & \code{PATCH}: any of \code{status}, \code{scope}, \code{certificateId} (\code{null}
+  unlinks it), \code{notes}. The standard itself never changes through these routes. \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/roles}
+owner & A role is a position in the company, such as the compliance officer, described for the
+  chat assistant. \code{POST}: \code{name}, \code{context} (at most 6\,000 characters),
+  \code{sources} (at most 50 entries of \code{documentId}, \code{title}, \code{section}).
+  A source that names one of the company's documents, by id or by title, is stored and
+  returned with both.
+  \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409 \code{DUPLICATE_NAME}
+  (within the company). \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/companies/{id}/roles/{rid}}
+owner & \code{PATCH}: any of \code{name}, \code{context}, \code{sources}. Deleting a role
+  unlinks it from the chat threads that adopted it. \\
+\end{xltabular}
+
+The profile fields a company takes are \code{name}, \code{registrationCode}, \code{country},
+\code{legalForm}, \code{naceCodes}, \code{sector}, \code{sizeCategory}, \code{employees},
+\code{annualTurnoverEur}, \code{activities}, \code{usesAi}, \code{providesAi},
+\code{aiDescription}, \code{processesPersonalData}, \code{isPublicSector},
+\code{institutionType}, \code{financialMarket} and \code{attributes}. The four yes-or-no fields
+take \code{true}, \code{false} or \code{null}, and \code{null} means \emph{unknown}: the API
+never guesses one, and refuses the string \code{"false"} rather than read it as true.
+
+\subsection{Documents}\label{sec:api:documents}
+
+A company's documents: upload, search and reading (\file{companies/api/document_views.py};
+\cref{ch:company}). A document belongs to the user who uploaded it and may be attached to a
+company at upload or later.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: documents}\label{tab:api:documents}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/documents}
+owner & \code{GET}: \code{documents} and \code{total}, newest first, without their text;
+  filters \code{companyId}, \code{q} (the title), \code{scope=own}. \code{POST} is
+  \code{multipart/form-data}: \code{file}, and optionally \code{companyId}, \code{title} (the
+  file name when absent), \code{kind} (\code{policy}, \code{procedure}, \code{contract},
+  \code{register}, \code{other}). The text is extracted before the answer, 201 with the
+  document; its \code{extractionStatus} is \code{done}, \code{empty} (no text, as in a scanned
+  PDF) or \code{failed}. When there is text, the job \code{documents.index} is queued.
+  \emph{Errors:} 400 \code{MISSING_FILE}, \code{INVALID_FIELD}; 413 \code{FILE_TOO_LARGE},
+  \code{QUOTA_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET}{/api/documents/search}
+owner & Passages of the caller's documents that match \code{q} (required, at most 1\,000
+  characters), as \code{hits} with the document, the heading, the text and \code{charStart}.
+  \code{k} is the number of hits, 1 to 30, 8 when absent; \code{companyId}, \code{documentIds}
+  (comma-separated, at most 50) and \code{scope=own} narrow the search. \emph{Errors:} 400
+  \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/documents/{id}}
+owner & \code{GET}: the metadata with the \code{outline} (headings and their offsets) and the
+  \code{inventory}. \code{PATCH}: \code{companyId} (\code{null} detaches the document),
+  \code{title}, \code{kind}. \code{DELETE} removes the row and then the file. \emph{Errors:}
+  400 \code{EMPTY_UPDATE}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET}{/api/documents/{id}/text}
+owner & A window of the extracted text: \code{offset} (0 when absent) and \code{limit}
+  (20\,000 when absent, at most 100\,000). Answers \code{text}, \code{offset}, \code{limit},
+  \code{total} and \code{extractionStatus}. \emph{Errors:} 400 \code{INVALID_QUERY}. \\
+\end{xltabular}
+
+\subsection{Chat}\label{sec:api:chat}
+
+The API keeps the chat's threads and messages (\file{chat/api/views.py}); the turn itself is
+answered by the assistant service (\cref{sec:api:assistant}, \cref{ch:chat}). Threads are
+visible to their own user only.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: chat threads and messages}\label{tab:api:chat}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/chat/models}
+signed in & The models a conversation may answer with: \code{models}, the gateway's chat
+  models with \code{id}, \code{name} and \code{pricing}, and \code{default}, the model of the
+  active version of \prompt{chat.assistant}. The list is empty while the gateway cannot be
+  reached. \\
+\addlinespace
+\apiroute{GET POST}{/api/chat/threads}
+owner only & \code{GET}: the caller's threads that are not archived, most recently updated
+  first, at most 300; filter \code{companyId}. \code{POST}: optional \code{companyId} and
+  \code{title}; answers 201 with the thread. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/chat/threads/{id}}
+owner only & \code{PATCH}: \code{title} (at most 200 characters), \code{companyId}
+  (\code{null} unlinks the company; a change drops the role), \code{roleId} (a role of the
+  thread's company), \code{model} (one of the ids of \code{/api/chat/models}, or \code{null}
+  for the default). \code{DELETE} archives the thread; the rows stay. \emph{Errors:} 400
+  \code{UNKNOWN_MODEL}, \code{EMPTY_UPDATE}; 503 \code{MODELS_UNAVAILABLE}. \\
+\addlinespace
+\apiroute{GET POST}{/api/chat/threads/{id}/messages}
+owner only & \code{GET}: the history, a bare list of rows \code{id}, \code{parent_id},
+  \code{format}, \code{content}. \code{POST} stores or replaces one message by its id within
+  the thread and answers \code{ok}, \code{created} and \code{autoTitle} (whether the thread
+  still carries the title it gave itself). Only the user's own messages may be written here;
+  the assistant's replies come through the internal door. \emph{Errors:} 403
+  \code{ROLE_NOT_ALLOWED}; 409 \code{MESSAGE_ID_TAKEN}; 413 \code{MESSAGE_TOO_LARGE}. \\
+\end{xltabular}
+
+\subsection{The legal corpus}\label{sec:api:corpus}
+
+Acts, their versions and provisions, search, and the citation checker
+(\file{corpus/api/views.py}; \cref{ch:corpus}). Reading is open to everyone signed in; a user
+gets 404 for an act that is not enabled. Writing is for administrators and audited. No route
+here ingests anything itself: the routes that process an act queue a job and answer 202 with
+it (\cref{sec:api:client}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: the legal corpus}\label{tab:api:corpus}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/corpus/documents}
+signed in; \code{POST}: admin & \code{GET}: the catalogue as \code{documents}, each act with its
+  current version, status, last error and number of obligations; filters \code{q},
+  \code{jurisdiction}, \code{docType}, \code{domain}. \code{POST} adds an act: \code{title},
+  \code{jurisdiction} (\code{EU}, \code{LT}, \code{INTL}), \code{sourceKind} (\code{cellar},
+  \code{etar}, \code{eseimas}, \code{lb}, \code{url}, \code{upload}; \code{upload} when absent)
+  and, as the source needs, \code{externalId} or an https \code{sourceUrl}; also \code{shortTitle}, \code{titleEn},
+  \code{docType}, \code{language}, \code{domains}, \code{appliesTo},
+  \code{applicabilityNotes}, \code{status}, \code{enabled}. An act with a source that can be
+  fetched queues its ingestion at once; an \code{upload} act waits for its file.
+  \emph{Errors:} 400 \code{INVALID_FIELD}; 409 \code{SLUG_TAKEN}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/corpus/documents/{id}}
+signed in; \code{PATCH}, \code{DELETE}: admin & \code{GET}: the act with its \code{versions}
+  and \code{latestJob}, and what the models read from the current version's own text:
+  \code{scopeReading} (\code{types}, \code{reasoning}, \code{readAt}) and
+  \code{sanctionsReading} (\code{tiers} --- the number of tiers, \code{note}, \code{readAt}), each
+  \code{null} until it is read. \code{PATCH} edits the same fields. \code{DELETE} removes the act with
+  every version, unit, chunk and stored file. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/refresh}
+admin & Queues a fetch and ingestion. \code{force} processes the text again even when the
+  source is unchanged; \code{structure} (\code{auto}, \code{rules}, \code{ai}, \code{pages};
+  for a standard only) says how the standard's structure is read this time. Answers 202 with
+  the job --- the one already queued or running, when there is one. \emph{Errors:} 400
+  \code{INVALID_FIELD}; 409 \code{NO_FILE} (an \code{upload} act without a file). \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/upload}
+admin & \code{multipart/form-data} with \code{file}: the file becomes a new version and its
+  ingestion is queued; 202 with the job. \emph{Errors:} 400 \code{MISSING_FILE}; 409
+  \code{UNCHANGED} (the same bytes as the current version); 413 \code{FILE_TOO_LARGE}. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/documents/{id}/units}
+signed in & The provisions of the current version, or of \code{version}, in the order of the
+  act, with shortened texts: \code{units}, \code{total}, \code{offset}, \code{limit}. Filters
+  \code{type} (a comma-separated list of unit types) and \code{q}. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/units/{id}}
+signed in & One provision in full, with its act, \code{versionNo}, \code{isCurrent} and
+  \code{citationUrl}, the link to the official text. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/provision}
+signed in & The exact text of one provision, found by reference: \code{document} (a short
+  title, slug, id or official number), \code{article} (or \code{clause}, for a standard),
+  \code{paragraph}, \code{type}. An inserted article is found however its number is written
+  (\enquote{12-1}, \enquote{12¹}, \enquote{12(1)}). 404 when the corpus holds no such
+  provision. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/search}
+signed in & Search over the current versions. Body \code{query}, and optionally \code{k} (1 to
+  30, 8 when absent), \code{documents} (at most 50 acts, each named as any lookup of an act
+  takes it --- id, slug, short title or CELEX number, whatever the case; a name that means no
+  act narrows the search to nothing), \code{jurisdiction}, \code{kind} (\code{acts} or
+  \code{standards}). Answers \code{hits}.
+  \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/check-citations}
+signed in & The citation checker. Body \code{citations}, 1 to 50 items of \code{act},
+  \code{article} and optionally \code{paragraph}, \code{point}, \code{claimedHeading}, each at
+  most 300 characters. Answers \code{results}, one per citation in order: \code{status}
+  (\code{found}, \code{not_found}, \code{act_not_in_corpus}), the provision found,
+  \code{headingMatch} (\code{match}, \code{mismatch}, \code{unknown}) and \code{judgedBy}
+  (\code{model}, \code{overlap} or \code{null}). When the caller's budget is spent, or the
+  model call fails, the claim is judged by word overlap instead of the model; the check itself
+  never stops. \emph{Errors:}
+  400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/reembed}
+admin & Queues the re-embedding of one act (\code{documentId}) or, without it, of all; 202
+  with the job. Needed only after the embedding model changes. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/refresh-all}
+admin & Queues a check of every source for a new version; 202 with the job. \\
+\end{xltabular}
+
+\subsection{Obligations}\label{sec:api:obligations}
+
+The register of obligations and its review (\file{corpus/api/obligation_views.py};
+\cref{ch:obligations}). Everyone signed in may read; only an administrator changes an
+obligation, and every change is audited.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: obligations}\label{tab:api:obligations}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/obligations}
+signed in; \code{POST}: admin & \code{GET}: \code{obligations} and \code{total}. Filters
+  \code{document}, \code{status} (\code{proposed}, \code{approved}, \code{rejected}; one, or
+  several with commas between), \code{category}, \code{q}, and \code{verification}, the judge's verdict: \code{supported},
+  \code{partly}, \code{unsupported}, \code{doubt} (the last two together) or \code{unchecked}.
+  \code{order=review} puts the doubted first and the gravest first among them. \code{POST}
+  enters an obligation by hand: \code{title}, \code{text}, optionally \code{documentId} and the
+  editable fields below; it is stored with the source \code{standard}, approved at once.
+  \emph{Errors:} 400 \code{INVALID_QUERY}, \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/obligations/review}
+admin & The bulk decision: \code{ids} (1 to 500) and \code{status}. Each obligation is stamped
+  with the reviewer; one audit row lists them. Answers \code{updated} and \code{status}.
+  \emph{Errors:} 400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/obligations/{id}}
+signed in; \code{PATCH}, \code{DELETE}: admin & \code{PATCH}: any of \code{title},
+  \code{titleEn}, \code{text}, \code{textEn}, \code{addressee}, \code{conditions},
+  \code{evidence}, \code{deadline}, \code{notes}, \code{category}, \code{severity},
+  \code{appliesTo}, \code{status}. Setting \code{status} stamps the reviewer. A changed title
+  or text is embedded again and loses the judge's verdict, which was given on other words.
+  \emph{Errors:} 400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/extract-obligations}
+admin & Queues the extraction of obligations from the act's current version; \code{language}.
+  202 with the job, or with the one already at work. \emph{Errors:} 409 \code{NOT_INGESTED}
+  (the act has no version yet). \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/verify-obligations}
+admin & Queues the judge over the obligations of the current version that it has not judged
+  yet --- all of them with \code{again: true}. 202 with the job, or with the one already at
+  work. \emph{Errors:} 400 \code{INVALID_FIELD}; 409 \code{NOT_INGESTED}. \\
+\end{xltabular}
+
+\subsection{Reports}\label{sec:api:reports}
+
+Starting a compliance report, the scope review, the review of findings, the sign-off and the
+exports (\file{analysis/api/views.py}; \cref{ch:report}). A report follows its company: its
+owner and administrators see it. One report per company is in work at a time.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: reports}\label{tab:api:reports}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/reports}
+owner & \code{GET}: \code{reports}, newest first, at most 200, each with its job's
+  \code{jobStatus} and \code{progress}; filters \code{companyId} and \code{status} (the
+  report's state), and \code{scope=own}, which narrows an administrator to the reports of
+  their own companies --- all applied before the list is cut to its 200. \code{POST} starts a report:
+  \code{companyId}, \code{language}, and optionally \code{documentIds} (at most 200 enabled
+  acts, to restrict the report to them), \code{review} (stop for the scope review) and
+  \code{internal} (also assess the company's own requirements). Answers 201 with the queued
+  report; the job is \code{report.analyze}. \emph{Errors:} 400 \code{INVALID_FIELD}; 409
+  \code{CORPUS_EMPTY}, \code{ALREADY_RUNNING} (also while a report of the company waits for
+  its scope); 429 \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET}{/api/reports/estimate}
+owner & What a report of \code{companyId} would cost now, as an upper bound in US dollars,
+  with the caller's \code{budget}; \code{documentIds} and \code{internal=true} as for the
+  start. \emph{Errors:} 400 \code{INVALID_FIELD} for \code{documentIds} the start would
+  refuse (an act that is not in the corpus, or disabled); 404 \code{NOT_FOUND}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/reports/{id}}
+owner & \code{GET}: the whole report --- \code{acts}, \code{findings}, \code{actions},
+  \code{citations}, \code{summary}, \code{stats}, the approvals, and the job's status and
+  progress. \code{PATCH} is the sign-off: \code{approved} (\code{true} or \code{false}) and
+  \code{note}; the answer adds \code{register}, what the sign-off moved in the action
+  register. \code{DELETE} first withdraws a sign-off. \emph{Errors:} 400
+  \code{MISSING_FIELDS}; 409 \code{NOT_FINISHED} (sign-off), \code{STILL_RUNNING} (delete). \\
+\addlinespace
+\apiroute{POST}{/api/reports/{id}/cancel}
+owner & Stops a report that is queued or running, and cancels at once one that waits for its
+  scope. \emph{Errors:} 409 \code{NOT_CANCELLABLE}. \\
+\addlinespace
+\apiroute{POST}{/api/reports/{id}/scope}
+owner & The scope review of a report that waits in \code{scope_review}. Body \code{acts}, a
+  map from an act's id in the report to \code{assess} or \code{skip} (an act not named keeps
+  what the run decided), and \code{approved}. Without \code{approved} nothing is stored and the
+  answer prices the selection: \code{estimate} and \code{budget}. With \code{approved: true}
+  the choices are applied, the approval is stamped and audited with every change, and the job
+  is queued for the second part; the answer is the report. \emph{Errors:} 400
+  \code{INVALID_FIELD}, \code{NOTHING_TO_ASSESS}; 409 \code{NOT_WAITING}; 429
+  \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{PATCH}{/api/reports/{id}/findings/{fid}}
+owner & A person's verdict on one finding: \code{overrideStatus} (\code{met}, \code{partial},
+  \code{missing}, \code{unknown}, \code{not_applicable}, or \code{null} to clear it),
+  \code{reviewerNote} (4\,000 characters), \code{cause} (2\,000). Any of them withdraws a
+  sign-off; the report's counts are made again. Audited. \emph{Errors:} 400
+  \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET}{/api/reports/{id}/export}
+owner & The finished report as a file: \code{format} is \code{pdf} (when absent) or
+  \code{xlsx}. Audited. \emph{Errors:} 400 \code{INVALID_QUERY}; 409 \code{NOT_FINISHED}. \\
+\end{xltabular}
+
+\subsection{The action register and changes in the law}\label{sec:api:actions}
+
+What lives on after a report is signed off (\file{analysis/api/views.py},
+\file{analysis/register.py}; \cref{ch:register}). The register itself moves only on a sign-off;
+these routes read it and let a person work on single actions.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: the action register and changes in the law}\label{tab:api:actions}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/companies/{id}/actions}
+owner & The company's action register: \code{actions} (at most 500), the late ones first, then
+  the other open ones by due date, then those done and closed; and \code{counts} by state
+  (\code{late}, \code{open}, \code{in_progress}, \code{done}, \code{closed}). \\
+\addlinespace
+\apiroute{GET}{/api/companies/{id}/actions/export}
+owner & The register as a workbook (\code{.xlsx}); \code{language}. Audited. \\
+\addlinespace
+\apiroute{PATCH}{/api/actions/{id}}
+owner & A person's hand on one action: \code{status} (\code{open}, \code{in_progress},
+  \code{done}, \code{closed}), \code{owner}, \code{dueDate}, \code{note}. Audited.
+  \emph{Errors:} 400 \code{INVALID_FIELD}, \code{NOTE_REQUIRED} (closing by hand without a
+  note); 409 \code{CLOSED_BY_REPORT} (reopening an action a signed-off report closed). \\
+\addlinespace
+\apiroute{GET}{/api/companies/{id}/law-changes}
+owner & For the company's latest finished report: the assessed acts that have a newer version
+  since, their changed provisions, and the findings that rest on them. Answers
+  \code{reportId}, \code{reportDate}, \code{acts}. \\
+\end{xltabular}
+
+\subsection{Programme}\label{sec:api:programme}
+
+The work products of a company --- kinds \code{policy}, \code{governance} and \code{risks}
+(\file{programme/api/views.py}; \cref{ch:programme}). Tenancy follows the company. One product
+of a kind is generated at a time per company.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: work products}\label{tab:api:programme}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/companies/{id}/programme}
+owner & \code{GET}: \code{products}, by kind and newest version first, without their content,
+  each with its job's status and progress; and \code{kinds}, the three kinds with their titles
+  and what each builds on. \code{POST}: \code{kind} and \code{language}; starts the generation
+  of a new version (job \code{programme.generate}) and answers 201 with the queued product.
+  \emph{Errors:} 400 \code{INVALID_FIELD}; 409 \code{NO_DOCUMENTS} (the company has no
+  readable document), \code{ALREADY_RUNNING}; 429 \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/programme/{id}}
+owner & \code{GET}: the product with its \code{content}. \code{PATCH} with
+  \code{approved: true} and optionally \code{note} is a person's approval of a draft.
+  \code{DELETE} removes a version. \emph{Errors:} 400 \code{MISSING_FIELDS}; 409
+  \code{NOT_DRAFT}, \code{RULES_BROKEN} (a blocking rule of the kind is broken; the sentence
+  names the rules), \code{STILL_RUNNING} (delete). \\
+\addlinespace
+\apiroute{PUT}{/api/programme/{id}/content}
+owner & A person's edit of a draft, sent whole as \code{content}. The content is checked
+  against the rules of its kind without a model call, and the answer is the product as stored,
+  with what is derived computed again. \emph{Errors:} 400 \code{MISSING_FIELDS},
+  \code{INVALID_FIELD}; 409 \code{NOT_DRAFT}, \code{UNKNOWN_KIND}. \\
+\addlinespace
+\apiroute{POST}{/api/programme/{id}/revise}
+owner & A new draft, one version higher, copied from an approved product, which stays as
+  approved; 201. \emph{Errors:} 409 \code{NOT_APPROVED}, \code{NEWER_VERSION}. \\
+\addlinespace
+\apiroute{POST}{/api/programme/{id}/cancel}
+owner & Stops a generation that is queued or running. \emph{Errors:} 409
+  \code{NOT_CANCELLABLE}. \\
+\addlinespace
+\apiroute{GET}{/api/programme/{id}/chart}
+owner & The structure of a governance product drawn as an organisation chart,
+  \code{image/svg+xml}. 404 when the product has no structure. \\
+\addlinespace
+\apiroute{GET}{/api/programme/{id}/export}
+owner & The product as a file: \code{format} is \code{pdf} for every kind, also \code{docx}
+  for a policy and \code{xlsx} for a risk register. A draft exports as well as an approved
+  product. Audited. \emph{Errors:} 400 \code{INVALID_QUERY}; 409 \code{NOT_READY}. \\
+\end{xltabular}
+
+\subsection{Prompts}\label{sec:api:prompts}
+
+The store of prompts and their versions, for administrators (\file{prompts/api/views.py};
+\cref{ch:prompts}). Every write and every test run is audited. The list of models that feeds
+the editor's model picker stands in \file{assistant/api/mcp_views.py}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: prompts and models}\label{tab:api:prompts}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/prompts}
+admin & Every prompt as \code{prompts}: \code{slug}, \code{name}, \code{kind},
+  \code{variables}, \code{activeVersion}, \code{activeModel}, \code{pendingDefault}. \\
+\addlinespace
+\apiroute{GET}{/api/prompts/{slug}}
+admin & One prompt with its \code{versions}, newest first, each with its text. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/versions}
+admin & Appends a version: \code{text} (at most 60\,000 characters), \code{model}, and
+  optionally \code{temperature} (0 to 2), \code{maxTokens} (1 to 128\,000), \code{note} (500
+  characters), \code{activate}. Answers 201 with the version. \emph{Errors:} 400
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/versions/{n}/activate}
+admin & Makes version \code{n} the active one; answers the prompt. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/test}
+admin & One model call with a stored version (\code{versionNo}; the active one when absent)
+  or an unsaved draft (\code{text}, \code{model}) as the instructions and \code{input} (at most
+  200\,000 characters) as the data, on the output schema of the prompt's step when the prompt
+  has one; \code{variables} fill the
+  placeholders. Answers \code{text}, \code{object}, \code{model}, \code{finishReason},
+  \code{usage}, \code{costUsd}, \code{durationMs}, \code{renderedInstructions}. A call that answers is
+  charged to the caller's budget and logged as a model call; a failed one is only audited.
+  \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD};
+  429 \code{BUDGET_EXCEEDED}; 502 \code{MODEL_ERROR}. \\
+\addlinespace
+\apiroute{GET}{/api/llm/models}
+admin & The models the gateway offers, as the assistant service reports them: \code{providers}
+  and \code{models}, each with \code{id}, \code{name}, \code{kind} (\code{chat} or
+  \code{embedding}), \code{contextLength}, \code{maxOutputTokens} and \code{pricing}. \\
+\end{xltabular}
+
+\subsection{MCP servers}\label{sec:api:mcp}
+
+The registry of external tool servers whose tools the chat assistant may call, for
+administrators (\file{assistant/api/mcp_views.py}; \cref{ch:chat}). A server's header values
+are credentials: they are never returned, only their names (\code{headerNames}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: MCP servers}\label{tab:api:mcp}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/mcp/servers}
+admin & \code{POST}: \code{name} (2 to 31 characters: lower-case letters, digits and the
+  underscore, a letter first), \code{url}, and optionally \code{transport} (\code{http} or
+  \code{sse}), \code{headers} (at most 10), \code{allowedTools} (empty means every tool of the
+  server), \code{description}, \code{enabled}. The URL must be https on the standard port to a
+  public DNS name --- no address, no container or local name, no credentials in it. A new
+  server starts disabled. \emph{Errors:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409
+  \code{DUPLICATE_NAME}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/mcp/servers/{id}}
+admin & \code{PATCH}: any subset of the same fields. Headers are merged: a value of
+  \code{null} removes that header and the others are kept. A server whose stored URL breaks
+  the rule cannot be enabled. \emph{Errors:} 400 \code{INVALID_FIELD}; 409
+  \code{DUPLICATE_NAME}. \\
+\addlinespace
+\apiroute{POST}{/api/mcp/servers/{id}/test}
+admin & The assistant service connects to the server and lists its tools. The answer is always
+  200 with the server and \code{ok}: on success \code{tools} holds the listing, on failure
+  \code{lastError} says why. Audited either way. \emph{Errors:} 400 \code{INVALID_FIELD} (the
+  stored URL breaks the rule). \\
+\end{xltabular}
+
+\subsection{Jobs}\label{sec:api:jobs}
+
+The monitor of the worker's queue (\file{jobs/api/views.py}; \cref{ch:arch}). A user sees the
+jobs they caused, an administrator all.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: jobs}\label{tab:api:jobs}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/jobs}
+owner & \code{jobs}, newest first; filters \code{status}, \code{kind}, \code{subject};
+  \code{limit}. A job about an act carries the act's name as \code{subjectTitle}.
+  \emph{Errors:} 400 \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/jobs/counts}
+owner & How many jobs the caller can see in each status: \code{queued}, \code{running},
+  \code{done}, \code{failed}, \code{cancelled}. \\
+\addlinespace
+\apiroute{GET}{/api/jobs/{id}}
+owner & One job with its \code{steps}: for each, its name, status, duration, error, the prompt
+  version it ran on, and what its model calls used (\code{usage}). \\
+\addlinespace
+\apiroute{POST}{/api/jobs/{id}/cancel}
+owner & A queued job is cancelled at once; a running one gets \code{cancelRequested} and stops
+  at its next check. Audited. \emph{Errors:} 409 \code{NOT_CANCELLABLE} (already finished). \\
+\end{xltabular}
+
+\subsection{Usage}\label{sec:api:usage}
+
+What the model calls cost, per day and per person (\file{assistant/api/usage_views.py};
+\cref{ch:models}). Everyone reads their own usage. An administrator widens the view to every
+account with \code{scope=all} or looks at one account with \code{userId}; a user who asks for
+either gets 403 \code{FORBIDDEN}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: usage}\label{tab:api:usage}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/usage}
+own; admin: wider & The last \code{days} days (1 to 366, 30 when absent) in UTC, a row for
+  every day: \code{days}, \code{byKind}, \code{byModel}, \code{totals}, \code{from},
+  \code{to}; \code{byUser} in an administrator's wide view; and \code{budget} --- today's
+  \code{limit}, \code{used} and \code{remaining} of the account looked at (\code{remaining} is
+  \code{null} when unlimited). \emph{Errors:} 400 \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/usage/calls}
+own; admin: wider & The log of model calls, newest first: \code{calls} and \code{total};
+  filter \code{kind} (\code{chat}, \code{job_step}, \code{embed}, \code{prompt_test}). Each
+  call carries its model, tokens (input, read from the cache, written to it, output,
+  reasoning), \code{costUsd}, duration and outcome. \emph{Errors:} 400 \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/usage/calls/{id}}
+own; admin: all & One call with its \code{toolCalls} and, for a chat turn, the
+  \code{transcript}: what the user asked and what the assistant answered. \\
+\end{xltabular}
+
+\subsection{Audit}\label{sec:api:audit}
+
+The trail of who did what (\file{audit/api/views.py}; \cref{ch:security}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: audit}\label{tab:api:audit}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/audit}
+admin & \code{entries}, newest first, each with \code{id}, \code{userId}, \code{userName},
+  \code{action}, \code{targetType}, \code{targetId}, \code{details}, \code{ip},
+  \code{createdAt}; and \code{next}. Filters: \code{action}, a prefix (\code{users.} for every
+  change of an account), and \code{user}, one account's id. \code{next} holds \code{before} and
+  \code{beforeId} for the following page, to be passed back as they are, and is \code{null}
+  after the last page. \emph{Errors:} 400 \code{INVALID_QUERY}. \\
+\end{xltabular}
+
+
+% ============================================================
+\section{The assistant service's public routes}\label{sec:api:assistant}
+% ============================================================
+
+The assistant service answers three routes to the outside, all under
+\code{/api/assistant/chat} (in the assistant service, \file{routes/chat.js}; mounted in
+\file{app.js}). They take the same token as the API: the service resolves it by calling
+\route{GET}{/api/auth/me} and remembers the answer for 15 seconds. What happens inside a turn
+--- the prompt, the tools, the model --- is the subject of \cref{ch:chat}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: the assistant service, public}\label{tab:api:assistant}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/api/assistant/chat}
+signed in, own thread & One chat turn. The body carries one new message of the user; the
+  conversation before it is read from the API. The answer is a stream
+  (\code{text/event-stream}) in the format of the chat runtime's UI messages. \\
+\addlinespace
+\apiroute{POST}{/api/assistant/chat/{threadId}/stop}
+signed in, own thread & Stops the caller's live turn in that thread. Answers \code{stopped},
+  \code{true} or \code{false}; the partial reply is stored with the status \code{stopped}. A
+  thread of another user reads as nothing to stop. \\
+\addlinespace
+\apiroute{GET}{/api/assistant/chat/{threadId}/status}
+signed in, own thread & Whether the thread has a live turn: \code{running} and
+  \code{startedAt}. The console polls it after a page is reloaded in the middle of an answer.
+  Never cached. \\
+\end{xltabular}
+
+\paragraph{The body of a turn.} \code{readTurnBody} accepts this shape and rebuilds it field
+by field, so that nothing unexpected reaches the API or the model:
+
+\begin{codeblock}
+{"id": "<thread id>",
+ "trigger": "submit-message" | "regenerate-message",
+ "message": {"id": "<message id>", "role": "user",
+             "parts": [{"type": "text", "text": "..."},
+                       {"type": "data-document", "data": {"id": "<document id>", "title": "...",
+                        "kind": "...", "charCount": 1234, "extractionStatus": "done"}}],
+             "metadata": {...}},
+ "parentId": "<message id>" | null,
+ "locale": "lt" | "en"}
+\end{codeblock}
+
+The thread id must be a uuid; \code{trigger} is \code{submit-message} when absent; the
+message's optional \code{metadata} is kept only while it is an object of at most 2\,000
+characters as JSON. A message has 1 to 30 parts (\code{MAX_PARTS}); the text parts together hold at most
+\code{MAX_MESSAGE_CHARS}~=~60\,000 characters. A \code{data-document} part is a marker for a
+document uploaded beforehand through \route{POST}{/api/documents}; a file itself is never part
+of a message. The message id is chosen by the client, from letters, digits and
+\code{_ . : -}, at most 128 characters.
+
+\paragraph{Before the stream.} The body parser comes first: 400 \code{INVALID_JSON} for a
+body that is not JSON, 413 \code{PAYLOAD_TOO_LARGE} beyond 512~kB. Then a turn passes its
+gates in a fixed order, and a failure at any of them is an ordinary JSON error in the
+assistant service's envelope: the token (401 \code{AUTH_REQUIRED} without one,
+\code{SESSION_INVALID} for a dead one); a configured model (503 \code{NOT_CONFIGURED}); the
+rate limit (429 \code{RATE_LIMITED}); the body (400 \code{INVALID_BODY}, \code{INVALID_THREAD},
+\code{INVALID_TRIGGER}, \code{INVALID_MESSAGE}, \code{INVALID_PARENT}, \code{INVALID_PART},
+\code{INPUT_TOO_LARGE}, \code{EMPTY_MESSAGE}); the daily budget (429 \code{BUDGET_EXCEEDED};
+a budget check that fails lets the turn through); an active version of \prompt{chat.assistant} (503
+\code{PROMPT_NOT_CONFIGURED}, or \code{PROMPT_UNAVAILABLE} when it cannot be loaded); and the
+thread, fetched from the API as the user (404 \code{THREAD_NOT_FOUND}). When the API cannot be
+reached the answer is 502 \code{DJANGO_UNREACHABLE}; any other refusal of the API passes
+through with the API's own status and code. A service that is shutting down answers 503
+\code{SHUTTING_DOWN}.
+
+\paragraph{Inside the stream.} Once the stream has begun the HTTP status is 200 whatever
+happens, and a failure arrives as an error chunk of the stream carrying a code:
+\code{MODEL_TIMEOUT} (a turn runs at most \code{CHAT_TIMEOUT_MS}~=~900 seconds),
+\code{AI_BUDGET_EXHAUSTED} (the gateway's own budget is spent), \code{MODEL_UNAVAILABLE} (a
+passing failure: trying again later can help), \code{MODEL_REFUSED},
+\code{MODEL_CONTEXT_EXCEEDED}, \code{MODEL_CONTENT_FILTERED}, \code{MODEL_ACCESS_DENIED}, or
+\code{STREAM_FAILED} for anything else. The turn does not depend on the connection: if the
+browser leaves, the answer is still completed and stored, and the reply's metadata records how
+the turn ended when it did not end well (\code{stopped}, \code{interrupted}, \code{timeout},
+\code{budget}, \code{error}, or the kind of closing line the service had to add:
+\code{step-limit}, \code{length}, \code{content-filter}, \code{empty}).
+
+
+% ============================================================
+\section{The internal doors}\label{sec:api:internal}
+% ============================================================
+
+The API and the assistant service need each other: the worker and the API ask the assistant
+service for every model call, and the assistant service asks the API for the chat's prompt and
+budget and hands it the replies. These calls go through two \term{internal doors}, the paths
+under \code{/internal/} of each service (\cref{fig:api:doors}). Neither door can be reached from
+outside, for two independent reasons:
+
+\begin{itemize}
+  \item \emph{No path leads there.} The ingress forwards \code{/api/assistant/*} to the
+    assistant service and \code{/api/*} to the API, and nothing else to either. A request for
+    \code{/internal/...} from outside falls into the third family and is answered by the web
+    server of the console. The two services publish no port of their own.
+  \item \emph{The shared secret.} Every internal route demands the header
+    \code{X-Internal-Secret}, which must equal the value both services receive as
+    \code{ASSISTANT_INTERNAL_SECRET} when the installation starts. The comparison takes
+    constant time, and a service whose secret is empty refuses every internal request: the
+    door fails closed. The refusal is 403 \code{INTERNAL_ONLY} (\code{require_internal} in
+    \file{assistant/api/internal_views.py}; in the assistant service, \code{requireInternal}
+    in \file{middleware/internal.js}, which runs before the body is even parsed).
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=8mm and 50mm]
+  \node[svc, minimum width=34mm, minimum height=22mm] (django) {the API\\and the worker\\(Django)};
+  \node[svc, minimum width=34mm, minimum height=22mm, right=of django] (assistant) {assistant\\service};
+  \node[ext, right=14mm of assistant] (gw) {gateway};
+  \draw[call] ([yshift=7mm]django.east) -- ([yshift=7mm]assistant.west)
+    node[lbl, midway, above=1pt] {\code{/internal/llm/*}, \code{/internal/mcp/*}};
+  \draw[call] (assistant.west) -- (django.east)
+    node[lbl, midway] {\code{/internal/assistant/*}};
+  \draw[flow] ([yshift=-7mm]assistant.west) -- ([yshift=-7mm]django.east)
+    node[lbl, midway, below=1pt] {\code{/api/*} with the user's token};
+  \draw[call] (assistant) -- (gw);
+  \begin{scope}[on background layer]
+    \node[lane, fit=(django)(assistant), inner ysep=9mm] (lane) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (lane.north west) {isolated network};
+  \node[note, anchor=north west] at ([yshift=-1mm]lane.south west) {between the two services --- dashed: the header \code{X-Internal-Secret} is required; solid: the public API, under the user's own rights};
+\end{tikzpicture}
+\caption{The internal doors. The API and its worker call the assistant service for every
+model call; the assistant service calls back for what only the API knows. Whatever concerns a
+user's own data the assistant service fetches through the public routes with that user's
+token, so the tenancy rule is applied in one place.}\label{fig:api:doors}
+\end{figure}
+
+\subsection{The door of the API}\label{sec:api:door-django}
+
+Six routes under \code{/internal/assistant/} serve the assistant service
+(\file{assistant/api/internal_views.py}). Their field names are snake\_case.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: the internal door of the API}\label{tab:api:door-django}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/internal/assistant/prompt}
+the secret & The active version of the prompt named by \code{slug}, with its text, model and
+  settings. 404 \code{PROMPT_NOT_CONFIGURED} when the prompt has no active version --- the chat
+  then answers 503 rather than run on instructions nobody can see. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/turn-log}
+the secret & One row of the usage log for a chat turn: \code{user_id}, \code{thread_id},
+  \code{model}, \code{prompt_version_id}, the token counts (\code{input_tokens},
+  \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens},
+  \code{reasoning_tokens}), \code{duration_ms}, \code{tool_calls}, \code{outcome} and the
+  \code{transcript} (the user's text cut to 20\,000 characters, the answer to 100\,000).
+  The API computes the cost. Answers 201 with \code{id} and the user's \code{budget}. \\
+\addlinespace
+\apiroute{GET}{/internal/assistant/budget}
+the secret & Today's budget of the user \code{user_id}: \code{limit}, \code{used},
+  \code{remaining} (\code{null} when unlimited), \code{unit}. Asked before every turn. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/threads/{id}/messages}
+the secret & Stores one reply of the assistant: \code{user_id}, \code{id}, \code{parent_id},
+  \code{format}, \code{content}. This is the only writer of assistant messages, so a browser
+  can never forge the output of a tool. The thread must belong to \code{user_id} (404
+  otherwise). 201 when the message is new, 200 when it replaces one. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/threads/{id}/title}
+the secret & The title a model wrote for a thread: \code{user_id}, \code{title}. It is applied
+  only while the thread still carries its automatic title, so a title the user set stays.
+  Answers \code{ok} and \code{applied}. \\
+\addlinespace
+\apiroute{GET}{/internal/assistant/mcp-servers}
+the secret & The enabled MCP servers \emph{with} their header values --- the only place those
+  credentials leave the API. A server whose stored URL breaks the address rule is left out. \\
+\end{xltabular}
+
+\subsection{The door of the assistant service}\label{sec:api:door-assistant}
+
+Four routes under \code{/internal/} serve the API and its worker (in the assistant service,
+\file{routes/internal.js} and \file{routes/internalMcp.js}); the client on the API's side is
+\file{assistant/gateway.py}. They are the system's only way to a model, and \cref{ch:models}
+describes them in full. A fifth route, \code{/health}, needs no secret and is not forwarded by
+the ingress either.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Routes: the internal door of the assistant service}\label{tab:api:door-assistant}\\
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endfirsthead
+\toprule \hd{Who} & \hd{What the route does} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/internal/llm/generate}
+the secret & One model call. Body \code{prompt}, and optionally \code{system}, \code{shared},
+  \code{model}, \code{schema}, \code{schemaName}, \code{temperature}, \code{maxOutputTokens}.
+  Answers \code{model}, \code{text} or \code{object} (with a schema, the answer checked against
+  it), \code{finishReason}, \code{usage}, \code{durationMs}. A call is given up after
+  \code{GENERATE_TIMEOUT_MS} (900 seconds by default). \emph{Errors:} 400 for a malformed
+  request; 402 \code{AI_BUDGET_EXHAUSTED} when the gateway's own budget is spent; otherwise
+  \code{GENERATION_FAILED} with the gateway's status, or 502 --- and 429 with
+  \code{retryAfterS} for a rate limit. \\
+\addlinespace
+\apiroute{POST}{/internal/llm/embed}
+the secret & Embeddings for \code{texts}, at most 256 in a call; optionally \code{model}.
+  Answers \code{model}, \code{embeddings}, \code{dimensions}, \code{usage},
+  \code{durationMs}. \emph{Errors:} 400 \code{INVALID_TEXTS}, \code{TOO_MANY_TEXTS},
+  \code{UNKNOWN_MODEL}; \code{EMBEDDING_FAILED}; 402 \code{AI_BUDGET_EXHAUSTED}. \\
+\addlinespace
+\apiroute{GET}{/internal/llm/models}
+the secret & \code{providers} and \code{models}: the gateway's list of models with their
+  prices, newest first, kept for ten minutes. \\
+\addlinespace
+\apiroute{POST}{/internal/mcp/list-tools}
+the secret & Connects to the MCP server described by \code{url}, \code{transport} and
+  \code{headers} and lists its tools --- the connection test of
+  \route{POST}{/api/mcp/servers/{id}/test}. \emph{Errors:} 400 \code{INVALID_URL},
+  \code{INVALID_TRANSPORT}, \code{INVALID_HEADERS}; 502 \code{MCP_UNREACHABLE}, with the
+  credentials cut out of the message. \\
+\addlinespace
+\apiroute{GET}{/health}
+inside the network & A probe of liveness and configuration (the compose file sets no health check):
+  \code{status}, \code{model} (\code{configured} or \code{missing-key}), \code{providers},
+  \code{activeTurns}. \\
+\end{xltabular}
+
+
+% ============================================================
+\section{What a client has to know}\label{sec:api:client}
+% ============================================================
+
+Two behaviours of the API are not visible in a single route: work that outlasts the request
+that started it, and answers that are files.
+
+\subsection{Long work: start, poll, decide, cancel}\label{sec:api:polling}
+
+No route keeps a client waiting for an ingestion, an extraction, a report or a work product.
+The route records what is wanted, queues a job for the worker and answers at once; the client
+then asks again until the work has ended. There is no push channel: the chat's stream is the
+only stream in the system. \Cref{fig:api:polling} shows the sequence for a report.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=5mm and 6mm]
+  \node[svc] (s1) {\code{queued}};
+  \node[svc, right=of s1] (s2) {\code{running}};
+  \node[man, right=of s2] (s3) {\code{scope_review}};
+  \node[svc, right=of s3] (s4) {\code{queued}};
+  \node[svc, right=of s4] (s5) {\code{running}};
+  \node[svc, right=of s5] (s6) {\code{done}};
+  \draw[flow] (s1) -- (s2); \draw[flow] (s2) -- (s3); \draw[flow] (s3) -- (s4);
+  \draw[flow] (s4) -- (s5); \draw[flow] (s5) -- (s6);
+  \draw[opt] (s2.south) -- ++(0,-5mm) -| (s5.south) node[lbl, pos=.25] {without \code{review}};
+  \node[data, above=11mm of s1] (c1) {\code{POST /api/reports}};
+  \node[data, above=11mm of s3] (c3) {\code{POST .../scope}};
+  \node[data, above=11mm of s6] (c6) {\code{GET .../export}};
+  \node[data] (c2) at ($(c1)!.5!(c3)$) {\code{GET} \ldots};
+  \node[data] (c5) at ($(c3)!.5!(c6)$) {\code{GET} \ldots};
+  \draw[call] (c1) -- (s1) node[lbl, midway] {201};
+  \draw[call] (c3) -- (s3) node[lbl, midway] {approve};
+  \draw[call] (c6) -- (s6) node[lbl, midway] {file};
+  \draw[call] (c2) -- (s2.north);
+  \draw[call] (c5) -- (s5.north);
+  \node[lanelabel, anchor=south west] at ([yshift=1mm]c1.north west) {the client's calls};
+  \node[lanelabel, anchor=north west] at ([yshift=-7mm]s1.south west) {the report's \code{status}; a report can also end \code{failed} or \code{cancelled}};
+\end{tikzpicture}
+\actorlegend
+\caption{A report as a client sees it. The start answers at once; the client polls
+\code{GET /api/reports/{id}} for \code{status} and \code{progress}; with \code{review} the
+report stops and waits for a person at the scope route; a finished report can be
+exported.}\label{fig:api:polling}
+\end{figure}
+
+\paragraph{What the start answers.} Starting a report or a work product answers 201 with the
+new row, already carrying \code{jobId}, \code{jobStatus} and \code{progress}. The routes that
+change the corpus --- refresh, upload, obligation extraction, the judge, re-embedding,
+refresh-all --- answer 202 with the job itself. A document upload is the exception in the other
+direction: the text is extracted before the answer, and only the indexing that follows is a
+job, which the answer does not name; it is found with \route{GET}{/api/jobs} and
+\code{subject=document:<id>}.
+
+\paragraph{Twice the same request.} The API refuses or folds a second start rather than run
+the same work twice. A second report of a company, or a second product of a kind, answers 409
+\code{ALREADY_RUNNING}. A second refresh, extraction or judge run on the same act answers 202
+with the job that is already queued or running, so a client can treat the two answers alike.
+
+\paragraph{What to poll.} Three resources show the state of long work
+(\cref{tab:api:polling}). \code{progress} is the job's own report of where it is --- the step,
+a percentage and a message. A job additionally lists its steps, each with what its model calls
+used, once the step has ended.
+
+\begin{table}[H]
+\caption{The resources a client polls, and the values of their status}\label{tab:api:polling}
+\begin{tabularx}{\textwidth}{@{}L{38mm}Y@{}}
+\toprule
+\hd{Resource} & \hd{\code{status} is one of} \\
+\midrule
+\code{GET /api/jobs/{id}} & \code{queued}, \code{running}, \code{done}, \code{failed}, \code{cancelled}; with \code{progress}, \code{result}, \code{error}, \code{cancelRequested}, \code{attempts} \\
+\code{GET /api/reports/{id}} & \code{queued}, \code{running}, \code{scope_review}, \code{done}, \code{failed}, \code{cancelled}; with \code{jobStatus}, \code{progress}, \code{error} \\
+\code{GET /api/programme/{id}} & \code{queued}, \code{running}, \code{draft}, \code{approved}, \code{failed}, \code{cancelled}; with \code{jobStatus}, \code{progress}, \code{error} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The list routes carry the same fields, so a client that shows many rows polls
+\route{GET}{/api/reports}, \route{GET}{/api/companies/{id}/programme} or \route{GET}{/api/jobs}
+instead of each row. An act's detail carries \code{latestJob} --- the ingestion or extraction
+at work on it now or, when none is, the most recent one. For the chat, the status route of the
+assistant service plays the same part after a reload (\cref{sec:api:assistant}).
+
+\paragraph{Where a person is asked.} A report started with \code{review: true} does not run
+through: after deciding which acts apply it stops in \code{scope_review} and no job is at work
+on it. It continues only when \route{POST}{/api/reports/{id}/scope} is called with
+\code{approved: true}, which queues the job again. The same route without \code{approved} can
+be called any number of times to price a selection; it stores nothing. A work product ends its
+generation as a \code{draft}, and becomes \code{approved} only by a person's
+\route{PATCH}{/api/programme/{id}}.
+
+\paragraph{Cancelling.} Each of the three resources has a cancel route. A job, report or
+product that is still queued is cancelled at once; one that is running gets a flag that the
+worker honours at its next check, so the status changes a little later; a report waiting for
+its scope is cancelled at once. Anything already ended answers 409 \code{NOT_CANCELLABLE}.
+Deleting a report or a product in work is refused with 409 \code{STILL_RUNNING}: it is
+cancelled first.
+
+\paragraph{Money before work.} A client can ask before it commits the user's budget:
+\route{GET}{/api/reports/estimate} gives the upper bound of a report's cost together with the
+budget left today, the scope route prices the second part for a selection of acts, and
+\route{GET}{/api/usage} carries today's \code{budget}. A started run is never stopped halfway
+for lack of budget; the budget only decides whether it may start.
+
+\subsection{Files}\label{sec:api:files}
+
+Three routes answer a file instead of JSON, built at the moment of the request
+(\cref{tab:api:exports}). Each sets \code{Content-Disposition: attachment} with a file name and
+\code{Cache-Control: no-store}, and each is written to the audit trail. In the file name the
+Lithuanian letters of the company's name are folded to plain Latin ones, every other
+run of characters outside letters, digits, dot, underscore and hyphen becomes one hyphen, and
+the name before its extension is cut to 80 characters (for a report, before the prefix
+\code{legalops-} is added). An error on these routes is still the JSON envelope, so a client
+checks the status before it treats the body as a file.
+
+\begin{table}[H]
+\caption{The routes that answer a file}\label{tab:api:exports}
+\begin{tabularx}{\textwidth}{@{}L{47mm}L{24mm}Y@{}}
+\toprule
+\hd{Route} & \hd{Formats} & \hd{File name; condition} \\
+\midrule
+\code{GET /api/reports/{id}/export} & \code{pdf}, \code{xlsx} & \code{legalops-<company>-<date>}; only a report that is \code{done} \\
+\code{GET /api/companies/{id}/actions/export} & \code{xlsx} & \code{actions-<company>-<date>}; always \\
+\code{GET /api/programme/{id}/export} & \code{pdf}; \code{docx} (policy); \code{xlsx} (risks) & \code{<kind>-<company>-v<version>}; a \code{draft} or an \code{approved} product \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The organisation chart of a governance product (\route{GET}{/api/programme/{id}/chart}) is the
+one drawing the API serves: an SVG image sent inline, not as an attachment. Files travel into
+the system through two routes only, both \code{multipart/form-data} with the part \code{file}:
+\route{POST}{/api/documents} for a company's document and
+\route{POST}{/api/corpus/documents/{id}/upload} for a new version of an act. Every other
+request body is JSON.

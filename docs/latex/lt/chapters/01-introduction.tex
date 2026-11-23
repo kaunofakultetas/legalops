@@ -1,0 +1,325 @@
+% STATUS: reviewed
+\chapter{Įvadas}\label{ch:intro}
+
+Šiame skyriuje paaiškinama, kam skirtas \product{}, ką jis daro ir kuriose jo vietose dirba
+kalbos modelis. Skyrius baigiamas sistemos skaičiais, kursu, kuriam ji sukurta, ir tuo, ko
+sistema neteigia daranti.
+Viskas, kas čia paminėta, paaiškinama vėlesniuose skyriuose; nuorodos parodo, kuriuose.
+
+\section{Problema}\label{sec:intro:problem}
+
+Finansų įstaiga Lietuvoje vienu metu turi laikytis kelių dešimčių teisės aktų: tiesiogiai ją
+saistančių Europos Sąjungos reglamentų, per nacionalinę teisę ją pasiekiančių direktyvų,
+Lietuvos įstatymų ir priežiūros institucijų nutarimų, nurodymų bei gairių. Pavyzdžiui,
+kriptoturto paslaugų teikėjas savo pareigų turi ieškoti kriptoturto rinkų reglamente ir jo
+techniniuose standartuose, skaitmeninės veiklos atsparumo reglamente, pinigų plovimo
+prevencijos ir lėšų pervedimų taisyklėse, duomenų apsaugos reglamente ir nacionaliniuose
+įstatymuose, kurie už visų šių reikalavimų pažeidimus nustato baudas. Už atitiktį atsakingas
+asmuo turi nustatyti keturis dalykus ir nustatyti juos iš naujo kaskart, kai pasikeičia
+įstatymas ar pati įmonė:
+
+\begin{enumerate}
+  \item \textbf{Kurie teisės aktai taikomi} šiai įmonei, atsižvelgiant į tai, kas ji yra ir ką
+        ji daro.
+  \item \textbf{Ką kiekvienas iš jų įpareigoja} įmonę daryti, nuostata po nuostatos.
+  \item \textbf{Ar pačios įmonės dokumentai} --- jos politikos ir procedūros --- įgyvendina
+        kiekvieną pareigą ir kur jie nepakankami.
+  \item \textbf{Ką daryti su spragomis}: kokia tvarka ir kas atsakingas už kiekvieną veiksmą.
+\end{enumerate}
+
+Rankiniu būdu tam prireiktų kelių savaičių skaitymo. O skaitymas kaip tik ir yra toks darbas, kurį kalbos
+modelis atlieka greitai, bet, paliktas vienas, nepatikimai: jis nurodys straipsnį, kuriame
+parašyta kas kita, pacituos sakinį, kurio politikoje nėra, arba pripažins pareigą įvykdyta
+vien todėl, kad politikoje paminėta ta tema. \product{} sukurtas aplink šią įtampą. Skaityti
+jis leidžia modeliams, o jų iškvietimus apsupa trimis dalykais: paties teisės akto tekstu,
+atsisiųstu iš oficialaus šaltinio, kad teisė būtų skaitoma, o ne prisimenama; patikromis,
+kurias atlieka įprastas kodas, kad citata ar nuoroda būtų patikrinta, o ne priimta už gryną
+pinigą; ir žmogumi, kuris sprendžia visur, kur sprendimas turi pasekmių.
+
+\section{Ką sistema daro}\label{sec:intro:does}
+
+\product{} (taip jis vadinasi savo pirmąja kalba, lietuvių) yra savo serveryje diegiama
+žiniatinklio programa. Prisijungęs naudotojas patenka į pokalbį su \term{pokalbių
+asistentu}; šalia pokalbio yra puslapiai rezultatams peržiūrėti ir administruoti. Toliau sistemos funkcijos
+išvardytos ta tvarka, kuria su jomis susiduria naudotojas.
+
+\begin{description}
+  \item[Saugo teisę kaip tekstą.] \term{Teisės aktų bazė} iš 78 kataloge įrašytų aktų, iš kurių
+    68 naudojami, atsisiunčiama iš oficialių Europos Sąjungos ir Lietuvos mašininio skaitymo
+    šaltinių (dvejos gairės įkeliamos kaip failai), jos struktūra atpažįstama iki straipsnio,
+    dalies ir punkto, o tekstai saugomi redakcijomis. Išvados ir atsakymai nurodo šios bazės
+    nuostatas ir gali parodyti jų žodžius (\cref{ch:corpus}).
+  \item[Paverčia teisę pareigų registru.] Kiekvienas aktas perskaitomas vieną kartą, o tai, ką
+    jis įpareigoja daryti, užrašoma kaip \term{pareigos} --- kas ką privalo, kokiomis sąlygomis,
+    iki kada ir koks pareigos reikšmingumas --- kiekviena susieta su nuostatomis, iš kurių kyla.
+    Tada antrasis modelio iškvietimas kiekvieną pareigą patikrina pagal jos nuostatą, o
+    kiekvienos pareigos patvirtinimą sistemos sandara palieka žmogui (\cref{ch:obligations};
+    kaip buvo peržiūrėtas kartu su sistema pateikiamas registras, nurodyta
+    \cref{ch:control}).
+  \item[Susipažįsta su įmone.] Naudotojas pokalbyje aprašo įmonę ir įkelia jos politikas;
+    asistentas savo įrankiais įrašo profilį ir dokumentus. Kiekvienas dokumentas indeksuojamas
+    paieškai, o jį perskaičius sudaromas struktūrizuotas \term{inventorius} to, ką jis nustato
+    (\cref{ch:company}).
+  \item[Atsako į klausimus apie teisę.] Pokalbis ieško teisės aktų bazėje, cituoja tikslią
+    nuostatą ir tikrina, ar straipsnis, kurį nurodo dokumentas, tikrai reglamentuoja tai, ką
+    dokumentas teigia (\cref{ch:chat,ch:company}).
+  \item[Rengia atitikties ataskaitą.] Analizė nusprendžia, kurie aktai taikomi įmonei,
+    sustoja, kad žmogus patvirtintų šį sąrašą (nebent analizę pradėjęs asmuo nusprendė leisti
+    jai vykti be sustojimo), tada kiekvieną tų aktų pareigą, tinkančią įmonei, palygina su
+    įmonės dokumentais. Rezultatas --- \term{ataskaita}: kiekvienai tokiai pareigai
+    \term{išvada} su būsena, iš dokumentų cituotais įrodymais, rekomendacija ir, jei už spragą
+    aktas numato sankcijas, tuo, kiek gali kainuoti pažeidimas; \term{veiksmų planas},
+    apimantis visas spragas; ir santrauka valdybai.
+    Žmogus peržiūri išvadas ir patvirtina ataskaitą. Ji eksportuojama į PDF ir Excel
+    (\cref{ch:report}).
+  \item[Seka veiksmus laike.] Patvirtintos ataskaitos planas perkeliamas į įmonės
+    \term{veiksmų registrą}, kuriame veiksmas uždaromas, kai vėlesnė patvirtinta ataskaita
+    nustato, kad jo pareigos įvykdytos, arba kai žmogus jį uždaro rankiniu būdu su pastaba,
+    paaiškinančia kodėl (\cref{ch:register}).
+  \item[Rengia atitikties programos dokumentų projektus.] Iš tų pačių dokumentų sistema parengia
+    trijų \term{programos dokumentų} projektus: atitikties politiką su dar trūkstamų dokumentų sąrašu;
+    valdymo struktūrą, atitikties procesą ir jo atsakomybių matricą; teisinės rizikos
+    kriterijus ir registrą. Kodas kiekvieną patikrina pagal tos rūšies dokumento taisykles, o
+    žmogus jį redaguoja ir patvirtina (\cref{ch:programme}).
+  \item[Rodo, kaip veikia pati.] Administratorius tvarko teisės aktų bazę, peržiūri pareigas,
+    skaito ir redaguoja kiekvieną instrukciją, mato kiekvieną užregistruotą modelio
+    iškvietimą su jo kaina ir kiekvieną bet kieno atliktą pakeitimą
+    (\cref{ch:console,ch:prompts,ch:security}).
+\end{description}
+
+\section{Nuo teisės iki ataskaitos viename paveiksle}\label{sec:intro:picture}
+
+\Cref{fig:intro:map} rodo visą sistemą kaip keturias juostas. Pirmoji vykdoma kartą
+kiekvienam aktui, gerokai anksčiau, nei atsiranda kokia nors įmonė: tai brangus, kruopštus
+teisės skaitymas, kurį pakartotinai panaudoja kiekviena ataskaita. Antroji kiekvieną
+dokumentą perskaito vieną kartą; kiekviena ataskaita pakartoja tik jo nuorodų patikrą.
+Trečioji juosta --- ataskaita, ketvirtoji --- programos dokumentas. Pokalbių asistentas
+stovi virš jų: savo įrankiais jis skaito visas keturias, įrašo įmonės dokumentus ir pradeda
+ataskaitą ar programos dokumentą, tačiau niekada pats neatlieka jų darbo.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    n/.style={text width=15.5mm, inner xsep=3pt, inner ysep=4pt, minimum height=11.5mm, font=\sffamily\scriptsize},
+    node distance=5mm and 3.2mm]
+  % --- the law
+  \node[ext, n] (src) {oficialūs šaltiniai};
+  \node[svc, n, right=of src] (corp) {teisės aktų bazė: aktai, nuostatos};
+  \node[ai, n, right=of corp] (ext) {išskiriamos pareigos};
+  \node[ai, n, right=of ext] (jud) {vertintojas tikrina kiekvieną};
+  \node[man, n, right=of jud] (rev) {peržiūri žmogus};
+  \node[store, n, right=of rev, text width=15mm] (reg) {pareigų registras};
+  \draw[flow] (src) -- (corp); \draw[flow] (corp) -- (ext); \draw[flow] (ext) -- (jud);
+  \draw[flow] (jud) -- (rev); \draw[flow] (rev) -- (reg);
+  % --- the company
+  \node[data, n, below=13mm of src, text width=13mm] (docs) {įmonės dokumentai};
+  \node[ai, n, right=of docs] (idx) {indeksavimas: vektoriai};
+  \node[ai, n, right=of idx] (inv) {kiekvieno dokumento inventorius};
+  \node[ai, n, right=of inv] (cit) {nuorodų patikra};
+  \draw[flow] (docs) -- (idx); \draw[flow] (idx) -- (inv); \draw[flow] (inv) -- (cit);
+  % --- the report
+  \node[ai, n, below=13mm of docs] (app) {kurie aktai taikomi};
+  \node[man, n, right=of app] (scope) {apimtis patvirtinta};
+  \node[ai, n, right=of scope] (gap) {spragų analizė: išvados};
+  \node[chk, n, right=of gap] (chk) {citatos rastos, sankcijos susietos};
+  \node[ai, n, right=of chk] (plan) {veiksmų planas, santrauka};
+  \node[man, n, right=of plan] (sign) {peržiūrėta, patvirtinta};
+  \node[chk, n, right=of sign] (areg) {veiksmų registras};
+  \draw[flow] (app) -- (scope); \draw[flow] (scope) -- (gap); \draw[flow] (gap) -- (chk);
+  \draw[flow] (chk) -- (plan); \draw[flow] (plan) -- (sign); \draw[flow] (sign) -- (areg);
+  % --- work products
+  \node[ai, n, below=13mm of app] (wp) {parengiami politika, struktūra, rizikos registras};
+  \node[chk, n, right=of wp] (rules) {tikrinamos rūšies taisyklės};
+  \node[man, n, right=of rules] (appr) {redaguota, patvirtinta};
+  \draw[flow] (wp) -- (rules); \draw[flow] (rules) -- (appr);
+  % --- joins
+  \draw[opt] (reg.south) |- ($(gap.north)+(0,5mm)$) -- (gap.north);
+  \draw[opt] (cit.south) -- ++(0,-4mm) -| ($(gap.north)+(-3mm,0)$);
+  \draw[opt] (docs.west) -- ++(-3mm,0) |- (wp.west);
+  % --- lanes
+  \begin{scope}[on background layer]
+    \node[lane, fit=(src)(reg)] (l1) {};
+    \node[lane, fit=(docs)(cit)] (l2) {};
+    \node[lane, fit=(app)(areg)] (l3) {};
+    \node[lane, fit=(wp)(appr)] (l4) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (l1.north west) {Teisė --- kartą kiekvienam aktui};
+  \node[lanelabel, anchor=south west] at (l2.north west) {Įmonė --- jos dokumentai};
+  \node[lanelabel, anchor=south west] at (l3.north west) {Ataskaita};
+  \node[lanelabel, anchor=south west] at (l4.north west) {Programos dokumentas};
+  % --- the chat
+  \node[ai, n, text width=30mm, right=6mm of appr, minimum height=11.5mm] (chat) {pokalbių asistentas savo įrankiais skaito visa tai ir pradeda ataskaitas bei programos dokumentus};
+\end{tikzpicture}
+\actorlegend
+\caption{Sistema kaip keturios juostos. Geltoni langeliai --- modelio iškvietimai, mėlyni ---
+kodo atliekamos patikros ar skaičiavimai, tamsūs --- žmogaus sprendimai. Taškinės linijos
+rodo, ką ataskaita paima iš aukščiau esančių juostų: taikomų aktų pareigas ir tai, ką sako
+įmonės dokumentai.}\label{fig:intro:map}
+\end{figure}
+
+Trys paveiksle matomos taisyklės galioja visoje sistemoje; jos yra
+\cref{ch:control} tema:
+
+\begin{enumerate}
+  \item \textbf{Teisė skaitoma, o ne prisimenama.} Aktą skaitančiam modeliui pateikiamas
+    nuostatos tekstas iš teisės aktų bazės ir užduodamas klausimas apie jį, o ataskaita
+    įmonę vertina pagal taip perskaitytas pareigas. Kai struktūrizuotame atsakyme nurodoma
+    nuostata, kodas ją suranda; kai jame cituojamas dokumentas, kodas suranda citatą
+    dokumente. Išimtis --- paties pokalbio tekstas: jo niekas netikrina, o pokalbiui nurodyta
+    kiekvieną skaičių, kurio jis neperskaitė teisės aktų bazėje, pažymėti kaip nepatikrintą
+    (\cref{ch:chat}).
+  \item \textbf{Modelis rengia projektą, kodas tikrina, sprendžia žmogus.} Balai, rizikos
+    lygiai, plano tvarka ir prie išvados priskirta bauda apskaičiuojami, o ne paimami iš
+    modelio. Sistema pati niekada nieko nepažymi patvirtintu: registro pareigą, peržiūrėtojo
+    pakeistą išvados būseną, ataskaitą ir programos dokumentą kiekvieną
+    patvirtina įvardytas žmogus, ir patvirtinimas užregistruojamas. Ataskaitos apimtis
+    patvirtinama taip pat; vietoj to žmogus gali leisti ataskaitai vykti be sustojimo, ir
+    tada ataskaitoje užfiksuojama, kad jos apimties niekas nepatvirtino. Pokalbių asistentas
+    savo iniciatyva nieko netvirtina. Jis gali įrašyti tris sprendimus, visada naudotojo
+    vardu: ataskaitos apimtį --- naudotojui pritarus ir už naudotojo priimtą kainą;
+    peržiūrėtojo pakeistą išvados būseną --- naudotojo sprendimu; ir leidimo pažymėjimą
+    patikrintu --- naudotojui pasakius, kad leidimas buvo patikrintas. Jis netvirtina nė vienos
+    pareigos, programos dokumento ar ataskaitos
+    (\cref{ch:chat}).
+  \item \textbf{Kiekvienas iškvietimas užregistruojamas.} Kiekvienas atsakymą grąžinęs modelio
+    iškvietimas registruojamas su jo žetonais, kaina ir, jei jį sukūrė instrukcija,
+    instrukcijos versija (sąmoningai praleidžiamas tik paieškos užklausos vektorizavimas ---
+    keli žetonai); kiekviena instrukcija saugoma versijomis, kurias administratorius gali
+    skaityti, keisti ir grąžinti ankstesnę versiją; kiekvienoje ataskaitoje įrašyta, pagal
+    kurias instrukcijų versijas ir kurias teisės aktų redakcijas ji parengta.
+\end{enumerate}
+
+\section{Kur dirba modeliai}\label{sec:intro:models}
+
+Kalbos modelis iškviečiamas dvidešimt trijose vietose, kiekvienoje su savo saugoma
+instrukcija, o kitos rūšies modelis paieškai paverčia tekstą vektoriais.
+\Cref{tab:intro:paths} juos sugrupuoja; šio dokumento II dalyje jie aptariami po vieną, o
+\cref{app:prompts} aprašo kiekvieną instrukciją.
+Visi jie pasiekiami per vieną paslaugą ir vieną DI tinklų sąsają (\cref{ch:models}).
+
+\begin{table}[H]
+\caption{Visos vietos, kuriose iškviečiamas modelis, pagal paskirtį}\label{tab:intro:paths}
+\begin{tabularx}{\textwidth}{@{}L{31mm}YL{19mm}@{}}
+\toprule
+\hd{Paskirtis} & \hd{Ko prašoma modelio} & \hd{Skyrius} \\
+\midrule
+Teisės skaitymas, kartą kiekvienam aktui &
+  Užrašyti akto nuostatų pareigas (\prompt{corpus.extract_obligations}) ir standarto
+  reikalavimus (\prompt{corpus.extract_requirements}); pasakyti, kam taikomos paties akto
+  taikymo srities nuostatos (\prompt{corpus.scope}); suskirstyti jo sankcijų nuostatas į
+  pakopas (\prompt{corpus.sanctions}); pažymėti antraštes standarto, kurio numeracija
+  neįprasta (\prompt{corpus.standard_outline}); ir, kaip vertintojui, patikrinti kiekvieną
+  išskirtą pareigą pagal nuostatą, kurią ji nurodo (\prompt{corpus.verify_obligations}). &
+  \cref{ch:corpus,ch:obligations} \\
+Įmonės dokumentų skaitymas &
+  Sudaryti inventorių to, ką nustato dokumentas (\prompt{report.inventory}); ir, kaip
+  vertintojui, pasakyti, ar straipsnis, kurį nurodo dokumentas, reglamentuoja tai, ką
+  dokumentas teigia (\prompt{corpus.check_citations}). &
+  \cref{ch:company} \\
+Ataskaitos rengimas &
+  Nuspręsti, ar aktas taikomas įmonei (\prompt{report.applicability}); įvertinti kiekvieną
+  pareigą pagal dokumentus (\prompt{report.gap_analysis}); išskirti iš politikų įmonės
+  vidaus reikalavimus ir juos įvertinti (\prompt{company.internal_requirements},
+  \prompt{report.internal_gap}); suplanuoti veiksmus ir sujungti projektus
+  (\prompt{report.action_plan}, \prompt{report.plan_merge}); parašyti santrauką valdybai
+  (\prompt{report.summary}). &
+  \cref{ch:report} \\
+Programos dokumentų rengimas &
+  Parengti atitikties politikos projektą ir išvardyti trūkstamus dokumentus
+  (\prompt{programme.policy}, \prompt{programme.documents}); valdymo struktūrą ir atsakomybių
+  matricą (\prompt{programme.structure}, \prompt{programme.raci}); rizikos kriterijus ir
+  scenarijus (\prompt{programme.risk_criteria}, \prompt{programme.risk_scenarios}). &
+  \cref{ch:programme} \\
+Pokalbis &
+  Palaikyti pokalbį ir pasirinkti, kuriuos įrankius iškviesti (\prompt{chat.assistant});
+  suteikti pokalbiui pavadinimą (\prompt{chat.title}). &
+  \cref{ch:chat} \\
+Paieška &
+  Vektorizavimo modelis paverčia vektoriais teisės aktų bazės nuostatas, pareigas, įmonės
+  dokumentų ištraukas ir kiekvieną paieškos užklausą. &
+  \cref{ch:models,ch:corpus} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ne mažiau iškalbinga ir tai, kur modelis neiškviečiamas. Teisės atsisiuntimas ir jos
+struktūros atpažinimas (išskyrus standarto antraštes, kurių neįstengia atpažinti taisyklės), citatos
+suradimas, nuostatos paieška, išvados susiejimas su jos sankcija, rizikos balo
+apskaičiavimas, plano išrikiavimas, veiksmų registro keitimas ir kiekvienas patvirtinimas yra
+kodo arba žmonių darbas. Ypač veiksmų registre --- toje sistemos dalyje, kuri pasako, ar
+spraga iš tikrųjų panaikinta --- nėra nė vieno modelio iškvietimo (\cref{ch:register}).
+
+\section{Sistema skaičiais}\label{sec:intro:numbers}
+
+Toliau pateikti skaičiai buvo nuskaityti įdiegtoje sistemoje 2026~m. lapkričio 13~d.; nuo tada
+pasikeitę du skaičiai --- instrukcijų versijų ir sankcijų pakopų, dar kartą perskaitytų teisės
+aktų bazės kopijoje nauja jų instrukcijos versija, --- pateikiami tokie, kokie yra nuo
+2026~m. lapkričio 19~d. Jie pateikiami tam, kad
+skaitytojas susidarytų mastelio įspūdį; skyriuose paaiškinta, kaip kiekvienas gautas.
+
+\begin{table}[H]
+\caption{Sistema 2026 m. lapkričio 13 d.}\label{tab:intro:numbers}
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+\toprule
+\hd{Kas} & \hd{Kiek} \\
+\midrule
+Teisės aktų bazė & 78 aktai kataloge, iš jų 68 įjungti; 26\,983 nuostatos, saugomos kaip
+  vienetai galiojančiomis redakcijomis; 4\,059 ištraukos, vektorizuotos paieškai
+  (\cref{app:acts}) \\
+Pareigų registras & 5\,960 pareigų, išskirtų iš 66 aktų iš 68 (du aktai pareigų nenustato): 5\,938
+  patvirtintos, 10 atmesta, 12 laukia žmogaus; 302 sankcijų pakopos, perskaitytos iš 27 aktų \\
+Instrukcijos & 23, nuo 2026~m. lapkričio 20~d. iš viso 91 versija (iki lapkričio 16~d. --- 85); pokalbio
+  instrukcija yra septynioliktos versijos,
+  ataskaitos santraukos --- dvyliktos \\
+Viena visa ataskaita & Parengta 2026~m. lapkričio 13~d. be apimties peržiūros kurso pavyzdinei įmonei,
+  kriptoturto paslaugų teikėjui su 26 politikomis: įvertinti 26 aktai (vienas jų --- kaip
+  pasirengimas dar būsimai datai), 2\,151 išvada pagal teisę ir 475 pagal pačios įmonės
+  politikas, 51 veiksmo veiksmų planas, apimantis visas 1\,633 neišspręstas išvadas;
+  272 modelio iškvietimai, 1 val. 38 min., 13,20~\$ (\cref{ch:report}) \\
+Kodas & Apie 33\,600 eilučių API dalyje, 10\,700 asistento paslaugoje ir 46\,800 konsolėje, šalia
+  jų --- apie 94\,000 testų eilučių \\
+Testai & 405 API dalyje, 509 asistento paslaugoje, 5\,180 konsolėje (\cref{ch:testing}); šeši
+  pažymėtų atvejų rinkiniai, kuriais šešios instrukcijos matuojamos su tikruoju modeliu;
+  visas žymas 2026 m. lapkričio 12 d. sukūrė sistemai kurti naudotas DI programavimo
+  asistentas, ir nė viena dar nepatvirtinta žmogaus (\cref{ch:control}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Kursas, kuriam sukurta sistema}\label{sec:intro:course}
+
+\product{} yra Vilniaus universiteto Kauno fakulteto FinTech magistrantūros programos kurso
+\enquote{Finansų teisė ir finansų įstaigų veiklos atitikties valdymas} projektas; kursas dėstomas
+2026 m. rudenį. Jis moko metodo: klasifikuoti įstaigą, sukurti jos atitikties politiką ir
+valdymą, įvertinti jos teisinę riziką, stebėti ir teikti ataskaitas. Jame pateikiamos trys
+kurso užduotys apie pavyzdinę organizaciją \demo{} --- išgalvotą kriptoturto paslaugų teikėją
+su 26 politikomis, --- ir aprašomas technologo, kuriančio įrankius atitikties darbui,
+vaidmuo: su schemomis susietos instrukcijos, rastais šaltiniais pagrįsti atsakymai, saugomi
+pažymėtų atvejų rinkiniai, regresijos matavimas, veiksmų žurnalai. Sistema yra bandymas šį
+metodą įgyvendinti programine įranga, o pavyzdinė organizacija yra ta įmonė, kuriai buvo
+parengtos šio dokumento ataskaitos ir atlikti kiti su įmone susiję matavimai.
+\Cref{ch:course} dalis po dalies susieja kurso užduotis ir sąvokas su sistema.
+
+\section{Ko sistema neteigia}\label{sec:intro:limits}
+
+\begin{itemize}
+  \item \textbf{Tai nėra teisinė konsultacija.} Ataskaita yra struktūrizuotas pirminis
+    perskaitymas, kurį turi peržiūrėti atitikties pareigūnas: jos santraukoje yra skirsnis
+    apie jos pačios ribotumus, ir joje užfiksuota, kiek jos išvadų remiasi patvirtintomis
+    registro pareigomis.
+  \item \textbf{Ji vertina tai, kas užrašyta.} Išvada pasako, ar įmonės dokumentai nustato
+    tai, ko reikalauja pareiga, --- t. y. įmonės nustatytos tvarkos sandarą. Ar įmonė praktiškai daro tai,
+    ką sako jos politika, dokumentai parodyti negali; išvadoje, kurios būsena
+    \status{met}, yra pastaba tai patikrinti praktikoje, kai tai svarbu.
+  \item \textbf{Ji skaito tekstą.} Nuskenuotame dokumente be teksto sluoksnio jai nėra ko
+    skaityti: optinio simbolių atpažinimo nėra.
+  \item \textbf{Jos teisė yra jos teisės aktų bazės teisė.} Ji apima kataloge išvardytą
+    Europos Sąjungos ir Lietuvos finansų reguliavimą (\cref{app:acts}) ir bet kurį aktą,
+    kurį prideda administratorius. Teisės aktų bazei nepriklausantis aktas jai neegzistuoja,
+    ir ji tai pasako, kai dokumentas tokį aktą nurodo.
+  \item \textbf{Jos matavimai yra stebėjimai.} Šiame dokumente pateikti tikslumo rodikliai,
+    kainos ir trukmės buvo išmatuoti vienos pavyzdinės įmonės duomenimis arba bendroje teisės aktų bazėje
+    nurodytomis dienomis. Jie rodo, kaip sistema elgėsi, o ne kaip ji turi elgtis kitur.
+\end{itemize}
+
+Kiekvienos dalies ribotumai nurodyti jos skyriuje ir surinkti \cref{ch:control}.

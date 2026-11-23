@@ -1,0 +1,804 @@
+% STATUS: verified
+\chapter{Over time: the action register}\label{ch:register}
+
+A compliance report describes one day. This chapter describes what the system keeps between
+reports: the \term{action register}, the per-company list of the actions that the plans of its
+signed-off reports called for, each with an owner, a due date, a state and the findings it is
+to close. It states the problem and the one event that moves the register
+(\cref{sec:register:why,sec:register:event}), what comes in at that event
+(\cref{sec:register:plan}), the states of an action (\cref{sec:register:states}) and --- the
+core of the chapter --- how later reports confirm and close actions
+(\cref{sec:register:settle}). The identity of an obligation, on which this rests, the history
+of a finding and the changes in the law follow
+(\cref{sec:register:identity,sec:register:history,sec:register:law}); then what the chat
+assistant and the Excel export do with the register (\cref{sec:register:reading}), where the
+line between models, code and people runs (\cref{sec:register:line}), and what was tried on
+real data (\cref{sec:register:tried}).
+
+No model is called anywhere in this chapter. It therefore holds no path card: the register is
+code and people, and \cref{sec:register:line} explains why that is deliberate.
+
+
+\section{The problem: a plan that died with its report}\label{sec:register:why}
+
+A report ends with an \term{action plan}: a prioritised list of actions, each naming the
+findings it is to close, a timeframe and an owner role (\cref{ch:report} describes how it is
+made). The plan is stored with the report, in \code{report_actions}. The next analysis of the
+same company writes a new report with a new plan, and nothing connects the two: nobody can say
+whether an action of the old plan was carried out, by whom, by when, or whether the gap it
+addressed is gone.
+
+The course's findings-and-actions register answers this with one rule: an action is closed
+only after a re-test. Saying that the work was done is not enough; someone has to look again
+and find the requirement met. The system already has a way of looking again --- the next
+report --- and a person who takes responsibility for a report --- the one who signs it off.
+The register joins the two:
+
+\begin{itemize}
+  \item it keeps the plan of every signed-off report as rows of its own, per company, in the
+    table \code{company_actions} (model \code{CompanyAction}), which outlive the report;
+  \item it uses the next signed-off report as the re-test: an action is closed when later
+    signed-off reports find every obligation under it met.
+\end{itemize}
+
+All of it is in one file of the API, \file{analysis/register.py}, with seven public functions:
+\code{sign_off}, \code{withdraw}, \code{standing}, \code{state_of}, \code{history},
+\code{changes} and \code{law_changes}. Five constants at its head fix the vocabulary of the
+whole chapter.
+
+\begin{table}[H]
+\caption{The constants at the head of the register's file}\label{tab:register:constants}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{58mm}Y@{}}
+\toprule
+\hd{Constant} & \hd{Value} & \hd{Used for} \\
+\midrule
+\code{DUE_DAYS} & \code{immediate} 14, \code{30_days} 30, \code{90_days} 90, \code{12_months} 365 &
+  Days from the sign-off to an action's due date, by the plan's timeframe. \\
+\code{OPEN} & \code{missing}, \code{partial}, \code{unknown} & Statuses of a finding that needs an action. \\
+\code{SETTLED} & \code{met}, \code{not_applicable} & Statuses that confirm a finding. \\
+\code{LIVE} & \code{open}, \code{in_progress}, \code{done} & States of an action that is not closed. \\
+\code{HISTORY} & 4 & How many earlier assessments a finding's history goes back. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\code{OPEN} and \code{SETTLED} sort the five statuses of a finding into the two groups the
+register reasons with. A finding that is \status{missing}, \status{partial} or
+\status{unknown} is \emph{open}: it needs an action, and a later report that finds it so
+confirms nothing. A finding that is \status{met} or \status{na} is \emph{settled}. Wherever
+the register reads a status it reads the \emph{effective} one --- a reviewer's override when
+there is one, the model's verdict otherwise (\code{_effective}). \code{LIVE} names the three
+states of an action that is not closed.
+
+
+\section{The one event that moves the register}\label{sec:register:event}
+
+The register changes its confirmations on one event only: a person \term{signing a finished
+report off}, or that signature being taken back. The sign-off is the route
+\route{PATCH}{/api/reports/{id}} with the body \code{{approved: true, note?}}; the console
+sends it from the button \ui{Patvirtinti ataskaitą} (sign the report off) on the report's
+page, whose dialog says, before the button, what the sign-off will do to the register
+(\file{pages/Reports/ReportApproval.jsx}). Only a finished report can be signed off (409
+\code{NOT_FINISHED} otherwise). The view \code{_approve} in \file{analysis/api/views.py} stamps
+\code{approved_by}, \code{approved_at} and \code{approval_note} on the report and then calls
+the register; the comment on that line reads \enquote{The company's register moves on a
+sign-off and on nothing else}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=3.5mm and 10mm]
+  \node[man, text width=41mm] (sign) {signs a finished report off};
+  \node[man, text width=41mm, below=of sign] (unsign) {withdraws the sign-off};
+  \node[man, text width=41mm, below=of unsign] (review) {changes a finding of a signed-off report};
+  \node[man, text width=41mm, below=of review] (delete) {deletes a signed-off report};
+  \coordinate (mid) at ($(unsign.east)!.5!(review.east)$);
+  \node[chk, text width=37mm, right=10mm of mid] (settle) {\code{_settle}\\ every confirmation worked out again from all signed-off reports};
+  \node[chk, text width=30mm, right=of settle, yshift=13mm] (plan) {\code{sign_off}, step~2\\ at a sign-off only:\\ the report's plan comes in};
+  \node[store, inner xsep=2pt, below=9mm of plan] (table) {\code{company_actions}};
+  \node[man, text width=41mm, below=7mm of delete] (edit) {edits one action: owner, due date, state, note};
+  \draw[flow] (sign.east) -- ++(4mm,0) |- ([yshift=3mm]settle.west);
+  \draw[flow] (unsign.east) -- ++(4mm,0) |- ([yshift=1mm]settle.west);
+  \draw[flow] (review.east) -- ++(4mm,0) |- ([yshift=-1mm]settle.west);
+  \draw[flow] (delete.east) -- ++(4mm,0) |- ([yshift=-3mm]settle.west);
+  \draw[flow] (settle.east) -- ++(4mm,0) |- (plan.west);
+  \draw[flow] (settle.east) -- ++(4mm,0) |- (table.west);
+  \draw[flow] (plan.south) -- (table.north);
+  \draw[flow] (edit.east) -| (table.south) node[lbl, pos=.25] {\code{PATCH}~~\code{/api/actions/{id}}};
+\end{tikzpicture}
+\actorlegend
+\caption{Everything that writes the register. Four acts of a person on a report reach the
+one function that works the confirmations out; only a sign-off also brings a plan in. A
+person may edit a single action directly. No job, no report being made or finished and no
+uploaded document has a path into the table, and the chat has no tool that writes it: a
+review it records on the user's instruction is the third act shown here
+(\cref{sec:register:reading}).}\label{fig:register:events}
+\end{figure}
+
+\Cref{fig:register:events} shows every writer of the table. Two functions of
+\file{analysis/register.py} are called from the views, and from nowhere else in the code:
+
+\begin{table}[H]
+\caption{The events that move the register, and what each calls}\label{tab:register:events}
+\begin{tabularx}{\textwidth}{@{}L{48mm}L{37mm}Y@{}}
+\toprule
+\hd{Event} & \hd{Calls} & \hd{Effect} \\
+\midrule
+A person signs a finished report off (\code{_approve}, \code{approved: true}) &
+  \code{register.sign_off} &
+  The actions there are get held against all signed-off reports, this one now among them;
+  then the report's plan comes in. Answers \code{{added, covered, confirmed, closed, reopened}}. \\
+A person withdraws the sign-off (\code{_approve}, \code{approved: false}) &
+  \code{register.withdraw} &
+  The confirmations are worked out again without this report. Answers
+  \code{{withdrawn}}, the number of actions that changed. \\
+A reviewer changes a finding of a signed-off report (\code{finding_item}) &
+  \code{register.withdraw} &
+  Any change to a finding --- the overriding status, the reviewer's note, the cause --- clears
+  the sign-off: a changed verdict needs a fresh one. What the sign-off confirmed goes back with it. \\
+A signed-off report is deleted (\code{report_item}, \code{DELETE}) &
+  \code{register.withdraw} &
+  The sign-off is cleared first, the register is settled without the report, then the report
+  is deleted: it takes with it what it alone confirmed. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The answer to a sign-off carries the report and, under \code{register}, the five counts; the
+console words them in the success message with a link to the register, or says that the
+register did not change when all five are zero. Both the sign-off and its withdrawal are
+written to the audit log (\code{reports.approve}, \code{reports.unapprove}) with those counts.
+
+\begin{humanbox}{Why only a signature moves it}
+A finished report is a model's assessment that a person has not yet accepted. Its findings can
+still be overridden in review, and the \code{Report} model describes the sign-off as a person
+approving \enquote{the reviewed report as the company's assessment}. If an unsigned report
+could close an action, a model's verdict would end a commitment that a person made. So the
+evidence that closes an action is always a report somebody has put their name to, and when
+that name is taken back --- by hand, or because a finding was changed afterwards --- the
+closure goes with it. The register's own header says it shortly: a closure is a re-test, not
+a statement.
+\end{humanbox}
+
+The same reasoning excludes the other candidates. A new report that has not been signed off
+appears nowhere in the register; the test \code{test_a_sign_off_brings_the_plan_in_once}
+asserts that an unsigned report \enquote{moves nothing}. No job handler imports the register's
+writing functions. The chat assistant has one tool for the register and it only reads
+(\cref{sec:register:reading}). Uploading a document that would close a gap changes nothing
+until a later report has assessed it and a person has signed that report off.
+
+
+\section{What comes in at a sign-off}\label{sec:register:plan}
+
+\code{sign_off(report, user)} runs in one database transaction and in two steps. Step~1 holds
+the existing actions against the signed-off reports (\cref{sec:register:settle}); step~2,
+described here, brings the report's own plan in. It walks the plan's actions in their order
+and, for each, builds the list of \term{items}: the findings the action is to close.
+
+A finding of the plan action becomes an item unless one of three things is true:
+
+\begin{enumerate}
+  \item \textbf{It is not open.} Its effective status is not in \code{OPEN}: what is met needs
+    no action.
+  \item \textbf{A newer signed-off report already finds it settled.} \code{_later(report)}
+    collects, for the company's signed-off reports made \emph{after} this one, the newest
+    verdict on each obligation; when that verdict is in \code{SETTLED}, nothing is left to do.
+    This matters when an older report is signed off late.
+  \item \textbf{Its obligation is already under a live action.} The set \code{under_way}
+    holds every obligation named by an item of an action in a \code{LIVE} state. Such a
+    finding is counted as \code{covered} and left out: an obligation never stands under two
+    live actions. An obligation added by this sign-off joins the set at once, so two actions
+    of the same plan cannot both take it.
+\end{enumerate}
+
+An item is a snapshot, stored in the JSON column \code{items} of the action:
+\code{obligationId}, \code{findingId}, \code{title} (the obligation's title as the finding
+carries it), \code{act} and \code{path} (the act of the finding's first citation, or else the
+finding's own act, and the provision of that citation), \code{sourceKind}, \code{status} (the effective status at the sign-off) and
+\code{confirmed}, which starts as null. Like a report, the register copies the titles it
+shows, so an action reads the same after the corpus or the report has changed.
+
+A plan action whose findings were all left out is not brought in. Otherwise a
+\code{CompanyAction} is created with the plan's \code{title}, \code{description},
+\code{category}, \code{priority} and \code{effort}; the plan's owner role as \code{owner};
+the state \code{open}; and a due date counted from the moment of the sign-off by the plan's
+timeframe (\code{DUE_DAYS}): 14 days for \code{immediate}, 30 for \code{30_days}, 90 for
+\code{90_days}, 365 for \code{12_months}, and 90 for a timeframe the table does not name. The due
+date counts from the sign-off, not from the day the report was made, because the sign-off is
+the day a person accepted the plan.
+
+\paragraph{Nothing comes in twice.} Each register action remembers the plan action it came
+from (\code{plan_action_id}), and a unique constraint on the company and that id backs the
+check in the code. A sign-off withdrawn and given again therefore adds nothing; neither does
+the next report, whose plan covers the same open obligations --- its findings are counted as
+\code{covered}.
+
+\paragraph{Actions that close no finding.} A plan may hold actions without findings ---
+correcting the references the citation audit found wrong, finding out a fact the company's
+profile does not state. They come in too, with an empty \code{items} list. Having no
+obligation to be known by, they are matched by their \code{category} instead: while an
+action without items from \emph{another} report is still live in a category, the next
+report's action without findings in the same category is the same work asked again, is
+counted as \code{covered} and is not brought in. No report can ever confirm such an action;
+only a person closes it (\cref{sec:register:states}).
+
+
+\section{The states of an action and what a person may change}\label{sec:register:states}
+
+An action is stored in one of four states, \code{ACTION_STATES} in
+\file{analysis/models.py}, which a database check constraint enforces.
+
+\begin{table}[H]
+\caption{The states of an action. The first four are stored; the fifth is worked out when the register is read}\label{tab:register:states}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{45mm}Y@{}}
+\toprule
+\hd{State} & \hd{In the console} & \hd{Means} \\
+\midrule
+\code{open} & \ui{Atviras} (open) & Brought in by a sign-off; nothing reported yet. \\
+\code{in_progress} & \ui{Vykdomas} (in progress) & Somebody is working on it. \\
+\code{done} & \ui{Įvykdytas, laukia patikros} (done, awaiting re-test) &
+  The owner's word that it was carried out. It is not a closure: the action waits for a later
+  signed-off report. Setting it stamps \code{done_at}. \\
+\code{closed} & \ui{Uždarytas} (closed) &
+  Either later signed-off reports found every obligation under it met
+  (\code{confirmed_report} names the closing report), or a person closed it by hand with a
+  reason. \\
+\midrule
+\code{late} & \ui{Vėluojantis} (late) &
+  Never stored. \code{state_of(action, today)} answers \code{late} for an action that is
+  \code{open} or \code{in_progress} and whose due date is before today. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Late is derived because it depends on the calendar, not on anything that happened to the
+action: a stored flag would be wrong the morning after the due date unless some job rewrote
+it. An action called \code{done} is never shown as late; its owner has answered, and it waits
+for the re-test. Every answer of the API carries both values: \code{status}, the stored
+state, and \code{state}, the one to show.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \node[man, text width=20mm] (in) at (11,0) {a report is signed off};
+  \node[svc, minimum width=20mm] (open) at (47,0) {\code{open}};
+  \node[svc, minimum width=26mm] (prog) at (84,0) {\code{in_progress}};
+  \node[svc, minimum width=20mm] (done) at (121,0) {\code{done}};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(open)(prog)(done), inner sep=7pt] (live) {};
+  \end{scope}
+  \node[draw=warn, dashed, rounded corners=3pt, line width=.6pt, fit=(open)(prog), inner sep=3.5pt] (late) {};
+  \node[lanelabel, anchor=south west] at (live.north west) {the live states};
+  \node[note, text=warn, anchor=north, text width=24mm, align=center] at (11,-8)
+    {dashed frame: shown as \code{late} once the due date has passed};
+  \draw[flow] (in) -- (open) node[lbl, pos=.4, above=1pt] {plan};
+  \draw[flow, <->] (open) -- (prog) node[lbl, midway, above=1.5pt] {a person};
+  \draw[flow, <->] (prog) -- (done) node[lbl, midway, above=1.5pt] {a person};
+  \draw[flow] (done.north) -- ++(0,9) -| (prog.north)
+    node[lbl, pos=.25, above=1pt] {a sign-off or a withdrawal: a report made after \code{done_at} still finds a finding open};
+  \node[chk, text width=38mm] (crep) at (58,-31) {\code{closed} by a report\\ \code{confirmed_report} is set};
+  \node[man, text width=38mm] (chand) at (116,-31) {\code{closed} by a person\\ a note says why};
+  \coordinate (r1) at (52,0);  \coordinate (r2) at (64,0);
+  \coordinate (h1) at (110,0); \coordinate (h2) at (122,0);
+  \draw[flow] (r1 |- live.south) -- (r1 |- crep.north)
+    node[lbl, midway, left=2pt, align=right] {a sign-off: every\\ finding confirmed};
+  \draw[opt] (r2 |- crep.north) -- (r2 |- live.south)
+    node[lbl, midway, right=2pt, align=left] {the evidence falls:\\ back to \code{closed_from}};
+  \draw[flow] (h1 |- live.south) -- (h1 |- chand.north)
+    node[lbl, midway, left=2pt, align=right] {a person,\\ with a note};
+  \draw[flow] (h2 |- chand.north) -- (h2 |- live.south)
+    node[lbl, midway, right=2pt, align=left] {a person\\ takes it back};
+\end{tikzpicture}
+\actorlegend
+\caption{The states of an action and who moves it between them. A person moves an action
+freely among the live states and may close it by hand; code closes it, sends it back to work
+or reopens it only at a sign-off or its withdrawal. No arrow leads by hand out of a closure
+made by a report.}\label{fig:register:states}
+\end{figure}
+
+\subsection{A person's hand on one action}
+
+Between sign-offs a person keeps an action up through
+\route{PATCH}{/api/actions/{id}} (\code{action_item}), sent by the form of an opened row on
+the company's tab \ui{Veiksmai} (actions). The body carries only what changed.
+
+\begin{table}[H]
+\caption{What a person may change on an action}\label{tab:register:patch}
+\begin{tabularx}{\textwidth}{@{}L{20mm}Y@{}}
+\toprule
+\hd{Field} & \hd{Rule} \\
+\midrule
+\code{owner} & Text, trimmed, at most 300 characters. It starts as the plan's owner role; a
+  person replaces it with whoever really owns the work. \\
+\code{dueDate} & A date, \code{YYYY-MM-DD}. \\
+\code{note} & Text or null, trimmed, at most 4,000 characters. \\
+\code{status} & One of \code{open}, \code{in_progress}, \code{done}, \code{closed} --- never
+  \code{late}. A change to \code{done} stamps \code{done_at}. Closing needs a note. Reopening
+  works only for a closure made by hand. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A wrong value is refused with 400 \code{INVALID_FIELD}; a user who cannot see the action's
+company gets 404. Every change is written to the audit log as \code{actions.update} with the
+fields that changed (the note's text is not copied there, only the fact that it changed).
+There is no route that creates an action and none that deletes one: actions come from plans,
+and they leave only with their company.
+
+\begin{humanbox}{Closing by hand, and what a hand may not undo}
+A person may close an action without any report's confirmation --- the service was
+discontinued, the obligation no longer concerns the company --- but only with a note: without
+one the API answers 400 \code{NOTE_REQUIRED} (\enquote{Say in the note why the action is
+closed without a report's confirmation}), and the console keeps the save button off until
+the note is written. The action then records who closed it and when (\code{closed_by},
+\code{closed_at}) and the state it was closed from, and the register shows the closure as
+\code{manual}. A person may take it back by setting another state; the closing fields are
+then cleared.
+
+\smallskip
+A closure made by a report is different. Setting another state on it is refused with 409
+\code{CLOSED_BY_REPORT}: \enquote{A signed-off report closed this action --- to dispute it,
+review the finding in that report}. The closure rests on findings of a signed-off report, so
+the place to dispute it is the finding. Changing the finding there withdraws the report's
+sign-off, and the same code that closed the action works the closure out again without that
+report (\cref{sec:register:settle}). The console shows the status select of such an action
+switched off, with a line under it that says where to dispute the closure.
+\end{humanbox}
+
+\subsection{Reading the register}
+
+\route{GET}{/api/companies/{id}/actions} (\code{company_actions}) answers the register and the
+count of actions in each shown state. The order is the one a person needs: the late actions
+first, then the open and in-progress ones, then those called done, then the closed; within a
+group by due date, then by the plan's priority. The list is cut at 500 rows; the counts are
+not. \Cref{ch:console} describes the tab that shows it.
+
+
+\section{Confirmation by later reports}\label{sec:register:settle}
+
+This section is the centre of the register: how a later report confirms a finding, closes an
+action or sends one back to work. One private function does all of it, \code{_settle(company_id,
+now)}, and both \code{sign_off} and \code{withdraw} call it. It does not apply the newly signed
+report to the register as a change. It works every confirmation out again from \emph{all} the
+company's signed-off reports, each time. That is the property everything else follows from:
+the confirmations and closures of the actions there are come out the same whatever order the
+signatures were given in, and taking a signature back needs no undo log --- the function is simply run again without that report.
+
+\subsection{What the function reads}
+
+\code{_settle} takes the company's actions that have items and are either live or were closed
+by a report. Actions a person closed by hand and actions without items are left alone. For the
+obligations named by the items it loads every finding on them in the company's reports that are
+finished and signed off, ordered by the time the report was \emph{made} (\code{created_at}),
+and keeps for each obligation the list of verdicts: when the report was made, which report,
+and the effective status.
+
+For one action, the verdicts that count are those of reports made no earlier than the action's
+own report (\code{since}; once that report is deleted, no earlier than the action itself). A report made before the action existed says nothing about work
+done under it, even when it is signed off later.
+
+\subsection{The rules}
+
+For each item of the action, the function walks the obligation's verdicts in the order the
+reports were made and looks for the report that \emph{first found the obligation settled with
+no later report finding it open}: a settled verdict starts a run, an open verdict ends it.
+
+\begin{enumerate}
+  \item \textbf{A finding is confirmed} when the newest verdict on its obligation is settled.
+    The item's \code{confirmed} is set to \code{{reportId, at}}, naming the first report of
+    that unbroken run. A report that did not assess the obligation leaves no verdict and
+    therefore confirms nothing and breaks nothing: a narrow report on a few documents in
+    between does not disturb the register. A verdict of \status{unknown} is open --- a report
+    that could not find evidence does not confirm.
+  \item \textbf{An action is closed} when every one of its items is confirmed. Its state
+    becomes \code{closed}, \code{closed_from} remembers the state it had, \code{closed_by}
+    stays empty, and \code{confirmed_report} names the newest of the confirming reports ---
+    the report that completed the set.
+  \item \textbf{An action called done goes back to work} (\code{in_progress}) when the newest
+    verdict on one of its obligations is open \emph{and} comes from a report made after the
+    moment the owner called it done (\code{done_at}). The owner said the work was carried out;
+    a report that looked afterwards still found the gap.
+  \item \textbf{A done action is not sent back} by a report made before \code{done_at}, even
+    when that report is signed off later: it never saw the finished work. It is not sent back
+    by a report that did not assess the obligation either. An action that is \code{open} or
+    \code{in_progress} is never moved by an open verdict; it simply stays.
+  \item \textbf{A closed action stays closed.} For an action a report closed, only the
+    verdicts up to the closing report are read, so a later report that finds the obligation
+    open again does not reopen it. That report's own plan brings a \emph{new} action for the
+    gap, because the obligation is no longer under a live action
+    (\cref{sec:register:plan}), and, when it finds the obligation \status{missing} or
+    \status{partial}, the report counts the gap as one that went back
+    (\cref{sec:register:history}). The old action remains a true record: the gap was closed
+    then, and reopened later.
+  \item \textbf{A closure falls only with the evidence under it.} While the closing report is
+    signed off, the items are read against the reports up to it; once it is not, against every
+    report that still is. If every item is still confirmed, the action stays closed and
+    \code{confirmed_report} names the newest confirming report that remains. If one is not,
+    the closure does not stand: the action returns to the state it was closed from
+    (\code{closed_from}), \code{confirmed_report} and \code{closed_at} are cleared, and the
+    items are read once more against every signed-off report.
+\end{enumerate}
+
+The function answers four numbers --- findings newly confirmed, actions closed, actions sent
+back to work, actions touched at all. A sign-off reports the first three as \code{confirmed},
+\code{closed} and \code{reopened}; a withdrawal reports the fourth as \code{withdrawn}.
+
+\subsection{A worked timeline}
+
+\Cref{fig:register:timeline} follows one action through three reports. It is an example
+constructed for this chapter from the rules above, not a record of real data; the test
+\code{test_a_later_signed_report_is_the_re_test} in \file{tests/test_register.py} drives the
+same kind of sequence through the API.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={align=center, text width=23mm, inner sep=1.5pt, font=\sffamily\scriptsize, text=body},
+    rowlabel/.style={align=right, text width=19mm, anchor=east, inner sep=1.5pt,
+                     font=\sffamily\scriptsize\bfseries, text=ink},
+    ev/.style={man, text width=20.5mm, inner xsep=3pt, inner ysep=3pt, minimum height=11mm, font=\sffamily\scriptsize},
+    st/.style={chk, text width=20.5mm, inner xsep=3pt, inner ysep=3pt, minimum height=7mm, font=\sffamily\scriptsize}]
+  % columns
+  \foreach \x/\n in {33.5/1, 58.5/2, 83.5/3, 108.5/4, 133.5/5} {\coordinate (c\n) at (\x,0);}
+  % time arrow
+  \draw[flow] (21,0) -- (147,0);
+  \node[rowlabel] at (20,0) {In this order};
+  \foreach \n in {1,3,4} {\fill[ink] (c\n) circle[radius=.9];}
+  \node[note, anchor=south] at (33.5,1) {report 1 made};
+  \node[note, anchor=south] at (83.5,1) {report 2 made};
+  \node[note, anchor=south] at (108.5,1) {report 3 made};
+  % events
+  \node[rowlabel] at (20,-10) {A person};
+  \node[ev] at (33.5,-10) {signs report 1 off};
+  \node[ev] at (58.5,-10) {calls the action done};
+  \node[ev] at (83.5,-10) {signs report 2 off};
+  \node[ev] at (108.5,-10) {signs report 3 off};
+  \node[ev] at (133.5,-10) {withdraws report 3's sign-off};
+  % obligation X
+  \node[rowlabel] at (20,-24) {Obligation X};
+  \node[cell] at (33.5,-24) {\status{missing}\\ item of the action};
+  \node[cell] at (58.5,-24) {---};
+  \node[cell] at (83.5,-24) {\status{met}\\ confirmed by report~2};
+  \node[cell] at (108.5,-24) {\status{met}\\ still confirmed by report~2};
+  \node[cell] at (133.5,-24) {confirmed by report~2};
+  % obligation Y
+  \node[rowlabel] at (20,-38) {Obligation Y};
+  \node[cell] at (33.5,-38) {\status{partial}\\ item of the action};
+  \node[cell] at (58.5,-38) {---};
+  \node[cell] at (83.5,-38) {\status{partial}\\ not confirmed};
+  \node[cell] at (108.5,-38) {\status{met}\\ confirmed by report~3};
+  \node[cell] at (133.5,-38) {confirmation gone};
+  % state
+  \node[rowlabel] at (20,-52) {The action};
+  \node[st] (s1) at (33.5,-52) {\code{open}};
+  \node[ev, minimum height=7mm] (s2) at (58.5,-52) {\code{done}};
+  \node[st] (s3) at (83.5,-52) {\code{in_progress}};
+  \node[st] (s4) at (108.5,-52) {\code{closed}};
+  \node[st] (s5) at (133.5,-52) {\code{in_progress}};
+  \draw[flow] (s1) -- (s2);  \draw[flow] (s2) -- (s3);  \draw[flow] (s3) -- (s4);  \draw[flow] (s4) -- (s5);
+  \node[cell, text=muted] at (33.5,-61) {the plan comes in; the due date counts from here};
+  \node[cell, text=muted] at (58.5,-61) {\code{done_at} is stamped};
+  \node[cell, text=muted] at (83.5,-61) {sent back: Y is open in a report made after \code{done_at}};
+  \node[cell, text=muted] at (108.5,-61) {both items confirmed; closed by report~3};
+  \node[cell, text=muted] at (133.5,-61) {back to the state it was closed from};
+  % separators
+  \begin{scope}[on background layer]
+    \foreach \x in {46, 71, 96, 121} {\draw[draw=rule, line width=.4pt] (\x,-4) -- (\x,-66);}
+    \foreach \y in {-17, -31, -45} {\draw[draw=rule, line width=.4pt] (0,\y) -- (146,\y);}
+  \end{scope}
+\end{tikzpicture}
+\actorlegend
+\caption{One action, two obligations, three reports. Each column is one act of a person;
+the rows show what the newest signed-off report says about each obligation, what the
+register has confirmed, and the state of the action. Every light blue box is worked out by
+code at a sign-off or at its withdrawal.}\label{fig:register:timeline}
+\end{figure}
+
+Read column by column:
+
+\begin{enumerate}
+  \item \textbf{Report 1 is signed off.} Its plan holds an action for two findings: obligation
+    X is \status{missing}, obligation Y is \status{partial}. The action comes in as
+    \code{open} with two items.
+  \item \textbf{The owner calls it done.} \code{done_at} is stamped. Nothing is confirmed:
+    this is a statement.
+  \item \textbf{Report 2, made after that, is signed off.} It finds X \status{met} and Y still
+    \status{partial}. The item on X is confirmed by report~2. The item on Y is not, and because
+    report~2 was made after \code{done_at}, the action goes back to \code{in_progress}. The
+    sign-off answers \code{confirmed: 1}, \code{reopened: 1}, and, when report~2's plan names its
+    own open finding on Y again, counts that finding as \code{covered}. Had report~2 not assessed Y at all, the action would have
+    stayed \code{done}.
+  \item \textbf{Report 3 is signed off.} It finds both met. Y is confirmed by report~3; X stays
+    confirmed by report~2, the first report of its unbroken run. Every item is confirmed, so
+    the action is closed by report~3, from the state \code{in_progress}.
+  \item \textbf{Report 3's sign-off is withdrawn} --- by hand, or because a reviewer changed
+    one of its findings. Without report~3, Y has no settled verdict: its confirmation is
+    cleared and the action returns to \code{in_progress}. X stays confirmed, because report~2
+    is still signed off. Signing report~3 off again closes the action again.
+\end{enumerate}
+
+\subsection{The order the reports were made in, not the order they were signed in}
+
+Reports are not always signed off in the order they were made. Because \code{_settle} sorts
+verdicts by the report's creation time and reads them all, an old report signed late cannot
+overrule a newer one. The test \code{test_the_reports_speak_in_the_order_they_were_made}
+signs a fourth report, which finds everything met, before the third, which still finds one
+obligation open: the fourth closes the action, and the third, signed afterwards, changes
+nothing and adds no action for the finding the newer report finds met. The same test then
+deletes reports: with the third deleted the closure stands, because the fourth found the
+same; with the fourth deleted as well, the evidence under the closure is gone and so is the
+closure.
+
+\subsection{What a withdrawal does not undo}
+
+The actions a report brought in stay when its sign-off is withdrawn or the report is deleted:
+in the words of the code, \enquote{they are the company's now}. Only confirmations and the
+closures resting on them follow the evidence. An action whose report was deleted keeps its
+items and loses only the link to the report. Signing the report off again brings nothing
+twice.
+
+
+\section{Identity: an obligation is known by its id}\label{sec:register:identity}
+
+Everything in \cref{sec:register:settle} joins a finding of one report to a finding of
+another through \code{obligationId}. The join is exact, with no matching by title or by
+provision; it works only while an obligation keeps its id from one report to the next. When
+that holds is decided outside the register, by how obligations are stored.
+
+\begin{itemize}
+  \item \textbf{An obligation of an act or a standard} keeps its id across a re-reading of its
+    act once a person has approved it. Re-extraction deletes and replaces only the rows still
+    \code{proposed} (\file{corpus/obligations.py}); approved and rejected rows are never
+    touched. A proposed obligation that is extracted again is a new row with a new id.
+    \Cref{ch:obligations} describes the extraction and the review.
+  \item \textbf{A company's own requirement} keeps its id when its policy is read again and
+    the passage that states it is unchanged (\code{read_requirements} in
+    \file{analysis/internal.py}): the new row takes the id of the proposed row with the same
+    quoted passage. A passage that was edited yields a new requirement.
+\end{itemize}
+
+When the obligation of an unconfirmed item no longer exists, no later report will ever carry
+its id, and the action could wait for a confirmation for ever. The register says so instead.
+\code{standing(actions)} looks up which of the items' obligations still exist, and
+\code{serialize_company_action} serves an unconfirmed item whose obligation is gone with
+\code{obligationId: null}. The action then carries \code{byHandOnly: true}, as does every
+action that has no items at all. The console prints one quiet line on such an action ---
+\enquote{No report can confirm this action --- only a person closes it, giving the reason in
+the note} --- and, on the item, why: its act, or for a requirement of the company's own its
+policy, was read again since. The stored item keeps the id; only the answer hides it.
+
+This is why the review of the register of obligations comes before relying on confirmations,
+and why an act whose proposed obligations are under open actions should not be extracted
+again before they are reviewed (\cref{ch:ops}). On 13~November 2026 the live register of obligations held 5,960
+obligations, 5,938 of them approved and 12 still proposed; \cref{ch:obligations} states how
+that review was done.
+
+
+\section{History and movement}\label{sec:register:history}
+
+Two smaller functions use the same join to look backwards from a report. Unlike the
+confirmations, they read every \emph{finished} earlier report of the company, signed off or
+not: they describe what the reports said, not what a person accepted.
+
+\paragraph{A finding's history.} \code{history(report)} answers, for each obligation of the
+report's findings, the last times an earlier finished report assessed it, the newest first, at
+most \code{HISTORY}~=~4 entries of \code{{reportId, date, status}} with the effective status.
+A report that did not assess the obligation leaves no entry. \code{serialize_report} attaches
+the list to every finding of a full report as \code{history}; it is worked out when the report
+is served, so it reflects later overrides in the earlier reports. The console shows the first
+three entries on the finding's card as a row of earlier verdicts, each a link to that report.
+
+\paragraph{What moved.} \code{changes(report)} compares the report with the company's earlier
+finished reports, obligation by obligation, and answers three lists, each as a count with up
+to five titles. Here a \emph{gap} is a finding that is \status{missing} or \status{partial};
+\status{unknown} is neither a gap nor settled.
+
+\begin{table}[H]
+\caption{How \code{changes} classifies an obligation of the report}\label{tab:register:changes}
+\begin{tabularx}{\textwidth}{@{}L{20mm}L{44mm}Y@{}}
+\toprule
+\hd{Key} & \hd{Earlier verdict → now} & \hd{Reads as} \\
+\midrule
+\code{closed} & a gap → settled & A gap that is met now. \\
+\code{back} & settled → a gap & An obligation that was met and is a gap again. \\
+\code{new} & not a gap and not settled, or never assessed → a gap & A gap on an obligation
+  that no earlier report assessed, or that was \status{unknown} before. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The earlier verdict is the one of \emph{the last earlier report that assessed that
+obligation}, not of the report just before. The reason is practical: a report may be run on a
+few documents or a few acts. If every obligation were compared with the report just before,
+a narrow report in between would make everything it did not assess look new in the next full
+report. The test \code{test_a_narrow_report_in_between_does_not_make_the_rest_look_new} fixes
+this behaviour. The answer still names the report just before (\code{since}, \code{sinceDate})
+as the date to speak of. Findings on the company's own requirements are left out of the
+movement, as they are counted apart everywhere, and the function answers nothing when the
+company has no earlier finished report.
+
+The result is used in three places, all owned by \cref{ch:report}. It is stored in the
+report's statistics as \code{stats.changes} when the report finishes (\code{report_stats} in
+\file{analysis/pipeline.py}). It is added to the input of the summary step as a block headed
+\texttt{SINCE THE PREVIOUS REPORT}, with the three counts and their titles, and the summary
+prompt is told to close its first paragraph, the overall assessment, with one sentence on the
+movement. And the
+report's PDF prints one line under its results at a glance (\file{analysis/pdf.py},
+\code{_glance}): \enquote{Since the previous report (date): gaps closed -- n, new gaps -- n,
+went back -- n.} In all three the numbers are computed by code; the model only words the
+sentence.
+
+
+\section{Changes in the law}\label{sec:register:law}
+
+A report is an assessment against the versions of the acts that were current when it ran.
+When an act changes afterwards, some of the report's findings rest on provisions that no
+longer read as they did. The ingestion records what changed, and the register's
+\code{law_changes} names those findings.
+
+\paragraph{What is recorded.} When the ingestion job activates a new version of an act, it
+stores in \code{legal_document_versions.changes} what the version changed against the one it
+replaces (\code{version_changes} in \file{corpus/ingest.py}): \code{{from, changed, added,
+removed}}, where the three lists hold provision paths in the act's order. The comparison is
+article by article --- for an act without articles, by its top-level points --- on the text
+with white space normalised: \code{changed} are paths present in both versions with different
+text, \code{added} those only in the new one, \code{removed} those only in the old one. An
+act's first version has no record (null); nor has a version that is processed again in place,
+which would be compared with itself. No model reads the two versions; it is a comparison
+of stored text. \Cref{ch:corpus} describes ingestion and versions.
+
+\paragraph{What the route lists.} \route{GET}{/api/companies/{id}/law-changes}
+(\code{law_changes}) takes the company's latest finished report and, for every act that report
+assessed (as \code{assessed} or \code{upcoming}) whose current version is no longer the one the
+report read, merges the records of all versions since. Each act is answered with the version
+number the report read and the current one with its date, the three lists, and
+\code{findings}: the report's findings under that act whose citations rest on a changed or
+removed provision, each with its id, title, effective status and the cited path. A citation
+rests on an article when its path is the article's path or continues it without a further
+digit, so \texttt{Art.\ 68(1)} rests on \texttt{Art.\ 68} and \texttt{Art.\ 680} does not. Added
+provisions touch no existing finding and are listed for information.
+
+The flag \code{recorded} is false when a version in between has no record. The act then
+changed and the system cannot say where, and it says exactly that rather than show empty lists
+that would read as \enquote{nothing changed}: the console prints \enquote{The act changed, but
+which provisions was not recorded}, and the chat tool is told that the whole act is to be
+looked at again.
+
+The console shows the list under the register, in the section \ui{Teisės aktų pokyčiai}
+(changes in the law), with each finding linked to its card in the report. The list changes
+nothing: it does not reopen an action or alter a finding. It names where a person should look,
+and a new analysis assesses the company against the text now in force.
+
+On 13~November 2026 no stored version on the live system carried a record of changes: no new
+version of an act had been activated since the recording was introduced. The mechanism is
+exercised by the test \code{test_a_new_version_of_an_act_names_the_findings_to_look_at_again},
+which rewords one article, drops one and adds one, and checks the three lists and the findings
+named; it has not yet met a real amendment.
+
+
+\section{Reading the register: the chat and the Excel export}\label{sec:register:reading}
+
+\subsection{The chat assistant reads and never writes}
+
+The chat assistant has one tool for the register, \code{getActionRegister}, in the assistant
+service's \file{llm/tools/actions.js}. It calls the two reading routes --- the register, then
+the changes in the law --- and returns a compact answer: the counts by shown state; up to
+\code{MAX_ACTIONS}~=~20 actions, the closed ones only when that state is asked for, each with
+its state, owner, due date and up to \code{MAX_ITEMS}~=~6 of the findings it closes;
+\code{closedOnlyByHand} where the API says \code{byHandOnly}; and, when acts moved, the changes
+in the law with the findings to re-check. If the law-changes route fails, that part is left
+out and the register is still answered.
+
+The tool takes no argument that could change anything, and no other chat tool signs a report
+off or edits an action; a test in \file{tests/tools-actions.test.mjs} asserts that the only
+tool whose name mentions an action, a sign-off or a register is this one. What the model may
+\emph{say} is constrained twice: by the tool's description and its \code{next} hint, returned
+with every answer, and by a rule of the chat prompt.
+
+\begin{promptexcerpt}{chat.assistant}{rule 13, on the register}
+[…]
+The register moves only when a person signs a report off on the report page: its plan comes in, and a later signed-off report that finds an action's obligations met closes it. You cannot open, close or edit an action, and you never call one closed because a document was uploaded or the user says it is done – "done" there means carried out and awaiting that re-test; tell the user to sign the next report off, or to close the action by hand with a reason on the company's Actions tab.
+[…]
+\end{promptexcerpt}
+
+The rule exists because the tempting answer is the wrong one. A user who has just uploaded
+the missing procedure and asks \enquote{is it closed now?} would be pleased by a yes, and a
+model inclined to be helpful could give it. The register's answer is that the upload is not
+evidence until a report has assessed it and a person has signed that report. \Cref{ch:chat}
+describes the chat's tools and prompt as a whole.
+
+One indirect path deserves stating. The chat can record a reviewer's verdict on a finding, on
+the user's instruction and with the user's reason (the tool \code{overrideFinding},
+\cref{ch:chat}). It sends the same request as the console's review dialog, so on a signed-off
+report it has the same consequence: the sign-off is withdrawn, and what it confirmed in the
+register goes back. The chat still cannot give a sign-off.
+
+\subsection{The Excel export}
+
+\route{GET}{/api/companies/{id}/actions/export} answers the whole register as a workbook
+(\code{render_actions_xlsx} in \file{analysis/exports.py}), in Lithuanian or English by the
+\code{language} parameter, laid out in the columns of the course's findings-and-actions
+register. One row is one action, in the order of the list: a running number; the action with
+its description; the findings it is to close, one line each with the act and the provision
+and the word \enquote{confirmed} once a later report confirmed it; the owner; the due date;
+the state as shown, late included; the priority; the date of the report it came from; the
+date it was closed; how it was closed (\enquote{confirmed by a later report} or
+\enquote{closed by a person}); and the note. Every text cell is stored as text, never as a
+formula. The download is written to the audit log as \code{actions.export}. The chat tool
+words what an action closes the same way as the workbook, so the two agree.
+
+
+\section{Where the line is drawn}\label{sec:register:line}
+
+\begin{codebox}{No model is called anywhere in the register}
+\file{analysis/register.py} imports the report and corpus models, the database transaction and
+a clock. It does not import the function that calls a model, and nothing it calls does.
+Bringing a plan in, confirming a finding, closing an action, sending one back to work,
+deriving \code{late}, a finding's history, the movement between reports and the changes in
+the law are all comparisons of stored ids, statuses, dates and texts. Given the same reports,
+the same signatures and the same edits by people, in the same order, the register always comes
+out the same.
+
+\smallskip
+Its \emph{inputs} are another matter, and should be named. The titles, the owner role, the
+timeframe and the category of an action were written by a model in the report's plan, and
+the status of a finding is a model's verdict unless a reviewer overrode it. The register adds
+no judgement of its own to them: it only records which of them a person signed.
+\end{codebox}
+
+\begin{humanbox}{What only people do here}
+A person signs a report off and may take the signature back. A person owns an action, sets
+its due date and says where it stands. A person may close an action by hand, with a reason
+that stays on the record, and may reopen what a person closed. A person disputes a report's
+closure at the finding it rests on. Nothing in the register happens on the system's own
+initiative: every change follows from one of these acts.
+\end{humanbox}
+
+The line stands here for three reasons. The first is accountability: an action register says
+what a company committed itself to and whether it kept the commitment, and both statements
+should trace back to a named person and a dated report, not to a model's wording on one day.
+The second is reproducibility: a model asked twice whether an action is closed may answer
+twice differently, while a join on an obligation's id cannot. The third is that the judgement
+a model \emph{is} good for has already been made, checked and reviewed elsewhere --- in the
+finding (\cref{ch:report}). The register reuses that judgement and adds none, so it adds no
+new place where a model could be wrong. \Cref{ch:control} gathers the system's controls and
+places this one among them.
+
+
+\section{What was tried, what is tested, and a known limitation}\label{sec:register:tried}
+
+\begin{lessonbox}{Tried on a copy of the database, 12 November 2026}
+The register was run against the real reports of the sample company, \demo, on a copy of the
+database, with no model call. Signing the company's full report off brought its 25 plan
+actions in with the 587 open findings they are to close, every one with its obligation's id.
+Signing the later small report off added 7 actions and left 6 out as already under way. Signed the other way round --- the newer report first --- the register held
+the same 653 findings, none under two actions.
+
+\smallskip
+A re-test was then staged: the full report was copied and some of its findings set to met.
+Signing the copy off confirmed 7 findings, closed the action whose findings were all met, and
+sent back to work the one action that had been called done and still had a finding open.
+Withdrawing that sign-off undid exactly that. Deleting the copy after a second re-test left
+the closures standing on the second. These are observations of one day on one company; the
+re-test was staged by editing findings, not produced by a second real analysis after real
+remediation.
+\end{lessonbox}
+
+\paragraph{Tests.} \file{tests/test_register.py} holds seven tests that drive the register
+through the API's routes with fake models: a sign-off brings the plan in once; a later signed
+report is the re-test; the reports speak in the order they were made; a person owns, dates,
+moves and closes an action, and the export; a finding's history and a report's movement; a
+narrow report in between; and a new version of an act. The authorisation matrix
+(\file{tests/test_authz_matrix.py}) covers the register's routes, and the assistant service
+tests the chat tool. \Cref{ch:testing} describes the suites.
+
+\paragraph{A known limitation.} \code{standing()} asks only whether an obligation's row still
+exists. A report, however, assesses the obligations of an act's current version that are not
+rejected. An obligation that an administrator rejects after it came under an action therefore
+still exists, is never assessed again, and is not marked \code{byHandOnly}: its action waits
+for a confirmation that cannot come, until a person notices and closes it by hand. On
+13~November 2026 none of the ten rejected obligations was under an action. The same holds, by
+the same reading of the code, for an approved obligation that a new version of its act left
+behind because the provision it cites changed: \code{carry_forward} leaves such a row on the
+old version, where no later report reads it. In that second case, until the company's next
+report, the act has a newer version than its latest report read, so the change is at least
+listed under the changes in the law (\cref{sec:register:law}), where a person is pointed to it.

@@ -1,0 +1,532 @@
+% STATUS: verified
+\chapter{Configuration and tunable constants}\label{app:config}
+
+This appendix is the reference for every value an installation can set and every constant in
+the code that shapes what the models are given, what they do and what they cost. It first
+shows where a value comes from (\cref{sec:config:where}), then lists the environment variables
+of the API and of the assistant service with the defaults the code gives them
+(\cref{sec:config:api,sec:config:assistant}) and names those of the other containers
+(\cref{sec:config:other}). The longest part is the table of tunable constants, area by area
+(\cref{sec:config:constants}). It ends with how a constant is changed and which prompts and
+tests depend on one (\cref{sec:config:change}). How to operate the system with these settings
+is \cref{ch:ops}; why each constant has its value is told in the chapter of its subject.
+Every value here was read from the code on 13~November 2026. Secrets are named with their
+purpose only, never with a value.
+
+
+\section{Where a value comes from}\label{sec:config:where}
+
+A setting reaches a running service in one of several ways (\cref{fig:config:where}). The
+operator's own choices and the secrets are lines of the file \file{.env} on the host, which
+Docker Compose reads when it creates a container and passes on through the
+\code{environment} block of that container in \file{docker-compose.yml}. Some values are
+written into the compose file itself. Each service reads its environment once, when it starts:
+the API in \file{settings.py} (and the web server in \file{django/gunicorn.conf.py}), the
+assistant service in \file{config.js}. A variable that is unset gets the default written in
+that code. The tunable constants are not settings at all: they are names at the top of the
+modules that use them, and they change only with the code. Finally, three properties of every
+call to a language model are not in the code: the model, the temperature and the cap on output tokens are
+fields of the active prompt version, which an administrator edits in the console
+(\cref{ch:prompts}); and an administrator can give one account its own daily budget, which
+then overrides \code{LLM_DAILY_BUDGET_USD}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \node[ext, text width=24mm] (env) at (0,0) {\file{.env} on the host\\secrets, choices};
+  \node[svc, text width=29mm] (compose) at (36,0) {\file{docker-compose.yml}\\the environment of\\each container};
+  \node[svc, text width=28mm] (api) at (80,9) {API\\\file{settings.py}};
+  \node[svc, text width=28mm] (asst) at (80,-9) {assistant service\\\file{config.js}};
+  \node[ai, text width=18mm] (call) at (122,0) {a model call};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(api)(asst)] (code) {};
+  \end{scope}
+  \node[lanelabel, anchor=south] at (code.north) {defaults and constants in the code};
+  \node[store, text width=24mm] (pv) at (122,-30) {prompt versions\\model,\\temperature,\\output cap};
+  \node[store, text width=24mm] (acc) at (80,-34) {accounts\\own daily budget};
+  \draw[flow] (env) -- (compose);
+  \draw[flow] (compose.east) -- ++(4,0) |- (api.west);
+  \draw[flow] (compose.east) -- ++(4,0) |- (asst.west);
+  \draw[flow] (api.east) -- ++(5,0) |- (call.west);
+  \draw[flow] (asst.east) -- ++(5,0) |- (call.west);
+  \draw[flow] (pv.north) -- (call.south);
+  \draw[opt] (acc.north) -- (code.south);
+  \node[note, anchor=north] at (36,-9) {unset: the code's default};
+\end{tikzpicture}
+\caption{Where the values that shape a model call come from. The operator sets
+\file{.env} and the compose file; each service reads its environment once at start and
+falls back to the default in its code; the tunable constants change only with the code; the
+prompt version, edited in the console, gives each call its model, temperature and output
+cap; an account's own budget overrides the installation's.}\label{fig:config:where}
+\end{figure}
+
+
+\section{The API's environment}\label{sec:config:api}
+
+\Cref{tab:config:api} lists every environment variable the API's code reads. The column
+\enquote{Compose} says how \file{docker-compose.yml} passes the variable: \enquote{.env} when
+its value comes from \file{.env} (the compose file's own fallback, when it has one, follows in
+brackets), \enquote{file} when the value is written in the compose file, and a dash when the
+compose file does not pass it, so that the code's default applies. The worker runs as
+\texttt{manage.py run\_worker} inside the same container (\cref{ch:arch}) and therefore has
+the same environment.
+
+\begin{xltabular}{\textwidth}{@{}L{40mm}L{21mm}Y@{}}
+\caption{Environment variables of the API (\file{django/compliance/settings.py} unless
+another file is named)}\label{tab:config:api}\\
+\toprule
+\hd{Variable} & \hd{Compose} & \hd{Default in the code, and what it sets} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Variable} & \hd{Compose} & \hd{Default in the code, and what it sets} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{DJANGO_SECRET_KEY} & .env & Required. Secret: Django's signing key. The API refuses to start without it unless \code{DJANGO_DEBUG} is on, when a fixed development key stands in. API authentication does not use it (bearer tokens). \\
+\code{DJANGO_DEBUG} & -- & \code{False}. \code{True} only for local debugging: Django's debug pages. \\
+\code{DATABASE_URL} & file & Required. The PostgreSQL connection (with pgvector) as a URL. It holds the database password, so it is a secret wherever it is copied. \\
+\code{DB_CONN_MAX_AGE} & -- & \code{60}; \code{0} under the development server (\code{DJANGO_RUNSERVER}). Seconds a database connection is kept for reuse; connections are checked before reuse. The development server starts a thread for every request, and a kept connection would be orphaned with its thread. \\
+\code{UPLOAD_DIR} & -- & \code{/data/uploads}. The folder of stored files (the acts' source files and the company documents). \\
+\code{UPLOAD_QUOTA_FILES} & .env (\code{1000}) & \code{1000}. Documents one account may hold. \\
+\code{UPLOAD_QUOTA_BYTES} & .env (\code{2147483648}) & \code{2 * 1024 * 1024 * 1024}. Bytes one account may hold (2~GiB). \\
+\code{ASSISTANT_URL} & -- & \code{http://legalops-assistant:3000}. The assistant service's address; every model call and embedding goes to its \code{/internal/llm/*} routes. \\
+\code{ASSISTANT_INTERNAL_SECRET} & .env & Empty. Secret: gates the internal routes between the API and the assistant service in both directions; empty refuses every internal call. \\
+\code{AI_EMBED_MODEL} & file & \code{gateway:azure/text-embedding-3-large}; the compose file writes \code{azure/text-embedding-3-large}, the same model (an id without a provider prefix is a gateway id). The embedding model named in every call that stores a vector (corpus chunks, obligations, company documents) and recorded on the embedding step. Changing it needs the full re-embedding (\cref{ch:ops}). \\
+\code{LLM_DAILY_BUDGET_USD} & .env (\code{10.0}) & \code{10.0}. US dollars one account may spend on model calls per UTC day; \code{0} is unlimited. An account's own budget, set by an administrator, overrides it; an administrator without one is unlimited (\code{budget_status} in \file{assistant/usage.py}). \\
+\code{LOGIN_RATE_PER_IP} & .env (\code{60}) & \code{60}. Login attempts per client address per minute. The address is the \code{X-Real-IP} the endpoint sets from the \code{X-Forwarded-For} it received; on the live host most visitors arrive under one address and share this window (\cref{ch:security}). The per-account limit, 10 attempts in 600~s, is fixed in \file{users/api/auth_views.py} (\code{EMAIL_LIMIT}, \code{EMAIL_WINDOW_S}). \\
+\code{GUNICORN_WORKERS}, \code{GUNICORN_THREADS} & .env (\code{3}, \code{8}) & \code{3}, \code{8}; read in \file{django/gunicorn.conf.py}. Processes and threads of the production web server. \\
+\code{DJANGO_RUNSERVER} & file (\code{True}) & Unset; read in \file{django/Dockerfile}. \code{True} runs Django's development server instead of gunicorn; the compose line belongs to the development mode (\cref{ch:ops}). \\
+\code{WORKER_HEARTBEAT_FILE} & -- & \code{/tmp/worker-heartbeat}; read in \file{jobs/management/commands/run_worker.py}. The file the worker loop touches on every turn and during a long job, so a health check could tell a stuck loop from a live one; nothing reads it yet. \\
+\code{WORKER_PID_FILE} & -- & \code{/tmp/worker.pid}; read in the same file. The process id of the running worker loop; a new loop asks the loop it names to stop and takes over, so a second loop meant to run beside it needs its own file. \\
+\code{XDG_CACHE_HOME} & file & Not read by the project's code: the compose file sets it to \code{/tmp/.cache} to give the fonts library of the PDF export a writable cache, as the container's root is read-only. \\
+\end{xltabular}
+
+A number that is not a number (for \code{UPLOAD_QUOTA_FILES}, say) makes the settings fail to
+load, so the API does not start. Beside the variables, \file{settings.py} fixes a few limits
+that are not configurable: request bodies of JSON are read in memory up to 8~MB
+(\code{DATA_UPLOAD_MAX_MEMORY_SIZE}) and uploaded files above 5~MB are spooled to
+\file{/tmp} (\code{FILE_UPLOAD_MAX_MEMORY_SIZE}); every request runs in one database
+transaction (\code{ATOMIC_REQUESTS}); times are UTC. The production web server's timeouts
+(\code{timeout = 330}, \code{graceful_timeout = 25}, \code{keepalive = 65} seconds) are in
+\file{django/gunicorn.conf.py}. With its threaded workers the first fires only when a worker
+stops giving its heartbeat, never because one request is slow: a report export takes minutes,
+and a prompt test run waits on its model for up to 930~s.
+
+
+\section{The assistant service's environment}\label{sec:config:assistant}
+
+The assistant service reads its whole environment in \file{config.js}, once, when the module
+is first imported. \Cref{tab:config:assistant} lists every variable it reads. Of these,
+\file{docker-compose.yml} passes only the first six; the others keep the code's default
+unless an operator adds them to the service's \code{environment} block.
+
+\begin{codebox}{How \file{config.js} reads a value}
+A number must be plain digits within its range (\code{intFromEnv}): from the minimum shown
+in the table up to 2\,147\,483\,647 (the longest delay a Node timer can hold), or 65\,535 for
+the port. Anything else --- a word, a negative number, \code{0} where the minimum is 1 --- is
+replaced by the default and a warning is written at start, because as zero it would time out
+every turn or switch the rate limit off. An unset or blank variable is the default. URLs lose
+their trailing slashes; keys, the secret and model ids are kept byte for byte, and a key of
+blanks counts as unset.
+\end{codebox}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}L{40mm}Y@{}}
+\caption{Environment variables of the assistant service (\file{assistant/app/config.js}); the
+first six are passed by \file{docker-compose.yml}}\label{tab:config:assistant}\\
+\toprule
+\hd{Variable} & \hd{Default (minimum)} & \hd{What it sets} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Variable} & \hd{Default (minimum)} & \hd{What it sets} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{DJANGO_URL} & \code{http://legalops-django:8000} & The API: its public routes, called with the user's bearer token, and its internal routes. Compose writes the same value. \\
+\code{ASSISTANT_INTERNAL_SECRET} & empty & Secret. The same shared secret as the API's; empty refuses every internal call and the service warns at start. \\
+\code{AI_GATEWAY_URL} & \code{https://ai.knf.vu.lt/v1} & The faculty's gateway (OpenAI wire formats). Compose passes it from \file{.env} with the same default. \\
+\code{AI_GATEWAY_KEY} & empty & Secret. The gateway key; empty means the gateway is not configured: the chat answers 503 (\code{NOT_CONFIGURED}), and a generate or embedding call on a gateway model is refused with 400 (\code{UNKNOWN_MODEL}). \\
+\code{AI_CHAT_MODEL} & \code{gateway:azure/gpt-5.5} & The model of a chat turn or a generate call whose prompt version and request name none; the shipped prompts all name theirs. Compose passes it from \file{.env} with the default \code{azure/gpt-5.5} (an id without a provider prefix is a gateway id). \\
+\code{AI_EMBED_MODEL} & \code{gateway:azure/text-embedding-3-large} & The embedding model of a request that names none --- the query vector of a search of the corpus or of a company's documents. It must name the same model as the API's copy (\cref{sec:config:other}). \\
+\code{PORT} & \code{3000} (1) & The port the service listens on. \\
+\code{ANTHROPIC_API_KEY} & empty & Secret, optional: enables model ids \code{anthropic:<model>}. \\
+\code{OPENAI_API_KEY} & empty & Secret, optional: enables model ids \code{openai:<model>}. \\
+\code{OLLAMA_BASE_URL} & empty & Optional: an Ollama server's address enables model ids \code{ollama:<model>}; from the isolated network only the egress allowlist is reachable. \\
+\code{CHAT_TIMEOUT_MS} & \code{900000} (1) & The longest a whole chat turn may stream. \\
+\code{CHAT_STEP_TIMEOUT_MS} & \code{300000} (1) & The longest one model step of a turn (one tool round) may take. \\
+\code{CHAT_CHUNK_TIMEOUT_MS} & \code{90000} (1) & The longest silence between two streamed chunks; a reasoning model thinks silently before its first token. \\
+\code{GENERATE_TIMEOUT_MS} & \code{900000} (1) & The ceiling of one \route{POST}{/internal/llm/generate} call (a pipeline step's call), fifteen minutes. The API waits 30~s longer (\code{GENERATE_TIMEOUT_S}, \cref{tab:config:calls}). \\
+\code{EMBED_TIMEOUT_MS} & \code{60000} (1) & The ceiling of one embedding batch, retries included: half the 120~s the API waits, so a hung call becomes an error the API retries. \\
+\code{RATE_LIMIT_TURNS} & \code{12} (1) & Chat turns one user may start per window of \code{RATE_LIMIT_WINDOW_MS} (60~s). \\
+\code{IDENTITY_CACHE_MS} & \code{15000} (0) & How long a checked bearer token is trusted before the API is asked again; \code{0} asks on every turn. \\
+\code{SHUTDOWN_GRACE_MS} & \code{190000} (0) & How long live chat turns get to finish after a stop signal before they are stored as interrupted. Compose sets no stop grace period, so Docker ends the process after 10~s (\cref{ch:ops}). \\
+\end{xltabular}
+
+
+\section{The other containers}\label{sec:config:other}
+
+The remaining containers take their variables from the compose file, and none of them reaches
+a model. They are named here for completeness, with no value. The endpoint (Caddy) receives
+\code{DBGATE_AUTH_HEADER} from \file{.env}, the login of the database tool encoded for an HTTP
+header. The database container is given \code{POSTGRES_DB}, \code{POSTGRES_USER},
+\code{POSTGRES_PASSWORD} and \code{PGDATA} in the compose file, and its server parameters on
+the command line (\code{max_connections=100} among them). The database tool (dbgate) is given
+its web root, its basic-authentication login with \code{PASSWORD} from \file{.env}
+(\code{DBGATE_PASSWORD}), and one connection to the database. The console, the exit proxy and the worker's container (which only
+runs the worker inside the API's container) take no environment. How the secrets are minted and rotated is in \cref{ch:ops}.
+
+One variable is set twice and the two copies must agree. \code{AI_EMBED_MODEL} of the API is
+written in the compose file and names the model in every call that stores a vector; the
+assistant service's copy comes from \file{.env} and is the model of every query vector.
+Vectors of two models cannot be compared, so a search would rank stored vectors against a
+query vector of another model if they differed. The width of every vector is fixed at 1536 (\code{EMBED_DIMENSIONS}).
+
+
+\section{The tunable constants}\label{sec:config:constants}
+
+The tables of this section list the constants that decide how much a model reads in one call,
+how many calls run at once, how long a call may take and how often it is tried, what the code
+accepts from an answer, and under which key a result is cached. Values are given as the code
+writes them (\code{24_000} is twenty-four thousand). Where a limit is written into a function
+rather than named, the table gives it as \enquote{(inline)}. File paths are those of the API
+unless they end in \file{.js}, which are the assistant service's. Constants that only enumerate
+allowed values (the statuses, severities, categories that a schema's enum carries) are not
+listed: they are part of each path's schema, described with the path.
+
+
+\subsection{Model calls}\label{sec:config:calls}
+
+These shape every call, whatever its purpose: how many run together, how they are retried,
+how long each side waits, and what an embedding batch may hold.
+
+\begin{lessonbox}{Measured, 10 November 2026}
+Four gap-analysis calls of about 59\,000 tokens each, run at the same time, met the
+provider's tokens-per-minute limit within two minutes, and the ordinary retries after 2, 6
+and 18~seconds met it again. The code's comment gives this as the reason a call that belongs to a job step is
+\enquote{patient}: a rate limit is waited out for up to fifteen minutes in all
+(\code{RATE_LIMIT_PATIENCE_S}) instead of failing the step. The full report of
+13~November 2026 (272 calls) was slowed by the limit and lost no call to it.
+\end{lessonbox}
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the model calls}\label{tab:config:calls}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{WORKERS}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{4} & Model calls of a report step in flight at once. \\
+\code{shared_first}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & -- & Not a number but a rule: of the calls of a step that share data, the first runs alone so the provider holds the shared block in its cache before the others ask. \\
+\code{workers=4}\newline{\footnotesize\color{muted}\file{corpus/obligations.py}, \file{corpus/verify.py}, \file{corpus/outline.py} (inline)} & \code{4} & Calls in flight at once when obligations are extracted, when the judge checks them, and when a standard's long clauses are read; \code{WORKERS = 4} in \file{programme/run.py} does the same for the inventories of a work product. \\
+\code{patient}\newline{\footnotesize\color{muted}\file{assistant/llm.py} (inline)} & -- & A call of \code{run_prompt} made under a job step (\code{job_step_id} given) waits a rate limit out; a call a person waits for at a screen does not. \\
+\code{BACKOFF_BASE_S}, \code{BACKOFF_MAX_S}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & \code{2}, \code{30} & Seconds before retry $n$: $\min(2\cdot 3^n, 30)$, so 2, 6, 18, 30. \\
+\code{retries=1}\newline{\footnotesize\color{muted}\file{assistant/gateway.py} (argument of \code{generate})} & \code{1} & A model call that failed with a retryable status is tried once more. \\
+\code{CONNECTION_RETRIES}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & \code{5} & A generate or embedding call that could not reach the assistant service at all (the service restarting) is retried five times, after 2, 6, 18, 30 and 30~s; a call that timed out keeps its ordinary retries. \\
+\code{RETRYABLE_STATUSES}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & 408, 409, 425, 429, 500, 502, 503, 504 & The HTTP statuses that are retried, beside network failures; any other error fails the call at once. \\
+\code{RATE_LIMIT_WAIT_S}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & \code{20} & A patient call's wait when the provider names none: 20~s times the number of the wait, at most 60~s, a quarter more or less at random so the calls of a step do not return together. \\
+\code{RATE_LIMIT_PATIENCE_S}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & \code{900} & Seconds a patient call waits rate limits out in all before it fails. \\
+\code{GENERATE_TIMEOUT_S}\newline{\footnotesize\color{muted}\file{assistant/gateway.py}} & \code{930} & How long the API waits for one generate call: 30~s past the assistant service's \code{GENERATE_TIMEOUT_MS}, so the service's own refusal arrives first. \\
+\code{timeout=120}, \code{retries=3}\newline{\footnotesize\color{muted}\file{assistant/gateway.py} (arguments of \code{embed})} & \code{120}, \code{3} & Seconds the API waits for one embedding batch, and its retries. \\
+\code{MAX_EMBED_TEXTS}\newline{\footnotesize\color{muted}\file{routes/internal.js}} & \code{256} & The most texts one embedding call may carry. \\
+\code{EMBED_BATCH}\newline{\footnotesize\color{muted}\file{corpus/ingest.py}} & \code{64} & Chunks of an act per embedding call. Obligations go 32 rows a call, each with its Lithuanian and English text (\file{corpus/obligations.py}, inline), and a company document's passages 64 a call (\file{companies/indexing.py}, inline). \\
+\code{EMBED_DIMENSIONS}\newline{\footnotesize\color{muted}\file{corpus/models.py}, \file{companies/models.py}, \file{routes/internal.js}} & \code{1536} & The width of every stored vector; a \code{text-embedding-3} model is asked for it, and a longer vector is cut to its first 1536 values and renormalised. \\
+\code{MODELS_CACHE_MS}\newline{\footnotesize\color{muted}\file{routes/internal.js}} & \code{10 * 60_000} & How long the gateway's list of models (with prices) is reused. \\
+\code{PRICE_TTL_S}, \code{PRICE_RETRY_S}\newline{\footnotesize\color{muted}\file{assistant/usage.py}} & \code{3600}, \code{300} & The price table that costs every call is refreshed hourly; after a failed refresh the stored prices serve and the refresh is tried again after five minutes. \\
+\code{MIN_BUDGET_TO_START_USD}\newline{\footnotesize\color{muted}\file{analysis/api/views.py}, \file{programme/api/views.py}} & \code{0.25} & Dollars an account must have left today to start a report, to approve a report's scope, or to start a work product; a run that has started is never stopped for the budget. \\
+\end{xltabular}
+
+
+\subsection{The corpus}\label{sec:config:corpus}
+
+These decide how an act or a standard is cut into units and chunks, how the corpus is searched,
+how the model reads the structure of a standard whose numbering the rules cannot follow, and
+how the citation check reads a claimed provision. \Cref{ch:corpus} explains each mechanism.
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the corpus}\label{tab:config:corpus}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{MAX_CHUNK_CHARS}\newline{\footnotesize\color{muted}\file{corpus/chunking.py}} & \code{3200} & The longest retrieval chunk (about 800 tokens); a longer article is split between paragraphs. \\
+\code{SHORT_CLAUSE_CHARS}, \code{RUN_CHARS}\newline{\footnotesize\color{muted}\file{corpus/chunking.py}} & \code{700}, \code{2000} & A standard's clause shorter than 700 characters shares a chunk with its short siblings, up to 2000. \\
+\code{RRF_K}\newline{\footnotesize\color{muted}\file{corpus/search.py}} & \code{60} & The constant of reciprocal rank fusion that merges the vector and the keyword halves of a search. \\
+\code{CANDIDATES}\newline{\footnotesize\color{muted}\file{corpus/search.py}} & \code{40} & Chunks each half of a search contributes before the merge. \\
+\code{WINDOW_CHARS}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{28_000} & Text of a standard the model reads in one call when it marks headings (about 8\,000 tokens), as numbered lines; the excerpts of one document are read one after another. \\
+\code{SHOWN_LINE_CHARS}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{200} & Each line is shown to the model up to this length. \\
+\code{CONTEXT_HEADINGS}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{14} & Headings found before an excerpt that the model is told, so it keeps the levels. \\
+\code{MAX_AI_CHARS}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{2_500_000} & A document longer than this is never sent to the model; it is read by the rules or by its pages. \\
+\code{REFINE_FROM_CHARS}, \code{MIN_REFINED}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{15_000}, \code{3} & A clause the rules left longer than 15\,000 characters is read further by the model, and its marked headings are kept when at least three carry an identifier. \\
+\code{MAX_LEAF_SHARE}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{0.5} & When one clause the rules left longer than 15\,000 characters holds more than half the text, the model is asked to read the whole document. \\
+\code{SPLIT_FROM_CHARS}, \code{PART_CHARS}\newline{\footnotesize\color{muted}\file{corpus/outline.py}} & \code{24_000}, \code{6_000} & A unit still longer than 24\,000 characters is cut by its pages, or into parts of 6\,000 when the text shows no pages, so that no requirement is cited to forty pages. \\
+\code{MIN_STANDARD_CLAUSES}, \code{MAX_PREAMBLE_SHARE}\newline{\footnotesize\color{muted}\file{corpus/standards.py}} & \code{3}, \code{0.6} & The numbering rules read a standard when they find at least three clauses and no more than 60\,\% of the text lies before the first; otherwise the model is asked to mark the headings, and failing that the pages stand in. \\
+\code{OWN_TEXT_CHARS}\newline{\footnotesize\color{muted}\file{corpus/standards.py}} & \code{40} & A clause's own text before its subclauses is read for requirements when it is at least this long. \\
+\code{MAX_ITEMS}\newline{\footnotesize\color{muted}\file{corpus/citations.py}} & \code{50} & References one citation check (one model call) judges; the rest of a longer request are not checked. \\
+\code{MAX_LOOKUPS}\newline{\footnotesize\color{muted}\file{corpus/citations.py}} & \code{2 * MAX_ITEMS} & Article lookups one request of the citation checker may make. \\
+\code{EXCERPT_CHARS}\newline{\footnotesize\color{muted}\file{corpus/citations.py}} & \code{600} & The opening of the provision the judge compares a claim with (beside its heading). \\
+\code{MAX_SERIES_ARTICLES}\newline{\footnotesize\color{muted}\file{corpus/citations.py}} & \code{15} & Articles of one range or list (\enquote{Art. 6--9, 26--29}) that are looked up one by one. \\
+claim, note (inline)\newline{\footnotesize\color{muted}\file{corpus/citations.py}} & \code{500}, \code{300} & A claim is cut to 500 characters before the judge reads it; the judge's note is kept to 300. \\
+\end{xltabular}
+
+\file{corpus/standards.py} holds some twenty further numeric limits and as many text patterns --- how many lines at a page's
+edge may be page furniture, how long a heading may be, how a wrapped heading or a paragraph
+number is recognised. They decide only how the rules read a standard's text, never what a
+model is given, and are explained where they stand in that file.
+
+
+\subsection{Obligations, scope and sanctions}\label{sec:config:obligations}
+
+The three readings of the corpus that a model makes once per version of an act, and the judge
+that checks the register (\cref{ch:obligations}).
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the obligations, the scope reading, the sanctions and the
+judge}\label{tab:config:obligations}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{BATCH_CHARS}\newline{\footnotesize\color{muted}\file{corpus/obligations.py}} & \code{24_000} & Characters of provisions in one extraction call (about 6\,000 tokens). \\
+\code{MAX_PROVISION_CHARS}\newline{\footnotesize\color{muted}\file{corpus/obligations.py}} & \code{60_000} & A single provision longer than this is cut in its batch. \\
+\code{WHOLE_PART_CHARS}\newline{\footnotesize\color{muted}\file{corpus/obligations.py}} & \code{400} & A chapter or section that numbers none of its text is read whole when it holds more than this. \\
+\code{DUPLICATE_RATIO}\newline{\footnotesize\color{muted}\file{corpus/obligations.py}} & \code{0.75} & Title similarity at or above which a new proposal citing the same provision duplicates an approved obligation and is dropped. \\
+\code{BATCH_CHARS}\newline{\footnotesize\color{muted}\file{corpus/verify.py}} & \code{24_000} & Characters of articles the judge reads in one call. \\
+\code{PROVISION_CHARS}\newline{\footnotesize\color{muted}\file{corpus/verify.py}} & \code{20_000} & Each article shown to the judge is cut to this, marked \enquote{cut off}. \\
+\code{OBLIGATIONS_PER_CALL}\newline{\footnotesize\color{muted}\file{corpus/verify.py}} & \code{20} & Obligations the judge checks in one call. \\
+\code{ACTS_PER_CALL}\newline{\footnotesize\color{muted}\file{corpus/scope.py}} & \code{4} & Acts whose scope provisions one call reads. \\
+\code{SCOPE_ARTICLES}\newline{\footnotesize\color{muted}\file{corpus/scope.py}} & \code{3} & The first articles of an act that decide its scope; an act without articles gives its first six points (inline). \\
+\code{READ_CHARS}\newline{\footnotesize\color{muted}\file{corpus/scope.py}} & \code{12_000} & Characters of each scope provision in the scope reading. \\
+\code{HEADING}\newline{\footnotesize\color{muted}\file{corpus/sanctions.py}} & a pattern & An article is a sanction provision when its heading speaks of sanctions, fines, penalties or measures, in Lithuanian or English. \\
+\code{ARTICLES}\newline{\footnotesize\color{muted}\file{corpus/sanctions.py}} & \code{8} & Sanction provisions of one act read in its one call. \\
+\code{READ_CHARS}\newline{\footnotesize\color{muted}\file{corpus/sanctions.py}} & \code{14_000} & Characters of each sanction provision read. \\
+\code{MAX_TIERS}\newline{\footnotesize\color{muted}\file{corpus/sanctions.py}} & \code{24} & Tiers kept from one answer; the prompt asks for at most twenty-four. \\
+\end{xltabular}
+
+
+\subsection{Documents and inventory}\label{sec:config:documents}
+
+What is read out of a company's documents, and the keys under which it is cached so that a
+later report reuses it (\cref{ch:company}).
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the company's documents}\label{tab:config:documents}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{MAX_DOCUMENT_CHARS}\newline{\footnotesize\color{muted}\file{companies/inventory.py}} & \code{160_000} & Characters of a document the inventory call reads (about 40\,000 tokens); the model is told how many more were not read. \\
+\code{SCHEMA_VERSION}\newline{\footnotesize\color{muted}\file{companies/inventory.py}} & \code{2} & The inventory's shape, part of its cache key; it must be raised whenever the inventory's schema changes, so every inventory is read once again. \\
+inventory key\newline{\footnotesize\color{muted}\file{companies/inventory.py} (\code{inventory_key})} & -- & \enquote{sha256 of the text\,:\,prompt version id\,:\,s\textit{SCHEMA\_VERSION}}: an inventory is reused until the text, the prompt version or the shape changes. \\
+\code{CITATION_FIELDS}\newline{\footnotesize\color{muted}\file{companies/inventory.py}} & act 300, article 60, paragraph 60, point 60, claim 1000, quote 200 & The longest value kept of each field of a reference the inventory found; the prompt asks for quotes of at most 200 characters. \\
+\code{WINDOW_CHARS}, \code{OVERLAP_CHARS}\newline{\footnotesize\color{muted}\file{companies/indexing.py}} & \code{1800}, \code{200} & Passages a document is cut into for its vectors (about 450 tokens), each overlapping the previous one. \\
+\code{RESUME_AFTER_RESET}\newline{\footnotesize\color{muted}\file{companies/indexing.py}} & 5 minutes & An indexing job deferred because the uploader's daily budget was spent comes back this long after 00:00 UTC. \\
+\end{xltabular}
+
+
+\subsection{The report}\label{sec:config:report}
+
+The constants of the report pipeline (\cref{ch:report}), of its option to assess the
+company's own requirements, and of the estimate shown before a report starts. The estimate's
+volumes per call were measured on the sample company, \demo{} (the file dates the first three
+to 10~November 2026, with \model{gpt-6.1-sol}); they are inputs to an upper bound, not
+predictions.
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the compliance report}\label{tab:config:report}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{CITATIONS_PER_CALL}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{MAX_ITEMS} (50) & Lookups of the citation audit per judge call. \\
+\code{ACTS_PER_CALL}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{4} & Acts per applicability call. \\
+\code{SCOPE_CHARS}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{5000} & Characters of each scope provision in the applicability call. \\
+\code{OBLIGATIONS_PER_CALL}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{15} & Obligations judged in one gap-analysis call; all of one act. \\
+\code{DOCUMENT_PACK_CHARS}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{600_000} & Characters of company documents one call may carry. A library within it is sent whole, as shared data, to every gap-analysis call (and to the own-requirements calls and the work products); a larger one is cut to the documents nearest to each batch, and the own-requirements check and the work products are then not made. \\
+\code{EVIDENCE_PER_OBLIGATION}, \code{EVIDENCE_MAX_DISTANCE}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{6}, \code{0.7} & For a library too large: the six nearest passages of an obligation under cosine distance 0.7, by the better of its Lithuanian and English vectors, decide which documents a batch receives. \\
+\code{PLAN_FINDINGS_PER_CALL}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{150} & Open findings one action-plan call takes, whole themes packed together. \\
+\code{MAX_CITATIONS_FOR_PLAN}\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{60} & Problems of the citation audit the action plan reads at most. \\
+plan lines (inline)\newline{\footnotesize\color{muted}\file{analysis/pipeline.py}} & \code{280}, \code{220}, \code{600} & A finding is given to the planning call with its analysis cut to 280 characters and its recommendation to 220; a draft action to the merge call with its description cut to 600. \\
+summary input (inline)\newline{\footnotesize\color{muted}\file{analysis/pipeline.py} (\code{step_summary})} & \code{25}, \code{5}, \code{30} & The summary is given at most 25 of the gravest open findings (missing or partial, critical or high), topped up to five with lesser ones, the five worst own-requirement gaps, and the first 30 actions of the plan. \\
+\code{REQUIREMENTS_PER_DOCUMENT}\newline{\footnotesize\color{muted}\file{analysis/internal.py}} & \code{20} & Own requirements kept from one policy document; the prompt asks for at most twenty. \\
+\code{READ_CHARS}\newline{\footnotesize\color{muted}\file{analysis/internal.py}} & \code{80_000} & Characters of a policy document read for its requirements. \\
+\code{PER_CALL}\newline{\footnotesize\color{muted}\file{analysis/internal.py}} & \code{15} & Own requirements judged in one call. \\
+requirements key\newline{\footnotesize\color{muted}\file{analysis/internal.py} (inline)} & -- & \enquote{sha256 of the uploaded file\,:\,prompt version id}: a document is read for requirements again only when one of them changes. \\
+\code{APPLICABILITY_CALL_TOKENS}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{(24_000, 1_800)} & Input and output tokens of an applicability call of four acts. \\
+\code{INVENTORY_CALL_TOKENS}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{(2_800, 7_000)} & The same for one document's inventory. \\
+\code{CITATION_CALL_TOKENS}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{(13_000, 3_500)} & The same for one citation check. \\
+\code{GAP_CALL_TOKENS}, \code{GAP_PREFIX_TOKENS}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{(5_500, 4_500)}, \code{5_000} & What a gap-analysis call of fifteen obligations adds and writes, and the profile and instructions before the documents. \\
+\code{DOCUMENT_CHARS_PER_TOKEN}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{4.5} & Characters of a company document per token. \\
+\code{PLAN_CALL_TOKENS}, \code{SUMMARY_TOKENS}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{(31_000, 5_000)}, \code{(14_000, 2_000)} & One planning call and the summary. \\
+\code{OPEN_SHARE}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{0.5} & Share of assessed obligations assumed to end as open findings and be planned. \\
+\code{CHARS_PER_TOKEN}, \code{EXTRACTION_OUTPUT_RATIO}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{3.2}, \code{0.7} & An act never extracted: input tokens are its characters over 3.2, output 0.7 of the input. \\
+\code{OBLIGATIONS_PER_ARTICLE}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{2.2} & Obligations assumed per article of an act never extracted. \\
+\code{CITATIONS_PER_DOCUMENT}\newline{\footnotesize\color{muted}\file{analysis/estimate.py}} & \code{20} & References assumed in a document whose inventory will be read again. \\
+\code{EXPECTED_PER_DOCUMENT}\newline{\footnotesize\color{muted}\file{analysis/internal.py}} & \code{8} & Own requirements assumed for a policy document not yet read. \\
+\end{xltabular}
+
+
+\subsection{The action register}\label{sec:config:register}
+
+The register (\cref{ch:register}) calls no model; two of its constants set what a person
+sees.
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the action register}\label{tab:config:register}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{DUE_DAYS}\newline{\footnotesize\color{muted}\file{analysis/register.py}} & 14, 30, 90, 365 & Days from the sign-off to an action's due date for the timeframes \code{immediate}, \code{30_days}, \code{90_days} and \code{12_months}; 90 for any other. \\
+\code{HISTORY}\newline{\footnotesize\color{muted}\file{analysis/register.py}} & \code{4} & Earlier assessments a finding's history goes back. \\
+\code{OPEN}, \code{SETTLED}, \code{LIVE}\newline{\footnotesize\color{muted}\file{analysis/register.py}} & -- & Which finding statuses count as open (missing, partial, not evidenced) or settled (met, not applicable), and which action states are live (\code{open}, \code{in_progress}, \code{done}). \\
+\end{xltabular}
+
+
+\subsection{Work products}\label{sec:config:programme}
+
+A work product (\cref{ch:programme}) reads the company the way a report does --- the same
+\code{DOCUMENT_PACK_CHARS}, the same citation check --- and its rules then check the answer.
+A blocking rule keeps the product from approval.
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the work products}\label{tab:config:programme}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{STARTS}\newline{\footnotesize\color{muted}\file{programme/run.py}} & \code{(0, 5, 50, 92)} & Where each of a run's four steps begins, in per cent, for the progress shown while a person waits. \\
+\code{PART_CHARS}\newline{\footnotesize\color{muted}\file{programme/policy.py}} & \code{12_000} & The longest text kept of one part of the policy. \\
+\code{MIN_PART_CHARS}\newline{\footnotesize\color{muted}\file{programme/policy.py}} & \code{150} & A part shorter than this breaks the blocking rule that all eight parts are written. \\
+\code{MIN_STEPS}\newline{\footnotesize\color{muted}\file{programme/governance.py}} & \code{5} & Fewest steps of the compliance process (blocking); the prompt asks for eight to fourteen. \\
+\code{ISO_CLAUSES}\newline{\footnotesize\color{muted}\file{programme/governance.py}} & 41 clauses & The clauses of ISO 37301:2021 a process step may rest on. \\
+\code{GUIDELINE_PARAGRAPHS}\newline{\footnotesize\color{muted}\file{programme/governance.py}} & \code{range(1, 80)} & The paragraphs (1 to 79) of the Bank of Lithuania's guidelines a step may rest on. \\
+\code{MIN_SCENARIOS}, \code{MIN_CATEGORIES}\newline{\footnotesize\color{muted}\file{programme/risks.py}} & \code{5}, \code{4} & Fewest scenarios and types of legal risk in a register (both blocking); the prompt asks for six to ten over at least five. \\
+\code{BANDS}\newline{\footnotesize\color{muted}\file{programme/risks.py}} & 1--3, 4--6, 8--12, 15--16, 20--25 & The five bands of the 5×5 matrix and the responses each allows; held in the code, never asked of the model. \\
+\code{DECISION_CHARS}, \code{CALIBRATION_CHARS}\newline{\footnotesize\color{muted}\file{programme/risks.py}} & \code{1_000}, \code{4_000} & The longest a band's decision and the note on how the scales were fitted are kept: room for what the prompt asks for, so that neither is cut in the middle of a word. \\
+\end{xltabular}
+
+
+\subsection{The chat}\label{sec:config:chat}
+
+The limits of a chat turn, of what the model is given about the user's company, and of the
+external tools an administrator may connect (\cref{ch:chat}). The caps on what each chat tool
+returns stand in the tool files under \file{llm/tools/} and are listed with the tools in
+\cref{app:tools}. The environment variables of the chat are in \cref{tab:config:assistant}.
+
+\begin{xltabular}{\textwidth}{@{}L{44mm}L{19mm}Y@{}}
+\caption{Constants of the chat assistant (assistant service)}\label{tab:config:chat}\\
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Constant, file} & \hd{Value} & \hd{Effect} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{MAX_STEPS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{24} & Model steps one turn may chain; the last runs without tools so the turn ends in text. \\
+\code{MAX_MESSAGE_CHARS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{60_000} & The most text one user message may carry. \\
+\code{MAX_PARTS}\newline{\footnotesize\color{muted}\file{routes/chat.js}} & \code{30} & The most parts one user message may carry. \\
+\code{MAX_REQUEST_BYTES}\newline{\footnotesize\color{muted}\file{config.js}} & \code{"512kb"} & The largest body of a public chat request. \\
+\code{MAX_HISTORY_MESSAGES}\newline{\footnotesize\color{muted}\file{config.js}} & \code{200} & The longest branch of a conversation rebuilt from the API; older messages are dropped. \\
+\code{MAX_HISTORY_CHARS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{400_000} & The size of the messages one turn may send to the model (about 100\,000 tokens); whole old turns are dropped first. \\
+\code{MAX_STORED_CHARS}\newline{\footnotesize\color{muted}\file{services/transcript.js}} & \code{380_000} & A reply is shrunk below this before it is stored (the API refuses a row over 400\,000). \\
+\code{RATE_LIMIT_WINDOW_MS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{60_000} & The window of \code{RATE_LIMIT_TURNS}. \\
+\code{TITLE_TIMEOUT_MS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{8_000} & The longest the call that names a conversation may take; past it the automatic title stays. \\
+\code{TITLE_INPUT_CHARS}\newline{\footnotesize\color{muted}\file{config.js}} & \code{2_000} & Characters of the first message the title model reads. \\
+\code{TITLE_MAX_CHARS}\newline{\footnotesize\color{muted}\file{services/title.js}} & \code{80} & The longest title kept. \\
+\code{MAX_LISTED}\newline{\footnotesize\color{muted}\file{llm/prompt.js}} & \code{30} & Credentials, standards, documents and roles the company context lists; beyond that the model calls a tool. \\
+\code{MAX_REPORTS}\newline{\footnotesize\color{muted}\file{llm/prompt.js}} & \code{5} & The company's reports the context lists, newest first. \\
+\code{MAX_ACTIVITIES}\newline{\footnotesize\color{muted}\file{llm/prompt.js}} & \code{1_500} & Characters of the company's activities text in the context. \\
+\code{MAX_JSON_FIELD}\newline{\footnotesize\color{muted}\file{llm/prompt.js}} & \code{2_000} & Characters of a structured field of the profile in the context. \\
+\code{MAX_ROLE_CHARS}\newline{\footnotesize\color{muted}\file{llm/prompt.js}} & \code{6_000} & Characters of the role profile placed in the prompt. \\
+\code{CACHE_MS}, \code{RETRY_MS}\newline{\footnotesize\color{muted}\file{services/prompts.js}} & \code{60_000}, \code{5_000} & How long the chat reuses a prompt's active version, and how soon a failed refresh is tried again: a newly activated version of a chat prompt is used within about a minute. \\
+\code{MAX_TOOLS}\newline{\footnotesize\color{muted}\file{llm/mcp.js}} & \code{40} & Tools one external (MCP) server may add to a turn. \\
+\code{MAX_RESULT_CHARS}\newline{\footnotesize\color{muted}\file{llm/mcp.js}} & \code{20_000} & Characters of an external tool's answer the model gets. \\
+\code{CALL_TIMEOUT_MS}, \code{CONNECT_TIMEOUT_MS}\newline{\footnotesize\color{muted}\file{llm/mcp.js}} & \code{30_000}, \code{8_000} & The longest one external tool call, and connecting to a server and listing its tools, may take. \\
+error text (inline)\newline{\footnotesize\color{muted}\file{llm/tools/shared.js} (\code{ToolFailure})} & \code{400} & Characters of a failed tool call's cause that the model reads. \\
+\code{TIMEOUT_MS}\newline{\footnotesize\color{muted}\file{services/django.js}} & \code{15_000} & How long the assistant service waits for the API to answer one request; past it a tool fails with \code{DJANGO_UNREACHABLE}. \\
+\code{JUDGE_TIMEOUT_MS}\newline{\footnotesize\color{muted}\file{llm/tools/corpus.js}} & \code{150_000} & The same wait for the citation check alone: the API has a model compare every claim with its provision before it answers. \\
+\code{EVIDENCE_WAIT_MS}\newline{\footnotesize\color{muted}\file{llm/tools/companies.js}} & \code{1_500} & How long \code{addCredential} waits before it tries once more to link an evidence document that is not the company's yet. \\
+\end{xltabular}
+
+
+\section{Changing a constant}\label{sec:config:change}
+
+A constant is changed in the code and takes effect when the process that holds it next
+starts: in production after the update script has rebuilt the images, in the development mode
+at once for the API and the assistant service, which reload on a saved file, but for the worker
+loop only when it is restarted (\cref{ch:ops}). A job already running keeps the value it
+started with, so most constants act from the next run. A few constants are
+tied to a prompt that states the same number, to another constant or to a test, and those must
+be changed together (\cref{tab:config:depends}); the others can be changed alone.
+
+\begin{table}[H]
+\caption{The constants that a prompt, another value or a test depends on}\label{tab:config:depends}
+\begin{tabularx}{\textwidth}{@{}L{50mm}Y@{}}
+\toprule
+\hd{Constant} & \hd{What depends on it} \\
+\midrule
+\code{MAX_TIERS} (24) & The prompt \prompt{corpus.sanctions}: \enquote{At most twenty-four tiers}. \\
+\code{REQUIREMENTS_PER_DOCUMENT} (20) & The prompt \prompt{company.internal_requirements}: \enquote{At most twenty requirements}. \\
+\code{CITATION_FIELDS} (quote 200) & The prompt \prompt{report.inventory}: quotes of \enquote{at most 200 characters}. \\
+\code{ISO_CLAUSES}, \code{GUIDELINE_PARAGRAPHS} & The list of references in the prompt \prompt{programme.raci}. \\
+\code{MIN_STEPS}, \code{MIN_SCENARIOS}, \code{MIN_CATEGORIES} & Kept below what the prompts \prompt{programme.raci} and \prompt{programme.risk_scenarios} ask for, so a good answer never breaks a rule. \\
+\code{SCHEMA_VERSION} & Must be raised with every change of the inventory's schema; \file{tests/test_citation_audit.py} checks the key's form. \\
+\code{GENERATE_TIMEOUT_S} and \code{GENERATE_TIMEOUT_MS} & Move together: the API waits 30~s longer than the assistant service. \\
+\code{EMBED_DIMENSIONS} & The width of the vector columns of the corpus and of the company documents in the database; a change needs a migration and the full re-embedding. \\
+\code{MAX_SERIES_ARTICLES} (15) & Asserted as 15 in \file{tests/test_citation_audit.py}. \\
+Every default of \file{config.js} & Listed and asserted in \file{tests/config.test.mjs} of the assistant service, with the minimum of each numeric variable. \\
+\code{OBLIGATIONS_PER_CALL}, \code{DOCUMENT_PACK_CHARS}, \code{PLAN_FINDINGS_PER_CALL}, \code{CITATIONS_PER_CALL} & Set to small values by the pipeline's tests (\file{tests/test_pipeline.py}, \file{tests/test_assessment.py}, \file{tests/test_citation_audit.py}) to force several batches (for \code{DOCUMENT_PACK_CHARS}, a library too large to send whole); the tests do not pin the shipped values. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A constant that changes what a model is given changes what it answers, and nothing in the
+tests measures that. Before such a change, the evaluation suites of the prompts are the way to
+compare the two (\cref{ch:control}).

@@ -1,0 +1,88 @@
+% ============================================================
+%  [*] About this document — what it covers and how to read it
+% ============================================================
+\chapter*{About this document}
+\addcontentsline{toc}{chapter}{About this document}
+\markboth{About this document}{About this document}
+
+This document describes the \product{} (\lt{\productlt}) as it was deployed on \docdate: what
+each part does, why it is built that way, and how the parts fit together. It is written for a
+reader who knows compliance work and financial regulation and wants to understand the system
+--- above all how it uses artificial intelligence --- without reading the code. It names the
+files and functions as it goes, so that a reader who does open the code finds the place.
+
+\section*{How it is arranged}
+
+\begin{description}[style=nextline]
+  \item[Part I --- The system at a glance] What the system is for, the services it runs as,
+    and the data it keeps (\cref{ch:intro,ch:arch,ch:data}).
+  \item[Part II --- Artificial intelligence in the system] The longest part. It follows the
+    data from the law to the report: how a model is reached at all and what a call costs
+    (\cref{ch:models}), how prompts are kept and changed (\cref{ch:prompts}), how the legal
+    texts become a searchable corpus (\cref{ch:corpus}) and a register of obligations
+    (\cref{ch:obligations}), what is read out of a company's documents (\cref{ch:company}),
+    how the compliance report is made (\cref{ch:report}) and lives on (\cref{ch:register}),
+    how the documents of a compliance programme are drafted (\cref{ch:programme}), and how the
+    chat assistant works (\cref{ch:chat}). \Cref{ch:control} then gathers what keeps all of
+    this trustworthy: the checks, the evaluation, the people who decide, and the cost.
+  \item[Part III --- Using and running the system] The console page by page
+    (\cref{ch:console}), the API (\cref{ch:api}), security (\cref{ch:security}), deployment
+    and operations (\cref{ch:ops}), the tests (\cref{ch:testing}), and how the system answers
+    the course it was built for (\cref{ch:course}).
+  \item[Reference] Every prompt (\cref{app:prompts}), every chat tool (\cref{app:tools}),
+    every act of the catalogue (\cref{app:acts}), the settings (\cref{app:config}) and a
+    glossary (\cref{app:glossary}).
+\end{description}
+
+\section*{Who is acting}
+
+A system that uses language models is only as trustworthy as the line it draws between what a
+model wrote, what the code verified and what a person decided. The document marks that line
+the same way everywhere.
+
+\begin{aibox}{A model is asked}
+A yellow panel describes a call to a language model: what it is given, what it is told, what it
+must answer. In the figures a yellow box is a model call.
+\end{aibox}
+
+\begin{codebox}{Code checks or computes}
+A blue panel describes something done without a model: a quotation located in its document, a
+provision looked up in the corpus, a score computed, a rule enforced. Nothing in such a panel
+depends on what a model happened to say.
+\end{codebox}
+
+\begin{humanbox}{A person decides}
+A framed panel marks a decision the system never takes itself: approving the scope of a
+report, approving an obligation, overriding a finding, signing a report off, approving a
+drafted policy.
+\end{humanbox}
+
+\begin{lessonbox}{Measured}
+A grey panel reports a measurement or a failure, with its date and what was changed because of
+it. The figures in these panels are observations made on the course's sample company on the
+day named; they are not promises about other companies or other days.
+\end{lessonbox}
+
+Every place where a model is called also has a \emph{path card}: one table with the same ten
+rows --- the trigger, the input, the prompt and the model, the output, what code checks, what is
+stored, what happens on failure, the cost, the human control, and how the path is measured.
+The cards are listed in \cref{ch:control}.
+
+\section*{Conventions}
+
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+  \toprule
+  \hd{Written as} & \hd{Means} \\
+  \midrule
+  \file{analysis/pipeline.py} & A file. Paths of the API are given from \file{django/compliance/}, of the assistant service from \file{assistant/app/}, of the console from \file{vite/app/src/}; any other path is given from the root of the repository. \\
+  \code{run_prompt} & A name in the code: a function, a constant, a field, a value. \\
+  \prompt{report.gap_analysis} & A prompt, by the name it is stored under. \\
+  \model{gpt-6.1-sol} & A model, by the name the gateway gives it. \\
+  \route{POST}{/api/reports} & A route of the API. \\
+  \ui{Veiksmai} & A label as the console prints it. \\
+  \lt{atitikties pareigūnas} & Lithuanian words. The product's first language is Lithuanian; it also speaks English. \\
+  \status{met} \status{partial} \status{missing} \status{unknown} \status{na} & The five statuses of a finding. \\
+  \bottomrule
+\end{tabularx}
+
+Amounts are in US dollars, as the model gateway bills them. Times are UTC.

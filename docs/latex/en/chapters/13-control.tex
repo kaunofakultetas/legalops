@@ -1,0 +1,1157 @@
+% STATUS: verified
+\chapter{Keeping the models honest: controls, evaluation and cost}\label{ch:control}
+
+The chapters before this one follow the system's model calls one at a time. This chapter
+stands back and asks of all of them together the two questions a reader of an AI system
+should ask last: why should anyone trust what these models produce, and what does it cost?
+It re-explains no path; each is described, with its path card, in the chapter named beside
+it. It gathers what those chapters establish and sets it side by side.
+
+The chapter is arranged as an argument. \Cref{sec:control:risks} lists what can go wrong when
+a model writes about law and about a company's documents, each failure with the control that
+answers it. \Cref{sec:control:layers} describes the layers of control in turn: answers bound
+to a schema, grounding checked by code, values the code computes itself, a second model call as
+judge, the separation of instructions from data, and the record of what ran.
+\Cref{sec:control:matrix} sets every AI path against those controls in one matrix, and
+\cref{sec:control:people} gathers the decisions only a person takes, with an exact account
+of how the register that ships with the product was reviewed. \Cref{sec:control:eval} is
+about evaluation: how the prompts are measured on labelled cases, by whom the cases were
+labelled, and what no suite measures. \Cref{sec:control:record} is the dated record of every
+change that was decided by a number, \cref{sec:control:cost} what the paths cost and what
+bounds the spending, and \cref{sec:control:limits} what remains uncertain.
+
+
+% ============================================================
+\section{What can go wrong}\label{sec:control:risks}
+
+A model asked about law and about a company's policies fails in a small number of ways, and
+most of them have been seen on this system's own material. \Cref{tab:control:risks} lists them
+with the place where the failure was met or is guarded against, and the control that answers
+it. The rest of the chapter explains the controls.
+
+\begin{xltabular}{\textwidth}{@{}L{34mm}YL{50mm}@{}}
+\caption{The failures of a model that writes about law and about a company, and the controls that answer them}\label{tab:control:risks}\\
+\toprule
+\hd{Failure} & \hd{Seen or guarded where} & \hd{Control} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Failure} & \hd{Seen or guarded where} & \hd{Control} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+A provision that does not exist, or does not say what is claimed & A model's memory of article numbers is unreliable (\cref{ch:corpus}). The sample company's overview cites crypto-asset services to the wrong MiCA articles (\cref{ch:company}). A work product names a legal basis; the chat names articles. & A model that reads the law is given its stored text, not asked to recall it. Every article a structured answer cites is looked up in the corpus by code (\code{find_provision}, \code{check_citations}); the judge \prompt{corpus.check_citations} says whether the found provision regulates the claimed subject. A work product's provision that does not exist breaks a blocking rule. The chat, which may name an article from memory, marks an unverified number \enquote{(tikrintina)}. \\
+A reference to material that was never sent & An obligation citing a provision outside its batch; a finding quoting a document the company does not have. & Every piece of material carries a reference (\code{P3}, \code{D4}, \code{A1}); code resolves each reference the answer gives and drops the ones it does not know. \\
+A quotation the document does not contain & The gap analysis must quote its evidence word for word; on 13~November 2026, 13 of 2\,365 quotes of the sample company's report could not be found. & \code{locate_quote} looks for every quote in the document's text. One that is not found is kept with no place and shown as such. \\
+A wrong status for a finding & Two careful readings of the same obligation can differ (\cref{sec:control:eval}). & Each status defined by a condition in the prompt; the suite \code{gap}; a reviewer's override with a note; the sign-off. \\
+A duty missed or invented at extraction & The register is a model's reading of 68 acts (\cref{ch:obligations}). & References resolved against the batch; the register's judge compares every entry with its article; an administrator approves, edits or rejects. Nothing finds a duty that was never written down. \\
+A judge too strict or too lenient & The judge's first wording doubted 17 of 137 obligations (\cref{sec:control:record}). & The judge decides nothing; its suites \code{verify} and \code{citations} hold cases on both sides. \\
+A number made up & A model rated its own gaps' severity; a model asked for a ceiling of a fine may recall one. & Severity, scores, bands, ids, the order of the plan, the consequence of a finding and the whole action register are computed by code (\cref{sec:control:computed}). The sanction reading may state only what the text says; its suite tests the cases where no ceiling is stated. \\
+An act wrongly left in or out of a report & The catalogue's list once left a law out for a crypto-asset provider; doubtful acts once made 872 of 2\,120 findings (\cref{ch:report}). & The screen keeps an act in when in doubt; the scope reading can only add an act; an uncertain act is not assessed; a person approves the list (the scope review); the suites \code{scope} and \code{applicability}. \\
+An item the model skipped & Any call that answers a list: nothing guarantees that every item sent comes back. & A skipped obligation becomes a \status{unknown} finding saying so; a skipped act becomes \code{uncertain}; a finding a planning call left out joins the nearest action. \\
+An answer of the wrong shape, or cut short & A provider without strict mode may drift; a stream may fail after it began (\cref{ch:models}). & A strict schema at the provider and a validator in the assistant service; an error inside a stream fails the call. \\
+An instruction planted in a document & A company's documents are written by someone else and read by every report and by the chat. & Instructions and data travel apart; material stands in marked blocks; seventeen prompts call it data; the chat approves nothing on its own, and the three decisions it can record carry the user's name (\cref{sec:control:injection}). \\
+Drift after a change of prompt or model & Prompts are reworded often: \prompt{chat.assistant} stands at version 17, three report prompts at 8. & Every result names the prompt version it ran on; the six suites and their baseline; an act read under an older extraction prompt is \enquote{behind}. \\
+Cost that runs away & A report sends millions of input tokens (\cref{ch:report}). & Budgets checked before work starts, an upper-bound estimate, the scope review before the costly part, one-time corpus work, the provider's cache (\cref{sec:control:cost}). \\
+\end{xltabular}
+
+
+% ============================================================
+\section{The layers of control}\label{sec:control:layers}
+
+The controls sit in layers around each model call (\cref{fig:control:layers}). Some act
+before the call: what the model is given and in what form. One acts on the answer's shape.
+Two act on its content without a model: grounding, and the values the code computes
+itself. On some paths a second model call judges the first. A person decides what
+matters, and a record says what ran. No layer is trusted alone.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{w/.style={text width=26mm}}
+  % before
+  \node[chk, w] (b1) at (18,0) {budget checked;\\ upper-bound estimate};
+  \node[chk, w] (b2) at (18,-20) {material assembled by code, under refs \code{P1}, \code{D1}, \code{A1}};
+  \node[svc, w] (b3) at (18,-40) {the active prompt version and a strict schema};
+  % the call
+  \node[ai, text width=24mm, minimum height=34mm] (m) at (56,-20) {\textbf{the model call}\\[2pt] {\scriptsize instructions apart from the data; the data called data}};
+  % after, by code
+  \node[chk, w] (a1) at (94,0) {\textbf{1} the shape: strict mode and a validator};
+  \node[chk, w] (a2) at (94,-20) {\textbf{2} grounding: refs resolved, quotes located, provisions looked up};
+  \node[chk, w] (a3) at (94,-41) {\textbf{3} values computed: severity, scores, bands, ids, order, consequence};
+  % after
+  \node[ai, w] (j) at (131,0) {\textbf{4} a judge, on three paths};
+  \node[man, w] (p) at (131,-20) {\textbf{5} a person approves, overrides, signs};
+  \node[store, text width=25mm] (s) at (131,-43) {\textbf{6} provenance\\ and audit};
+  \draw[flow] (b1.east) -- ++(4mm,0) |- ([yshift=4mm]m.west);
+  \draw[flow] (b2) -- (m);
+  \draw[flow] (b3.east) -- ++(4mm,0) |- ([yshift=-4mm]m.west);
+  \draw[flow] (m.east) -- ++(4mm,0) |- (a1.west);
+  \draw[flow] (a1) -- (a2);
+  \draw[flow] (a2) -- (a3);
+  \draw[opt] (a2.east) -- ++(3mm,0) |- (j.west);
+  \draw[flow] (a3.east) -- ++(3mm,0) |- ([yshift=-2mm]p.west);
+  \draw[flow] (j) -- (p);
+  \draw[flow] (p) -- (s);
+  \begin{scope}[on background layer]
+    \node[lane, fit=(b1)(b3)] (l1) {};
+    \node[lane, fit=(a1)(a3)] (l2) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (l1.north west) {before the call};
+  \node[lanelabel, anchor=south west] at (l2.north west) {on the answer, by code};
+\end{tikzpicture}
+\actorlegend
+\caption{The layers of control around one model call. Before the call, code decides what the
+model sees and in what form; after it, code checks the shape, ties the answer to its sources
+and computes every value that must not depend on a model; on three paths a second model
+call judges; a person decides what matters; every call and every decision is recorded.}\label{fig:control:layers}
+\end{figure}
+
+\subsection{Answers bound to a schema}\label{sec:control:schema}
+
+Every model call of a job step answers in JSON that must match a schema the calling code
+owns (\cref{ch:models,ch:prompts}). Twenty-one prompts have one; the two chat prompts answer
+in prose, and each tool call the chat model makes has a strict input schema of its own
+(\cref{ch:chat}). The schema is sent to the provider as a strict response format and checked
+again in the assistant service before the answer is returned, so a renamed key or a status
+outside the list fails the call instead of reaching the API. A schema closes the vocabulary:
+a finding is one of five statuses, an applicability verdict one of three, a judge's verdict
+one of three, a severity one of four. It does not make two runs mean the same thing by the
+same word; that is the work of the definitions in each prompt (\cref{ch:prompts}).
+
+On top of the schema, each caller treats what is missing or out of place as a doubt and
+never as a result: an obligation the gap analysis skipped becomes \status{unknown} with the
+words \enquote{The model did not assess this obligation}; an act without a verdict becomes
+\code{uncertain} with confidence 0; a category, severity, effort or timeframe outside its
+values falls back to \code{other}, \code{medium}, \code{medium} or \code{90_days}.
+
+\subsection{Grounding checked by code}\label{sec:control:grounding}
+
+A model is never asked to name a document, a provision or an obligation in its own words
+where the code needs to find it again. It is given material under short references and
+answers with the references; code holds the table from references to rows. Four checks
+follow from that, and between them they keep an invented source out of every stored result.
+
+\begin{codebox}{What code checks about an answer's sources, with no model}
+\begin{description}
+  \item[References are resolved.] Extraction keeps an obligation only when one of its
+    \code{provisionRefs} names a provision of the batch; applicability keeps only references
+    to provisions it showed; the judge, the scope reading, the sanction reading, the planning
+    and the merge each match their answers to what they sent and ignore the rest; the gap
+    analysis drops an evidence reference it does not know (\cref{ch:obligations,ch:report}).
+  \item[Quotations are located.] \code{locate_quote} looks for every evidence quote of the
+    gap analysis, of a company's own requirements and of a work product in the text of the
+    document it names; the match is exact except for quotation marks, a trailing ellipsis and
+    runs of white space. A quote not found keeps its document, gets no place, and is shown as
+    unfound (\cref{ch:report,ch:programme}). The quotations of an inventory's controls are not
+    located (\cref{ch:company}).
+  \item[Provisions are looked up.] A reference to an act and an article --- in a company's
+    document, in a work product's legal basis, in a chat answer through
+    \code{getLegalProvision} --- is resolved in the corpus by \code{find_provision} and
+    \code{check_citations}; whether it exists is decided by the lookup before any model is
+    asked whether it fits (\cref{ch:corpus,ch:company}).
+  \item[A standard's headings are verified.] Every heading the model marks in a standard
+    must be a line of the excerpt that opens with the identifier the model gave; the
+    identifier's characters are taken from the document, so that every line of the document
+    is in the tree exactly once (\cref{ch:corpus}).
+\end{description}
+\end{codebox}
+
+On the sample company's report of 13~November 2026 the gap analysis located 2\,352 quotes and
+could not locate 13; the company's own requirements located all 575. On 12~November 2026 the
+policy work product located 23 of 23 quotations and found 24 of 24 provisions.
+
+\subsection{Values computed by code, never taken from a model}\label{sec:control:computed}
+
+\file{docs/markdown/en/architecture.md} states the rule among its decisions: \enquote{Scores, bands and
+ids are computed by code, never taken from a model.} The schemas enforce it by leaving the
+fields out, so that a model cannot even propose these values.
+
+\begin{codebox}{What code computes and the model is not asked}
+\begin{itemize}
+  \item \textbf{The severity of a finding} is copied from its obligation in the register; the
+    gap analysis's schema has no severity field (\cref{ch:report}). The obligation's own
+    severity is the extraction's rating of the duty (of an own requirement, the reading's),
+    which an administrator may edit in the review: it is a property of the duty, not a
+    judgement of the company.
+  \item \textbf{The consequence of a finding} is joined by \code{Consequences.of} from the
+    sanction tiers read once per act version: an article number, the tiers that cover it,
+    the act that may fine it (\cref{ch:obligations}).
+  \item \textbf{The treatment of an act} in a report --- assessed, upcoming, unconfirmed,
+    indirect --- is derived by \code{assessment_of} from the verdict, the act's type and
+    whether the report's scope names the act; a date of application
+    is kept only when it is still ahead, a confidence clamped to 0--1 (\cref{ch:report}).
+  \item \textbf{The coverage and the order of the action plan}: every open finding gets
+    exactly one action, a finding a call left out joins the nearest action, and the plan's
+    order is sorted by code (\code{rank}) (\cref{ch:report}).
+  \item \textbf{The risk register's numbers}: likelihood (the mean of four levels, a half
+    rounded up), impact (the highest of four), score, band and the ids \code{LR-01}, \ldots;
+    the schema has no field for them (\cref{ch:programme}).
+  \item \textbf{The whole action register}: bringing a plan in, confirming a finding,
+    closing an action, deriving \code{late} --- comparisons of stored ids, statuses and
+    dates, with no model call (\cref{ch:register}).
+  \item \textbf{The counts and the estimate}: the report's statistics, the cost estimate and
+    the price of a scope selection (\cref{ch:report}).
+\end{itemize}
+\end{codebox}
+
+\begin{lessonbox}{A failure, 10 November 2026: a model that rated its own gaps}
+In the sample company's report of that day, 23 of the 42 open findings the model called
+critical were reporting duties, four of them on obligations the register rates low. Severity
+has since been the obligation's own (\cref{ch:report}).
+\end{lessonbox}
+
+\subsection{A second model call as judge}\label{sec:control:judges}
+
+A \term{judge} is a second model call that compares the first one's output with its source
+and gives a verdict. The system uses judges in three places, all on \model{gpt-6.1-sol}.
+
+\begin{description}
+  \item[The citation judge] (\prompt{corpus.check_citations}; \cref{ch:company}). Given the
+    provision that a lookup has already found, its heading and the first 600 characters of
+    its text, and the subject a document claims for it, it answers \code{match},
+    \code{mismatch} or \code{unclear}. It serves the checker route, the chat's tool
+    \code{checkCitations} and every report's citation audit.
+  \item[The register's judge] (\prompt{corpus.verify_obligations}; \cref{ch:obligations}).
+    Given the whole article around every provision an obligation cites, and the obligation's
+    duty, addressee, condition, deadline and institution types, it answers
+    \code{supported}, \code{partly} or \code{unsupported}, with a note a reviewer can act on.
+  \item[The citation check inside work products] (\cref{ch:programme}). The legal basis a
+    drafted policy or risk register names is looked up and its \code{why} put to the same
+    citation judge once, in the product's \code{references} step; a \code{mismatch} breaks a
+    warning rule, a provision not found a blocking one.
+\end{description}
+
+\begin{aibox}{What a judge can and cannot establish}
+A judge answers a narrower question than the model it checks: not \enquote{what does the
+law require?} but \enquote{does this text carry this statement?}, with the text in front of
+it. That is why it is worth asking. What it can establish is a disagreement between an
+entry and its source --- an addressee wider than the provision's, a condition left out, an
+article about another subject. What it cannot establish is everything else:
+\begin{itemize}
+  \item it sees only entries that exist, so a duty the extraction never wrote down is
+    invisible to it;
+  \item it is a model too, measured by its own suite and wrong at its own rate --- and on the
+    live system the register's judge runs on the same model, \model{gpt-6.1-sol}, as the
+    extraction it checks, so a misreading that seemed right to the one may seem right to the
+    other;
+  \item its verdict is about the words it read: an obligation whose title or text is edited
+    loses its verdict, while an edit of its other fields keeps it;
+  \item the citation judge sees the opening of a provision, not the whole of it.
+\end{itemize}
+For these reasons a judge decides nothing. The register's verdict orders the review queue
+and appears as a chip; an obligation it supports stays \code{proposed} until a person
+approves it (\enquote{the judge approves nothing}, in the words of its test). The citation
+judge's verdict is a signal beside the real heading and a link to the official text; it
+changes no document. When the citation judge cannot be asked, a comparison by word overlap
+stands in, and every verdict records which of the two gave it (\code{judgedBy}).
+\end{aibox}
+
+\subsection{Instructions apart from data, and an instruction planted in a document}\label{sec:control:injection}
+
+A document a company uploads may contain a sentence addressed to the reader. The system
+keeps the stored instructions and the material in different parts of the request, puts every
+piece of material in a marked block under a reference, and has seventeen of the 23 prompts
+say in words that the material is data, never instructions (\cref{ch:prompts}). Behind the
+wording stand limits that do not depend on the model obeying it: what a chat turn can do is
+decided by which tools exist, every tool acts with the user's own token, and no tool approves
+an obligation, a work product or a report. Four tools do record one of the three decisions of
+\cref{tab:control:people} in the user's name --- \code{approveReportScope}, \code{overrideFinding},
+and \code{updateCredential} or \code{addCredential}, either of which can mark a credential
+verified --- and of these only the first is held by code, to the price the user accepted; for
+an override and for a verified credential the prompt and the tools' descriptions ask for the
+user's own word, and nothing checks that it was given (\cref{ch:chat}). The residual risk is
+therefore that a steered model makes one of these writes, or another that rests on a user's
+word, without the user's yes; it is stated in \cref{ch:chat,ch:security}.
+
+\subsection{Decisions reserved for a person}
+
+The design rule is the same on every path: the system drafts and checks, a person approves.
+\Cref{sec:control:people} lists each decision with who takes it, where, what is recorded and
+what the system does when nobody does.
+
+\subsection{Provenance and the audit trail}\label{sec:control:provenance}
+
+A result that cannot be traced to the instructions that produced it cannot be trusted or
+reproduced. Every model call is one row of \code{llm_calls} with its model, its five token
+counts, its cost and the id of the prompt version it ran on; a prompt version is never
+changed, so that id names one wording on one model for good (\cref{ch:prompts}). The id is
+carried further onto what the calls produce: every obligation (the extraction's version and
+model), every verdict of the judge, every scope and sanction reading, the cache keys of a
+document's inventory and requirements, and each job step whose calls all ran on one version.
+
+When a report is finished, \code{report_stats} (\file{analysis/pipeline.py}) gathers the
+calls of every job step filed under the report and stores its \code{provenance}: the
+\code{prompts} that ran, each as a slug, a version number and its model; the \code{models}
+that actually answered; and the \code{corpus}, the version number and date of every act the
+catalogue screen did not leave out. Beside it the statistics hold the tokens and dollars of
+all those calls and \code{reviewedObligations}, the number of findings that rest on
+obligations whose status in the register was \code{approved}. Both exports print the provenance; a work product keeps the
+same record of its own run. The provenance names the wording that ran, not whether it was
+good, and a result the report reused --- an obligation extracted weeks before, a cached
+inventory --- carries its own version on its own row.
+
+Decisions are recorded in \code{audit_log} (\file{audit/models.py}), written only through
+\code{audit} in \file{audit/log.py}: one row per action with the acting user, the action, its
+target, its details and the client address. The write runs in its own savepoint and never
+fails the request it records. Among the actions are \code{prompts.activate},
+\code{prompts.version_create} and \code{prompts.test}; \code{obligations.review} and
+\code{obligations.update}; \code{reports.approve_scope}, \code{reports.review_finding},
+\code{reports.approve} and \code{reports.unapprove}; \code{programme.approve} and
+\code{programme.edit}; \code{actions.update}; and the corpus changes of an administrator.
+Only an administrator reads the trail (\route{GET}{/api/audit}). For the chat, which keeps no
+other record of its content, the usage row of each turn holds the transcript --- what the
+user asked and what the assistant answered --- which the user may read for their own calls
+and an administrator for any (\cref{ch:models}).
+
+
+% ============================================================
+\section{Every AI path against its controls}\label{sec:control:matrix}
+
+\Cref{tab:control:matrix} sets every path on which a model is called --- the 23 prompts, the
+four kinds of embedding call and the prompt editor's test run --- against the controls of
+\cref{sec:control:layers}. Each row summarises the path card of the chapter whose number
+stands in the column \enquote{Ch.}; where the two differ, the chapter is right. \enquote{Schema} says whether the answer is bound to a
+JSON schema; \enquote{Grounding by code} names the checks of
+\cref{sec:control:grounding,sec:control:computed} that apply; \enquote{Human gate} says what a
+person decides about the result; \enquote{Suite} names the evaluation suite and its baseline
+of 12~November 2026 (\cref{sec:control:eval}). Every prompt but the two of the chat runs on
+\model{gpt-6.1-sol} (\enquote{sol} in the table). \enquote{The job's user} is the user whose
+job a call belongs to: the user who started the report, or, for the second part of a report
+started with the scope review, the person who approved its scope.
+
+\begin{landscape}
+\setlength{\tabcolsep}{3pt}
+\begin{xltabular}{\linewidth}{@{}>{\scriptsize}L{31mm}>{\scriptsize}L{6mm}>{\scriptsize}L{36mm}>{\scriptsize}L{15mm}>{\scriptsize}L{9mm}>{\scriptsize}Y>{\scriptsize}L{38mm}>{\scriptsize}L{19mm}>{\scriptsize}L{25mm}@{}}
+\caption{Every AI path against its controls (16 November 2026)}\label{tab:control:matrix}\\
+\toprule
+\hd{Path} & \hd{Ch.} & \hd{Trigger} & \hd{Model} & \hd{Schema} & \hd{Grounding by code} & \hd{Human gate} & \hd{Suite} & \hd{Charged to} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Path} & \hd{Ch.} & \hd{Trigger} & \hd{Model} & \hd{Schema} & \hd{Grounding by code} & \hd{Human gate} & \hd{Suite} & \hd{Charged to} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{9}{@{}l}{\scriptsize\hd{The chat}} \\
+\prompt{chat.assistant} & \ref{ch:chat} & A user's message; up to 12 model steps a turn & \model{gpt-6-astra}, or the user's pick & no; each tool input strict & Tool inputs validated; tenancy by the API; the cost gates of an analysis and a scope. The text of the answer is not checked. & The user reads every tool call as a card; an analysis or a scope only on a price the user accepted; the chat approves nothing & none & the user \\
+\prompt{chat.title} & \ref{ch:chat} & A thread's first turn, while its title is automatic & \model{gpt-5.6-luna} & no & The title cleaned and cut to 80 characters & The user renames the thread & none & the user \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{The legal corpus and the register}} \\
+\prompt{corpus.standard_outline} & \ref{ch:corpus} & Ingesting a standard the clause rules cannot read, or a clause they leave too long & sol & yes & Every heading's line and identifier verified against the document; the tree tested; else the pages & The administrator may have the standard read another way; no review of the tree is forced & none & nobody \\
+\prompt{corpus.extract_obligations} & \ref{ch:obligations} & An administrator's button, the operator's command, or a report meeting an act never read & sol & yes & Refs resolved against the batch; duplicates of approved and rejected rows dropped; lists enforced & An administrator approves, edits or rejects each obligation; unreviewed ones are used and the finding says so & none & nobody, or the administrator who pressed \\
+\prompt{corpus.extract_requirements} & \ref{ch:obligations} & As above, for a standard (has not run on the live system) & sol & yes & As above; \code{applies_to} set to \code{all} by code & As above & none & as above \\
+\prompt{corpus.scope} & \ref{ch:obligations} & A report's applicability step, for acts the screen would drop and nobody read & sol & yes & Refs; types from a closed list; the reading can only keep an act in & None on the reading; the scope review downstream & \code{scope} 9/9 & nobody \\
+\prompt{corpus.sanctions} & \ref{ch:obligations} & A report's obligations step, or the operator's command & sol & yes & Refs; articles read into spans; ceilings only as numbers above zero; nine measures; the join to a finding by code & None: the act's page shows only how many tiers were read & \code{sanctions} 13/13 & nobody \\
+\prompt{corpus.verify_obligations} & \ref{ch:obligations} & An administrator's button or the operator's command, per act & sol & yes & Refs; unknown verdicts ignored; an entry whose provisions are gone marked without a model & The verdict decides nothing; a person reviews & \code{verify} 14/14 & the administrator, or nobody \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{The company}} \\
+\prompt{report.inventory} & \ref{ch:company} & A report's documents step or a work product's, for a document whose cached inventory is stale & sol & yes & Citations cleaned and later looked up by the audit; the quotes of controls are not located & None: read-only in the console & none & the starter of the report or product \\
+\prompt{corpus.check_citations} & \ref{ch:company} & The checker route and the chat tool; a report's citations step; a work product's references step & sol & yes & Existence decided by lookup before the call; heading, excerpt and link from the corpus; word overlap when the model cannot be asked & A verdict is a signal; a person reads it and corrects the document & \code{citations} 19/20 & the caller; the report's starter; nobody in a work product \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{The report}} \\
+\prompt{report.applicability} & \ref{ch:report} & Step 4 of every report & sol & yes & Refs kept only when shown; confidence clamped; a start date kept only when ahead; the treatment by code & The scope review, unless the run is unattended & \code{applicability} 19/19 & the report's starter \\
+\prompt{report.gap_analysis} & \ref{ch:report} & The gap-analysis step, fifteen obligations a call & sol & yes & Severity from the register; every quote located; refs resolved; a skipped obligation \status{unknown}; consequence joined & A reviewer's override with a note and cause; the sign-off & \code{gap} 67/71 & the job's user \\
+\prompt{company.internal_requirements} & \ref{ch:report} & The step \code{internal}, an option, per policy-level document & sol & yes & At most 20 kept; each requirement's quote located; lists enforced & None: no screen reviews own requirements & none & the job's user \\
+\prompt{report.internal_gap} & \ref{ch:report} & The step \code{internal} & sol & yes & As the gap analysis; no consequence joined & A reviewer's override & none & the job's user \\
+\prompt{report.action_plan} & \ref{ch:report} & The action-plan step & sol & yes & Refs only of the call's findings; every open finding one action, repaired by code; the order by code & The sign-off brings it into the action register; a person sets owner and due date & none & the job's user \\
+\prompt{report.plan_merge} & \ref{ch:report} & The action-plan step, when it took more than one call & sol & yes & A merged action closes exactly its drafts' findings; invented refs ignored & As the plan & none & the job's user \\
+\prompt{report.summary} & \ref{ch:report} & The last step & sol & yes & The title cut; nothing in the text checked against the input & The person who signs off states the findings and the plan were reviewed; the summary is not edited & none & the job's user \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Work products}} \\
+\prompt{programme.policy} & \ref{ch:programme} & A user, or the chat after the user's yes & sol & yes & Eight fixed parts; quotes located; provisions looked up and judged once & A person edits and approves; unapproved, a draft & none & the starter \\
+\prompt{programme.documents} & \ref{ch:programme} & The second call of a policy product & sol & yes & Refs to documents; levels enforced; provisions looked up & As above & none & the starter \\
+\prompt{programme.structure} & \ref{ch:programme} & The first call of a governance product & sol & yes & Quotes located; nodes and parents checked; blocking rules on the structure & As above & none & the starter \\
+\prompt{programme.raci} & \ref{ch:programme} & The second call of a governance product & sol & yes & Cells only for known steps and nodes; one accountable role per step (blocking) & As above & none & the starter \\
+\prompt{programme.risk_criteria} & \ref{ch:programme} & The first call of a risk product & sol & yes & Tables rebuilt for levels 1--5; the bands and their responses from code & As above & none & the starter \\
+\prompt{programme.risk_scenarios} & \ref{ch:programme} & The second call of a risk product & sol & yes & Likelihood, impact, score, band and ids computed; provisions looked up and judged & As above; the levels are a draft for the reviewer & none & the starter \\
+\midrule
+\multicolumn{9}{@{}l}{\scriptsize\hd{Embeddings and the test run}} \\
+\code{corpus.embed} & \ref{ch:corpus} & Ingesting an act; the re-embedding job & \texttt{text-\allowbreak embedding-\allowbreak 3-large} & --- & As many vectors as texts; the column's width & None & none; the comparison of 28 Sept. 2026 & nobody \\
+\code{obligations.embed} & \ref{ch:obligations} & New obligations; an administrator's edit; a report needing an English vector & as above & --- & The column's width & None & none & nobody \\
+\code{documents.embed} & \ref{ch:company} & Indexing an upload; a report meeting an unindexed document & as above & --- & The column's width & None needed: vectors only rank passages & none & the uploader, or the report's starter; nobody when re-embedded \\
+a search query & \ref{ch:corpus} & Every search of the corpus or of a company's documents & as above & --- & None; a failure falls back to keywords & None & none & not recorded \\
+\code{prompt_test} & \ref{ch:prompts} & An administrator's test run of any prompt & the version's & the step's & None in the API & The whole path is the administrator's tool & none & the administrator \\
+\end{xltabular}
+\end{landscape}
+
+Read down its columns, the matrix says three things. Every structured path is bound to a
+schema and tied by code to its sources; the free text inside an answer --- a finding's
+analysis, an action's description, a part of a policy --- is not checked, and two answers are
+nothing but free text: the chat's and the executive summary's. Every path whose result reaches a report, the register or
+a work product passes a person's gate --- except the readings of scope and sanctions, which the act's page shows and nobody is asked to confirm, a company's own
+requirements, which no screen reviews, and an inventory and a standard's tree, which a person
+can read but is not asked to correct. And six of the 23 prompts are measured on labelled cases; seventeen are not
+(\cref{sec:control:unmeasured}).
+
+
+% ============================================================
+\section{What a person decides}\label{sec:control:people}
+
+\file{docs/markdown/en/architecture.md} records the rule as a decision: \enquote{The system drafts and
+checks; a person approves. The scope of a report, an obligation of the register, a finding's
+override, a work product: each is approved by a named person and audited, and nothing is
+marked approved by the system.} \Cref{tab:control:people} lists every such decision, with
+what the system does when nobody takes it. That last column matters as much as the others:
+the system does not wait for a person where waiting would stop the work, and says so instead.
+
+\begin{xltabular}{\textwidth}{@{}L{25mm}L{18mm}L{24mm}YL{31mm}@{}}
+\caption{The decisions only a person takes}\label{tab:control:people}\\
+\toprule
+\hd{Decision} & \hd{Who} & \hd{Where in the console} & \hd{What is recorded} & \hd{When nobody takes it} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Decision} & \hd{Who} & \hd{Where in the console} & \hd{What is recorded} & \hd{When nobody takes it} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Start a report at its estimated price & A user who may see the company & The dialog \ui{Pradėti atitikties analizę}; or a yes in the chat & The report and its options; \code{reports.create} & Nothing runs. \\
+Approve the scope of a report & A user who may see the company & The report's acts tab under the banner \ui{Patvirtinkite teisės aktų sąrašą}; or the chat & \code{scope_approved_by}, \code{scope_approved_at} (through the chat, the tool \code{approveReportScope}, with the price the user accepted); \code{reports.approve_scope} with each act whose treatment the person changed, before and after & A report started with the review waits; one started without it stamps a time and nobody, and the exports say \enquote{Nobody}. \\
+Approve, edit or reject an obligation & An administrator & \ui{Pareigų peržiūra} (Obligation review) & \code{reviewed_by}, \code{reviewed_at}, the notes; \code{obligations.review}, \code{obligations.update} & The obligation stays \code{proposed}, is used by reports, and its findings say it was not reviewed. \\
+Override a finding, write its cause & A user who may see the report & \ui{Išvados} tab, \ui{Peržiūrėti}; the override, not the cause, also in the chat & \code{override_status}, the note, the cause, who and when; \code{reports.review_finding}; the sign-off is withdrawn (through the chat, the tool \code{overrideFinding}) & The model's status stands; no finding has a cause. \\
+Sign the report off & A user who may see the report & \ui{Patvirtinti ataskaitą} & \code{approved_by}, \code{approved_at}, \code{approval_note}; \code{reports.approve} & The PDF's cover says no person signed it; the action register does not move. \\
+Own, date, move or close an action & A user who may see the company & The company's tab \ui{Veiksmai} & The fields changed; a manual closure with its note and \code{closed_by}; \code{actions.update} & The action keeps the plan's owner role and a due date counted from the sign-off. \\
+Approve a work product & The company's owner or an administrator & The product's page, \ui{Patvirtinti} & \code{approved_by}, the time and a note; \code{programme.approve} & It stays a draft; its PDF, and the policy's Word file, say so. \\
+Verify a credential & A user who may see the company & \ui{Pažymėti patikrintu}; or the chat, on the user's explicit word that it was checked & \code{verified_by}, \code{verified_at} (through the chat, the tool \code{updateCredential} or \code{addCredential}); \code{companies.credential_update}, or \code{companies.credential_add} for a credential filed as verified & It stays claimed, and the gap analysis may rely on it only with a caveat. \\
+Choose the wording and the model of a prompt & An administrator & \ui{DI instrukcijos} (AI prompts) & A new version; \code{prompts.version_create}, \code{prompts.activate} & The shipped default runs; a new default never replaces an administrator's own text. \\
+Accept a new baseline of a suite & Whoever runs the evaluation & Not in the console: the command \code{eval_prompts --record} & \file{prompts/evals/baseline.json}, with the prompt version and model & The old baseline stands, and a lower score fails the run. \\
+Set the daily budget of an account & An administrator & \ui{Naudotojai} (Users) & \code{daily_budget_usd} on the user & \$10.00 a day (\code{LLM_DAILY_BUDGET_USD}); an administrator's own account unlimited. \\
+\end{xltabular}
+
+\begin{humanbox}{What the system never decides}
+No code path sets an obligation, a scope, a work product or a report to approved on its own,
+and no chat tool approves an obligation, a work product or a report at all. The three decisions
+of the table that the chat can record --- a scope, an override, a verified credential --- name
+the user whose token it holds; the prompt asks for the user's yes or explicit word for each,
+and apart from the price of
+a scope the code does not check that it was given.
+A judge's verdict, a passing rule, a high confidence or a met status changes none of these.
+The decisions a person takes are stamped with their name and time, audited, and printed in
+the exports, so a reader of a report can tell what a model wrote from what a person accepted.
+\end{humanbox}
+
+\subsection{How the shipped register was reviewed}\label{sec:control:shipped}
+
+The design is that a person approves every obligation. The register that ships with the
+product was not reviewed that way, and a reader should know exactly how it was.
+
+\begin{notebox}{The review of 13 November 2026}
+On 2026-11-13 the register that ships in \file{postgres/bootstrap.sql.gz} --- 5\,960
+obligations of 68 acts --- was judged whole by the judge (\prompt{corpus.verify_obligations},
+about \$10) and then reviewed, on the administrator's instruction, by an AI coding assistant;
+\textbf{a person did not read it entry by entry}. The 5\,777 entries the judge found
+supported were approved in bulk after a sample of 25 was checked against the acts' text and
+found right. The 183 entries the judge doubted, or that shared a flaw with a doubted one, were
+read one by one against the provisions they cite: 75 approved as written, 86 corrected (who
+is bound, a missing condition or deadline; the judge read the 38 reworded ones again), 10
+rejected (a duplicate cited to a form or to an article that only announces a list, or a duty
+the act lays on a Member State), 12 left proposed with a note for a person. Every entry decided by hand
+carries a note saying so. \file{docs/markdown/en/operations.md} §6 (\enquote{How the shipped register was
+reviewed}) has the same account.
+\end{notebox}
+
+What follows for a reader: the design remains that a person approves obligations, and this
+review is a stated exception to it and a reason to treat the register as
+\emph{machine-reviewed}. \code{approved} on a shipped entry means that the judge and the
+reviewing assistant found the entry carried by its provisions, not that a lawyer read it. A
+finding is only as good as its obligation, so whoever relies on a finding for a decision
+still reads the provision, which every finding cites and links. Every report counts the
+findings that rest on approved obligations (\code{reviewedObligations}); on the shipped
+register that count includes the entries approved in this review, so it measures approval,
+not a person's reading.
+
+
+% ============================================================
+\section{Evaluation}\label{sec:control:eval}
+
+Controls check an answer against its sources. They cannot say whether the answer is the
+right one: a finding with a located quote and a valid status can still be the wrong status.
+Whether a prompt makes the model answer well is a question of measurement, and the system
+measures six of its prompts on labelled cases kept in the repository
+(\file{prompts/evals/}). This section describes what is measured, how, by whom the answers
+were labelled, and what is not measured at all.
+
+\subsection{Why tests with a fake model cannot measure a prompt}
+
+The system has thousands of tests (\cref{ch:testing}). In their ordinary run every one that
+touches a model runs against a stand-in. In the API that stand-in is \code{FakeModel} in
+\file{tests/fakes.py}: it reads the references the pipeline put into the prompt and answers
+each schema with plausible content --- every act applies unless a test says otherwise, the
+gap analysis cycles its findings through \code{missing}, \code{partial}, \code{met} and
+\code{unknown}, every finding quotes the first line of the first document it was shown and
+also a sentence no document holds, every planning call closes its first three findings. Its
+embedder hashes words into a vector. The pipeline's parsing, joining and storage then run for
+real.
+
+Such a test proves the plumbing: that a quote the document does not hold is not placed, that
+a skipped obligation becomes \status{unknown}, that severity comes from the register. It can
+prove nothing about the prompt, because the answers it checks were written by the test's
+author, not by a model reading the prompt. The banner of \file{tests/test_evals.py} says it
+of the suites themselves: run against the fake model they prove \enquote{the plumbing, not
+the prompts}. To measure a prompt the real model has to read it, on inputs whose right answer
+is known.
+
+\subsection{A labelled case}\label{sec:control:case}
+
+A \term{labelled case} is one input of a prompt together with the answer a careful reader
+gives and, in five of the six suites, the reason for it. The cases are YAML files, one per suite, under
+\file{prompts/evals/cases/}. Two of them, word for word, show the form. The first is one
+obligation of the gap-analysis suite: the obligation as the report of 11~November 2026 put it
+to the model for the sample company, the status expected, and why.
+
+\begin{codefile}{\file{prompts/evals/cases/gap.yaml} --- the case \code{dora-20}}
+  - id: dora-20
+    act: "DORA"
+    expect: met
+    why: >-
+      Conduct (b): the incident policies say that on a major ICT incident
+      affecting clients' interests the company informs clients without undue
+      delay about the incident and the mitigating measures, name the channels
+      (direct email, status page) and the responsible roles.
+    obligation:
+      provisions: "19 str., 23 str."
+      category: customer_protection
+      title: "Informuoti klientus apie jų finansinius interesus paveikusį incidentą"
+      text: >-
+        Kai didelis su IRT susijęs incidentas daro poveikį klientų
+        finansiniams interesams, finansų sektoriaus subjektai turi nepagrįstai
+        nedelsdami, iš karto sužinoję apie incidentą, informuoti savo klientus
+        apie incidentą ir priemones, kurių imtasi jo neigiamam poveikiui
+        sumažinti. Kredito įstaigoms, mokėjimo įstaigoms, informavimo apie
+        sąskaitas paslaugų teikėjams ir elektroninių pinigų įstaigoms ši
+        pareiga taip pat taikoma dideliems su mokėjimais susijusiems
+        operaciniams arba saugumo incidentams.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Didelis incidentas daro poveikį klientų finansiniams interesams."
+      expectedEvidence: "Klientams išsiųsti pranešimai, išsiuntimo laiko duomenys ir informacija apie poveikio mažinimo priemones."
+      deadline: "Nepagrįstai nedelsiant, iš karto sužinojus apie incidentą."
+\end{codefile}
+
+The second is a case of the sanctions suite. It names an act of the catalogue and an article,
+and expects the ceiling that holds for any breach of that article and the graver one the act
+binds to a kind of breach.
+
+\begin{codefile}{\file{prompts/evals/cases/sanctions.yaml} --- the case \code{aml-law-any-breach-and-the-gross-one}}
+  - id: aml-law-any-breach-and-the-gross-one
+    act: pptfp-istatymas
+    article: 9
+    expect: {percent: 5}
+    graver: {eur: 5100000, percent: 10}
+    why: >-
+      39 str. 1 d. 1 p. — 0,5 to 5 % of annual income for breaches of the law;
+      2 p. — up to 10 % or EUR 5 100 000 when the breach is systematic, gross
+      or repeated within a year.
+\end{codefile}
+
+A case of the gap suite carries its own obligation; a case of the sanctions suite names an
+act and lets the suite read that act's sanction provisions from the corpus. Every case but
+those of the citations suite, which are one line each, has a \code{why};
+\code{test_the_case_files_are_well_formed} in \file{tests/test_evals.py} requires it in those
+five suites, together with unique ids, at least nine cases a suite and an expectation from the
+allowed values. A gap or applicability case may also list under \code{accept} a second answer
+that passes it.
+
+\subsection{Who labelled the cases, and how}\label{sec:control:labels}
+
+The labels decide what a suite's score means, so the book states exactly who made them.
+\textbf{Every label was made on 12~November 2026 by the AI coding assistant used to build the
+system} --- Claude, a model of Anthropic; the files call it \enquote{the assistant (Claude)};
+it is \emph{not} the product's chat assistant --- reading the provisions and documents each
+case names in its \code{why}. \textbf{No person has overruled or confirmed a label yet}; each
+file ends its header with an invitation to a person to do so: \enquote{Overrule a label by
+editing it here.} The headers say how each file was made (\cref{tab:control:labels}).
+
+\begin{table}[H]
+\caption{How the labels of each suite were made, as the headers of the case files say}\label{tab:control:labels}
+\begin{tabularx}{\textwidth}{@{}L{22mm}Y@{}}
+\toprule
+\hd{Suite} & \hd{What the file's header says} \\
+\midrule
+\code{gap} & 72 findings of the sample company's report of 11~November 2026 were drawn, spread over the acts and over the model's own statuses. Two independent instances of the assistant, each reading the whole library and the prompt's rules and half of the cases, labelled them without the model's answers; every quote they relied on was checked word for word. They could see the order the cases were drawn in, which hints at the model's status --- \enquote{a flaw of the method}. They agreed with the model on 52 cases, named its answer as a defensible alternative on 14 and differed outright on 6. The six were read against the prompt's rules by the assistant (marked \code{adjudicated}; five remain), and one was dropped. 71 cases remain; 54 of them accept a second status. \\
+\code{applicability} & Labelled from the provisions named in \code{why}. The verdicts of the sample company's report of 11~November 2026 were at hand when its cases were chosen, so only acts whose scope \enquote{leaves no room for a second reading} were taken --- among them the one act that report got wrong. The second company, a payment institution, is made up for the file and was labelled without any model answer. \\
+\code{verify} & Each entry and the article it cites as the corpus held them on 12~November 2026. The entries expected to be doubted were written wrong on purpose, except the last, which the extraction made. \\
+\code{citations} & Labelled against the articles' headings. The MiCA pairs are the sample company's own mistake: its overview shifts the crypto-asset services by one article from Article~78 on. \\
+\code{scope} & Labelled from the provisions named in \code{why}. \\
+\code{sanctions} & Labelled from the provisions named in \code{why}, read in the corpus. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+What follows for a reader: the \enquote{ground truth} of the suites is a careful second
+reading made by a different and more deliberate process --- another prompt, the whole text,
+quotes checked word for word, no model answer in view --- and not the judgement of a
+compliance expert. In \file{docs/markdown/en/architecture.md} and \file{docs/markdown/en/operations.md} the same
+labellers are called \enquote{readers}; they were instances of an AI model. A suite's score
+therefore measures agreement with that reading. It is best read as a regression signal: a
+change of prompt or model that lowers the score has changed the model's behaviour, and the
+cases it now misses say where.
+
+\subsection{Through the product's own functions}\label{sec:control:runners}
+
+A suite that rebuilt the prompt's input in its own way would measure a copy of the prompt.
+Each suite therefore puts its cases through the functions the product itself calls
+(\file{prompts/evals/suites.py}, one runner per suite; \cref{tab:control:runners}), so that a
+case reaches the model in the form a real call has: the same rendering of the data, the same
+shared block, the same schema and, except in the judge's suite, which puts one case a call,
+the same batch size. The prompt is the active version of the
+installation the suite runs on, on that version's model.
+
+\begin{table}[H]
+\caption{What each suite calls, what it reads, and what it stores}\label{tab:control:runners}
+\begin{tabularx}{\textwidth}{@{}L{20mm}L{48mm}Y@{}}
+\toprule
+\hd{Suite} & \hd{Goes through} & \hd{What a call is given} \\
+\midrule
+\code{verify} & \code{verify._render} and \code{run_prompt} with \code{verify.SCHEMA}; one call a case & The case's own article and entry, rendered as the judge's job renders them. A judge's \code{partly} or \code{unsupported} counts as \enquote{doubt}. \\
+\code{scope} & \code{scope_readings}, \code{ACTS_PER_CALL} = 4 acts a call & The act's scope provisions from this installation's corpus. Nothing is stored on the act's version. \\
+\code{citations} & \code{check_citations} with \code{use_model=True}; all twenty in one call & The article as this installation's corpus holds it, found by the same lookup. \\
+\code{gap} & \code{pipeline.document_block}, \code{gap_data}, \code{GAP_SCHEMA}, \code{OBLIGATIONS_PER_CALL} = 15 & The sample company's 26 documents whole and its profile as the shared block, as in a report, read from \file{prompts/evals/data/1009-ltd/}; each act's verdict as that report gave it; \code{LANGUAGE} Lithuanian. \\
+\code{applicability} & \code{applicability_data}, \code{APPLICABILITY_SCHEMA}, \code{ACTS_PER_CALL} = 4; \code{applies_from_of} to read the start date & A company's profile from the case file as the shared block, and the act's provisions from this installation's corpus. \\
+\code{sanctions} & \code{sanction_reading}, then \code{sanctions._of_act} for the join & The act's sanction provisions from this installation's corpus, read once for all its cases; the tiers are joined to the case's article by the code a report uses. Nothing is stored. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two consequences follow from reading the installation's corpus. A case whose act is not in
+the corpus cannot be put, and counts as failed: with the reason \enquote{the act is not in the
+corpus} in the scope, applicability and sanctions suites, with the lookup's own status
+\code{act_not_in_corpus} in the citations suite. And four suites --- scope, citations, applicability, sanctions --- read the acts as
+they stand when the suite runs, while their labels were made from the texts of
+12~November 2026; a new version of an act is what those suites then read. The \code{gap} and
+\code{verify} suites carry their material with them and judge the same text on any
+installation.
+
+The calls are recorded like any other, with the purpose \texttt{eval:} and the suite's name
+(the citations suite's calls carry the citation judge's own purpose, \code{citations.check}),
+under no user and no job step: an evaluation is charged to nobody's daily budget. One
+property of the citations suite should be known. Like every caller of \code{check_citations},
+it falls back to the word-overlap comparison when the gateway call fails (the command has
+already refused to run a suite whose prompt has no active version), and its runner does not
+look at \code{judgedBy}; a run in which the judge
+could not be reached would score the stand-in's verdicts as if they were the model's.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{w/.style={text width=27mm}}
+  \node[data, w] (case) at (15,0) {a labelled case\\ {\scriptsize\file{cases/<suite>.yaml}}};
+  \node[svc, w] (fn) at (60,0) {the product's own function\\ {\scriptsize \code{gap_data}, \code{check_citations}, \ldots}};
+  \node[ai, w] (model) at (105,0) {the real model\\ {\scriptsize the active prompt version, through \code{run_prompt}}};
+  \node[ext, text width=12mm] (gw) at (139,0) {the gateway};
+  \node[chk, w] (cmp) at (105,-24) {the answer compared with the label\\ {\scriptsize or with a status under \code{accept}}};
+  \node[chk, w] (score) at (60,-24) {the score against the baseline, less its slack};
+  \node[store, text width=24mm] (base) at (60,-46) {\file{baseline.json}};
+  \node[man, w] (person) at (15,-24) {a person reads the misses; records a new baseline, or changes the prompt};
+  \node[man, w] (change) at (15,-46) {a change of prompt or model};
+  \draw[flow] (case) -- (fn);
+  \draw[flow] (fn) -- (model);
+  \draw[call] (model) -- (gw);
+  \draw[flow] (model) -- (cmp);
+  \draw[flow] (cmp) -- node[lbl, above] {passed, of} (score);
+  \draw[call] (base) -- (score);
+  \draw[flow] (score) -- node[lbl, above] {\code{MISS} lines} (person);
+  \draw[opt] (person.south) -- (change.north);
+  \draw[opt] (person.south east) -- node[lbl, above right, pos=.45, inner sep=1pt] {\code{--record}} (base.west);
+  \draw[opt] (change.west) -- ++(-4mm,0) |- (case.west);
+  \node[note, anchor=north west, text width=38mm] at (92,-38) {below the baseline less the slack: the command fails};
+\end{tikzpicture}
+\actorlegend
+\caption{The evaluation loop. A case goes through the function the product uses to the real
+model; the answer is compared with the label, the score with the recorded baseline less its
+slack. A person reads what was missed and decides whether to record the scores as the new
+baseline or to change the prompt and run again.}\label{fig:control:evalloop}
+\end{figure}
+
+\subsection{The baseline and the slack}\label{sec:control:baseline}
+
+\file{prompts/evals/baseline.json} records, for each suite, the score that the prompt in force
+earned when it was accepted: \code{passed} and \code{of}, the prompt as a slug and version
+number, the model, the date, and for one suite \code{slack}. A run fails a suite when it
+scores below the baseline less the slack. The slack exists because a model's answers vary
+from run to run: in the words of the command's banner, the gap analysis loses \enquote{a case
+or two of seventy}, and its baseline carries a slack of 2. With a baseline of 67, the gap
+suite therefore fails at 64 or fewer. Every other suite has no slack and fails at one case
+below its baseline.
+
+A baseline is written only on request. \code{--record} writes the scores of the suites just
+run, each with the prompt version and the model that earned them, and keeps an existing slack;
+the command's banner says it is to be used \enquote{after a person has looked at what is still
+wrong}. A run without it compares and changes nothing.
+
+\subsection{Running the suites}\label{sec:control:command}
+
+The command is \code{manage.py}~\code{eval_prompts}
+(\file{prompts/management/commands/eval_prompts.py}). With no argument it runs all six
+suites; named suites run alone; \code{--record} accepts the scores as the new baseline;
+\code{--baseline} names another baseline file. \file{docs/markdown/en/operations.md} §12 asks whoever
+changes one of the six prompts, its model or the schema of its answer to run it before and
+after the change, and to compare the two runs of that day with each other as well as with the
+baseline: the form of a schema is read by the model too (\cref{par:models:filled}), and the
+provider's model drifts. A suite
+whose prompt has no active version stops the command with the advice to run
+\code{seed_prompts} first; an unknown suite's name is refused. A run prints these lines (the
+fields in braces are filled in):
+
+\begin{codeblock}
+  MISS {suite}/{case id}: expected {label}, got {answer}
+{suite}: {passed} of {cases} with {slug} v{version} on {model} (baseline {passed} of {of}, fails below {n}, {slug} v{version})
+Model calls since the run began cost ${amount}
+\end{codeblock}
+
+\noindent and then either \enquote{Recorded as the baseline in \ldots} or, when a suite
+scored too low, fails with \enquote{Below the baseline:} and the suites' names. The
+\enquote{fails below} part appears only for a suite with slack, and a suite without a
+baseline reads \enquote{(no baseline)} instead of the bracket. The cost line sums every row
+of \code{llm_calls} written since the run began, so on a system in use it includes whatever
+else was called in that time.
+
+A run spends real money: about a dollar for the six suites when it was measured on
+12~November 2026 (\file{docs/markdown/en/operations.md} §12, and the command's banner),
+the gap suite nearly half of it at \$0.42 --- each of its calls carries the sample company's whole
+library of 26 documents --- and cents for each of the other five.
+
+\subsection{The six suites}\label{sec:control:suites}
+
+\Cref{tab:control:suites} gives the six suites with their sizes and baselines. Together they
+hold 146 cases. Every baseline was recorded on 12~November 2026 on
+\texttt{gateway:azure/gpt-6.1-sol}.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}L{32mm}YR{16mm}L{24mm}@{}}
+\caption{The evaluation suites and their baselines (\file{prompts/evals/baseline.json}, 12 November 2026; the sanctions suite again on 19 November)}\label{tab:control:suites}\\
+\toprule
+\hd{Suite} & \hd{Prompt} & \hd{The cases} & \hd{Baseline} & \hd{Prompt recorded} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Suite} & \hd{Prompt} & \hd{The cases} & \hd{Baseline} & \hd{Prompt recorded} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{gap} & \prompt{report.gap_analysis} & 71 obligations of eight acts (MiCA 18, DORA 14, PPTFPĮ 13, TFR 8, GDPR 7, KRĮ 6, PAĮ 3, ADTAĮ 2) against the sample company's 26 documents; expected 24 met, 17 partial, 7 missing, 14 not evidenced, 9 not applicable; 54 accept a second status & 67 of 71, slack 2 & v8 \\
+\code{applicability} & \prompt{report.applicability} & 19 pairs of a company and an act, 13 for the sample company and 6 for the payment institution: 13 apply, 5 do not, 1 uncertain (one also accepts uncertain); some fix the effect or the start date & 19 of 19 & v8 \\
+\code{citations} & \prompt{corpus.check_citations} & 20 references: 14 under MiCA, 3 under DORA, 3 under the GDPR; 13 match, 7 mismatch & 19 of 20 & v4 \\
+\code{verify} & \prompt{corpus.verify_obligations} & 14 entries with the article they cite: 6 to be found supported, 8 to be doubted & 14 of 14 & v1 \\
+\code{scope} & \prompt{corpus.scope} & 9 acts with the institution types their scope provisions must and must not name & 9 of 9 & v1 \\
+\code{sanctions} & \prompt{corpus.sanctions} & 16 articles, read through the sanction provisions of eight acts: 13 with a ceiling for any breach (2 also with a graver one, 1 that must be shown without one, 1 said to bind one kind of person), 1 with the highest ceiling it is shown and whose it is, 2 where the act states none & 16 of 16 & v4 \\
+\end{xltabular}
+
+\paragraph{A note on the version numbers.} A version number counts the versions of a prompt
+in the database where it was saved (\cref{ch:prompts}), and the command records the number of
+the database it ran on. That is by design: the baseline names the version that earned the
+score where it was earned, and the same wording may carry another number on another
+installation. Until 19~November 2026 the baseline named \prompt{corpus.sanctions} v4 --- its
+number on the copy where the prompt had been worked out --- while the same wording was
+version~1 on the live system. That day the suite was recorded again for the reworded prompt
+--- twice, for its versions~2 and 3, and on 20~November for version~4
+(\cref{ch:obligations}) --- each time on a copy made from the installation file, so its
+number, 4, is the one an installation has; the other five numbers are those of the live system's active
+versions. A number in the baseline therefore identifies a wording only together with the
+database it was recorded in.
+
+\subsection{What the model still misses}\label{sec:control:misses}
+
+On 12~November 2026 the model missed five of the 146 cases: four of the gap suite and one of
+the citations suite. \file{docs/markdown/en/architecture.md} describes the four gap misses as
+\enquote{over-strict readings (the Transfer of Funds Regulation's \enquote{execute} held
+against a policy that blocks \enquote{initiating})}: the model held a policy to the
+obligation's exact wording where the labels found the policy sufficient. They stay in the file
+as they are, \enquote{so a better prompt shows as a better score}. The record does not say
+which citation case was missed. The other four suites were answered as labelled.
+
+\subsection{What no suite measures}\label{sec:control:unmeasured}
+
+Seventeen of the 23 prompts have no suite:
+
+\begin{itemize}
+  \item the two extraction prompts, \prompt{corpus.extract_obligations} and
+    \prompt{corpus.extract_requirements} --- the source of every obligation in every report;
+  \item \prompt{corpus.standard_outline}, which has run only on documents measured by hand;
+  \item \prompt{report.inventory}, \prompt{company.internal_requirements} and
+    \prompt{report.internal_gap};
+  \item \prompt{report.action_plan}, \prompt{report.plan_merge} and \prompt{report.summary};
+  \item the six prompts of the work products, \prompt{programme.policy},
+    \prompt{programme.documents}, \prompt{programme.structure}, \prompt{programme.raci},
+    \prompt{programme.risk_criteria} and \prompt{programme.risk_scenarios};
+  \item the chat's \prompt{chat.assistant} and \prompt{chat.title}.
+\end{itemize}
+
+Retrieval is not measured continuously either: the comparison of the two embedding models was
+made once, on 28~September 2026 (\cref{ch:corpus}).
+
+What that means differs by path. For the extraction the gap is the largest: what the model
+fails to write down is seen by nobody, since the judge reads the entries that exist and the
+reviewer reads what the judge shows. The plan and the merge are held by code to their
+coverage --- every open finding one action --- but not to the quality of an action. The
+summary is told not to introduce facts, and nothing checks that it does not. A work product
+is checked against its kind's rules and approved by a person; the two lessons of its first
+registers (\cref{sec:control:record}) were faults no rule could see. The chat is held by its
+tools and their gates, not by a measure of its answers. For each of these prompts a change of
+wording or of model is judged by reading its output, and by nothing else.
+
+
+% ============================================================
+\section{The record of measured change}\label{sec:control:record}
+
+The prompts and the pipeline reached their present form through observations on the sample
+company's material. \Cref{tab:control:record} gathers every one the repository's documents
+and the editor's facts hold where a change of prompt, retrieval, model or treatment was
+decided by a number. Each is an observation on one company on the day named, under the
+conditions stated; none is a general ranking of models or a promise about another company.
+
+\begin{xltabular}{\textwidth}{@{}L{17mm}L{37mm}YL{37mm}@{}}
+\caption{The dated measurements behind the system's present form}\label{tab:control:record}\\
+\toprule
+\hd{Date} & \hd{What was measured} & \hd{Result} & \hd{What changed} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Date} & \hd{What was measured} & \hd{Result} & \hd{What changed} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+28 Sept. 2026 & The gap analysis on 73 hand-checked findings of the sample company's report & The earlier prompt and retrieval were right on 71\,\% and reported 21 problems the documents do not have; the reworked, passage-based ones on 93\,\%, with the same model (\model{gpt-5.6-terra}); \model{gpt-5.6-sol} scored 95\,\% at twice the cost & The reworked prompt and retrieval were kept, until whole documents replaced passages on 10~November. The 73 labels were not kept; the suites of 12~November replace them. \\
+28 Sept. 2026 & The two embedding models, at 1536 dimensions & An English obligation found its Lithuanian article 38, 33 and 37 times in 40 (MiCA, DORA, PPTFPĮ) with \model{text-embedding-3-large}, against 23, 29 and 34; the right company document among six passages 38 of 41 against 35 & \model{text-embedding-3-large} \\
+not dated & The citation check: similarity of embeddings against a judging model, on the sample company's wrong MiCA references & Embeddings no better than chance; \model{gpt-5.6-luna} judged all 12 correctly & A model judges; word overlap only as the stand-in \\
+not dated & The extraction of MiCA & Annexes V and VI added 134 repeats to the act's 393 obligations & The prompt skips a provision that only lists infringements \\
+10 Nov. 2026 & Three models extracting two batches (MiCA Art.~68--75; PPTFPĮ Art.~10--13) & \model{gpt-5.6-terra} 44 and 25 obligations, \model{gpt-6.1-sol} 56 and 32, \model{gpt-6-astra} 55 and 31 at about five times the price of \model{gpt-6.1-sol}. The count is of obligations found, not of their correctness & Extraction moved to \model{gpt-6.1-sol}; the whole corpus read again that day \\
+10 Nov. 2026 & Three models on the report's real requests: three gap-analysis batches of fifteen, two applicability batches of four & \model{gpt-6.1-sol} and \model{gpt-6-astra} agreed on 43 of 45 statuses and all 8 verdicts; \model{gpt-5.6-terra} differed on five obligations; the gap analysis of 2\,200 obligations would cost about \$57 on astra against \$11 & Every step of a report on \model{gpt-6.1-sol} \\
+10 Nov. 2026 & Findings judged from six retrieved passages per obligation & Asked to check five critical findings of that day's report, the chat assistant read the documents and found three wrong & Every call carries the documents whole \\
+10 Nov. 2026 & Severity rated by the model & 23 of 42 open findings called critical were reporting duties, four on obligations rated low & Severity taken from the register \\
+10 Nov. 2026 & The action plan, one call over the 160 gravest findings & 806 of 966 open findings left without an action & Every open finding planned, by theme; code repairs what a call leaves out \\
+10 Nov. 2026 & Every applicable or uncertain act assessed alike & Seven uncertain acts made 872 of 2\,120 findings, 823 of them not applicable or not evidenced & An uncertain act is not assessed; a directive stands behind its law; a later act is preparation \\
+10--11 Nov. 2026 & The provider's prompt cache, on \model{gpt-6.1-sol} & A gap call cost \$0.17 with the documents in the message; \$0.18 writing them behind the instructions and about \$0.045 reading them & The shared block behind the instructions; the first call alone \\
+11 Nov. 2026 & Acts that organise an authority & Five acts made 42 findings, none a gap & The verdict's \code{effect}; an institutional act is indirect \\
+11 Nov. 2026 & The catalogue's list of whom an act binds & The Law on Financial Institutions left out for a crypto-asset provider; read on 12~November, the scope provisions of 51 acts added types to five lists & The scope reading, which can only keep an act in \\
+11 Nov. 2026 & Merging the planning calls' drafts & 48 drafts became 20 actions, all 645 findings kept; told to keep documents and subjects apart, 44 drafts became 24, the largest closing 65 findings instead of 123 & The merge prompt's rules on what not to fold together \\
+12 Nov. 2026 & The judge's first wording, on 137 obligations of two laws & 17 doubts: it took a condition on a permission and the aims of the internal audit service for less than duties; with the present wording 3, each worth a person's eye, for \$0.19 & Check~1 of the prompt lists what counts as a duty; both sides kept in the suite \code{verify} \\
+12 Nov. 2026 & Reading a DORA implementing standard that is a report form & 68 obligations, one per field of the form & The two template acts ship disabled \\
+12 Nov. 2026 & The first risk registers of the sample company & Nine of ten scenarios had the same impact levels; the next leaned on the financial policies alone & The prompt asks for each scenario on its facts and for the whole organisation; the scores spread from 9 to 20 \\
+November 2026 & A standard's headings on a smaller model & It missed 16 of the 286 requirements of the OWASP ASVS & The outline prompt runs on a large model \\
+12 Nov. 2026 & The six suites & The baselines of \cref{tab:control:suites} & Recorded as the baseline \\
+\end{xltabular}
+
+Two kinds of change are not in the table because no number decided them: the language of the
+chat's answer, turned round after one English question was answered in Lithuanian, and the
+report list tool, added after the chat asked a user for a report's id (\cref{ch:chat}).
+
+
+% ============================================================
+\section{Cost}\label{sec:control:cost}
+
+Cost is a control in its own right: a system that is too expensive to run again is not run
+again, and a report that is not repeated is not checked. This section says what a call costs
+and why, what each path cost as measured, how a full report's cost is made up, and what keeps
+spending within bounds.
+
+\subsection{What a call costs, and why}
+
+A call is priced from five token counts at the gateway's prices for its model
+(\code{cost_of} in \file{assistant/usage.py}; \cref{ch:models}): input read from the provider's
+cache, input written to it, other input, and output; reasoning is part of the output. On
+\model{gpt-6.1-sol}, on the price list of 10~November 2026, a million tokens of input cost
+\$2, of input written to the cache \$2.50, of input read from it \$0.10, and of output \$10.
+Three facts follow and shape every figure below. Output is five times the price of input, so a
+step that writes much --- extraction, the gap analysis --- costs more than one that reads
+much. Input the provider has seen before costs a twentieth, so a step whose calls share a
+block reads it almost free after the first call. And \model{gpt-6-astra}, the chat's model,
+costs five times \model{gpt-6.1-sol} for input and for output. \Cref{ch:models} describes the cache and
+the measurement that shaped the design around it.
+
+\subsection{The cost of each path, as measured}
+
+\Cref{tab:control:costs} lists every cost measurement the documents and the editor's facts
+hold, by path. All were made on the sample company or on the shared corpus; where a figure was
+taken on a copy of the database rather than the live system, the table says so.
+
+\begin{xltabular}{\textwidth}{@{}L{17mm}L{35mm}YR{12mm}R{15mm}@{}}
+\caption{The measured cost of the AI paths}\label{tab:control:costs}\\
+\toprule
+\hd{Date} & \hd{Path} & \hd{What was done} & \hd{Calls} & \hd{Cost} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Date} & \hd{Path} & \hd{What was done} & \hd{Calls} & \hd{Cost} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{5}{@{}l}{\hd{One-time corpus work}} \\
+10 Nov. 2026 & Obligation extraction & All 51 acts then enabled, read again whole: 4\,892 obligations, 12:42--15:12 UTC, no failure & 461 & \$23.61 \\
+13 Nov. 2026 & Obligation extraction & The 17 enabled acts added that day: 1\,068 obligations & 36 & \$4.77 \\
+12 Nov. 2026 & The register's judge & 137 obligations of two laws & --- & \$0.19 \\
+13 Nov. 2026 & The register's judge & The whole register, 5\,960 obligations & 369 & \$9.80 \\
+12 Nov. 2026 & Sanction provisions & 51 acts on a copy of the database: 274 tiers & --- & \$0.65 \\
+13 Nov. 2026 & Sanction provisions & The whole corpus, live: 262 tiers in 27 acts & 29 & \$0.71 \\
+19 Nov. 2026 & Sanction provisions & The whole corpus read again with version~2 of the prompt, on a copy of the database: 309 tiers in 27 acts & 29 & \$0.61 \\
+19 Nov. 2026 & Sanction provisions & The whole corpus read again with version~3 of the prompt, on a copy of the database: 288 tiers in 27 acts, 84 of them saying whom they bind & 29 & \$0.63 \\
+20 Nov. 2026 & Sanction provisions & The whole corpus read again with version~4 of the prompt, on a copy of the database: 302 tiers in 27 acts, 100 of them saying whom they bind; \$0.50 when read again within the hour, the input cached & 29 & \$0.61 \\
+13 Nov. 2026 & Scope provisions & 24 acts, inside one report & 6 & \$0.16 \\
+12 Nov. 2026 & Corpus embeddings & 24 new catalogue acts ingested on a copy of the database, 89~s & --- & \$0.08 \\
+28 Sept. 2026 & Corpus embeddings & Re-embedding everything, as estimated & --- & \textasciitilde\$0.30 \\
+Nov. 2026 & A standard's headings & The OWASP ASVS 4.0.3, on \model{gpt-5.6-terra}, 90~s & 6 & \textasciitilde\$0.25 \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Per report, the sample company}} \\
+10 Nov. 2026 & A full report & 2\,120 findings over fewer acts, 48 minutes, no own requirements & --- & \$16.04 \\
+10--11 Nov. 2026 & One gap-analysis call & 59\,000 input tokens: writing the shared block / reading it & 1 & \$0.18 / \textasciitilde\$0.045 \\
+11 Nov. 2026 & A shortened report & On a copy, each act's obligations cut to its first fifteen: 7~min 44~s & --- & \$1.42 \\
+13 Nov. 2026 & A full report & 2\,151 legal findings and 475 own requirements, 1~h 38~min, live (\cref{tab:control:anatomy}) & 272 & \$13.20 \\
+not dated & Document inventories & The 26 documents, the model not named & --- & \$1.09 \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Work products, the sample company, on a copy, 12 Nov. 2026}} \\
+12 Nov. 2026 & Compliance policy & The whole product, five minutes & --- & \$0.46 \\
+12 Nov. 2026 & Structure, process, RACI & The whole product & --- & \$0.39 \\
+12 Nov. 2026 & Risk criteria and register & The whole product & --- & \$0.35--0.48 \\
+\midrule
+\multicolumn{5}{@{}l}{\hd{Other}} \\
+12 Nov. 2026 & The six evaluation suites & One run, the gap suite \$0.42 of it (\file{docs/markdown/en/operations.md} §12) & --- & \textasciitilde\$1 \\
+--- & A chat turn, a thread title & No measurement is on record & --- & --- \\
+\end{xltabular}
+
+\subsection{The anatomy of a full report}
+
+The fullest measurement is the report made on the live system on 13~November 2026: the
+sample company, with the option to assess its own requirements, without the scope review,
+every call on \model{gpt-6.1-sol}, 272 calls, none failed (\cref{ch:report}).
+\Cref{tab:control:anatomy} and \cref{fig:control:anatomy} show where its \$13.20 went.
+
+\begin{table}[H]
+\caption{The cost of the report of 13 November 2026, by step}\label{tab:control:anatomy}
+\begin{tabularx}{\textwidth}{@{}YR{14mm}R{26mm}R{14mm}@{}}
+\toprule
+\hd{Step} & \hd{Calls} & \hd{Cost} & \hd{Share} \\
+\midrule
+Citation audit & 6 & \$0.24 & 2\,\% \\
+Applicability, and the scope readings beside it (charged to nobody) & 12 + 6 & \$0.46 + \$0.16 & 5\,\% \\
+Gap analysis & 154 & \$7.32 & 55\,\% \\
+Own requirements: reading and judging & 26 + 49 & \$1.10 + \$2.07 & 24\,\% \\
+Action plan and merge & 17 + 1 & \$1.53 + \$0.28 & 14\,\% \\
+Summary & 1 & \$0.06 & 0.5\,\% \\
+\midrule
+Whole run & 272 & \$13.20 & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar stacked, width=112mm, height=46mm,
+  xmin=0, xmax=24, bar width=6.5mm,
+  enlarge y limits=0.45,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick=data, symbolic y coords={nov13,nov10},
+  yticklabels={{the report of 13 Nov.\\ 2\,151 legal findings,\\ 68 acts, own requirements},{the report of 10 Nov.\\ 2\,120 findings, 51 acts}},
+  yticklabel style={align=right, text width=30mm, font=\sffamily\footnotesize, text=body},
+  xtick={0,4,8,12,16,20},
+  xticklabel style={font=\sffamily\footnotesize, text=muted},
+  xlabel={US dollars}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  legend style={draw=none, font=\sffamily\scriptsize, text=body, at={(0.5,-0.42)}, anchor=north, legend columns=4},
+  legend image code/.code={\draw[#1] (0cm,-0.1cm) rectangle (0.3cm,0.1cm);}]
+  \addplot[fill=mid, draw=ink] coordinates {(7.32,nov13) (0,nov10)};
+  \addplot[fill=pale, draw=ink] coordinates {(2.71,nov13) (0,nov10)};
+  \addplot[fill=tint, draw=ink] coordinates {(3.17,nov13) (0,nov10)};
+  \addplot[fill=rule, draw=ink] coordinates {(0,nov13) (16.04,nov10)};
+  \legend{gap analysis, rest of the legal part, own requirements, not broken down}
+  \node[font=\sffamily\footnotesize, text=body, anchor=west] at (axis cs:13.3,nov13) {\$13.20, the legal part \$10.03};
+  \node[font=\sffamily\footnotesize, text=body, anchor=west] at (axis cs:16.1,nov10) {\$16.04};
+\end{axis}
+\end{tikzpicture}
+\caption{The two full reports of the sample company measured. The report of 10~November
+2026 is recorded only as a total, without its model; every call of the report of
+13~November 2026 ran on \model{gpt-6.1-sol}. On 13~November 2026 the legal part ---
+the gap analysis and every other step but the company's own requirements --- cost \$10.03 for
+slightly more findings over a corpus grown from 51 to 68 enabled acts; the own requirements,
+an option, added \$3.17. The segments of 13~November are its steps as recorded, the rest of
+the legal part being \$10.03 less the gap analysis.}\label{fig:control:anatomy}
+\end{figure}
+
+The gap analysis is more than half of the whole, and most of that is output. Its 154 calls
+sent 9.12 million input tokens, of which 8.44 million (92.5\,\%) were read from the provider's
+cache and 0.68 million written; they wrote 0.48 million output tokens, which at \$10 a million
+come to about \$4.80 of its \$7.32 (\cref{ch:report}). Reading the company's 26 documents
+fifteen obligations at a time cost little once the first call had written them to the cache.
+
+Between the two measured runs the report became cheaper while it grew. The report of
+10~November 2026 sent the documents in each call's message, assessed uncertain acts,
+directives and acts that apply later alike, and cost \$16.04 for 2\,120 findings; by
+13~November the documents went whole in a cached shared block, and those acts were left
+unconfirmed, indirect or counted apart (\cref{sec:control:record}). The figures do not
+separate the effect of each change, and the corpus behind them differed.
+
+\subsection{One-time corpus work against per-report work}
+
+Two kinds of spending should be kept apart (\cref{fig:control:split}). Reading the law ---
+extracting obligations, judging them, reading scope and sanction provisions, embedding the
+corpus --- does not depend on the company and is done once per version of an act. Every later
+report of every company reuses it. Judging a company against the register is done per report.
+On the measured runs, the one-time work of the 68 acts came to \$39.05 in 901 calls; one full
+report of the sample company to \$13.20.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, width=96mm, height=62mm,
+  xmin=0, xmax=28, bar width=4.6mm,
+  enlarge y limits=0.08, y dir=reverse,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick={1,...,7},
+  yticklabels={{extraction, 51 acts (10 Nov.)}, {extraction, 17 acts (13 Nov.)}, {the judge, 5\,960 obligations (13 Nov.)}, {sanction provisions (13 Nov.)}, {scope provisions, 24 acts (13 Nov.)}, {a full report (13 Nov.)}, {a full report (10 Nov.)}},
+  yticklabel style={align=right, font=\sffamily\footnotesize, text=body},
+  xtick={0,5,10,15,20,25},
+  xticklabel style={font=\sffamily\footnotesize, text=muted},
+  xlabel={US dollars}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  nodes near coords={\$\pgfmathprintnumber[fixed, precision=2, fixed zerofill]{\pgfplotspointmeta}},
+  nodes near coords style={font=\sffamily\footnotesize, text=body, anchor=west},
+  point meta=x]
+  \addplot[fill=mid, draw=ink] coordinates {(23.61,1) (4.77,2) (9.80,3) (0.71,4) (0.16,5) (13.20,6) (16.04,7)};
+\end{axis}
+\end{tikzpicture}
+\caption{One-time corpus work against the cost of one report. The first five bars are shared
+corpus work, paid once per version of an act; the last two are one report of the sample
+company each, charged to the user whose job it is. The report of 10~November 2026 is recorded
+without its model; the extraction of that day and every call of 13~November 2026 ran on
+\model{gpt-6.1-sol}.}\label{fig:control:split}
+\end{figure}
+
+\subsection{Who is charged}
+
+Whether a call counts against a person's daily budget is decided by the user its caller
+names (\cref{ch:models} lists every case). The rule is that work done for one user's company is
+that user's, and work done on the shared legal corpus is nobody's. A report's calls are
+charged to the user whose job it is --- for a report with a scope review, the person who
+approved the scope, since the costly second part is a job queued in that person's name. An
+act a report finds never read is extracted at nobody's charge, as are the scope and sanction
+readings; an extraction or a judge run an administrator queues from an act's page is logged
+against that administrator. A work product's calls are the starter's, except the citation
+judge's call in its \code{references} step, which is filed under the job step without a user.
+An evaluation run is charged to nobody. Work charged to nobody still spends the team budget of
+the gateway key.
+
+\subsection{What bounds the spending}
+
+\begin{codebox}{The bounds on what the system can spend}
+\begin{itemize}
+  \item \textbf{The team budget of the gateway key.} Set at the gateway; when it is spent
+    every call is refused with HTTP~402, the product says \code{AI_BUDGET_EXHAUSTED}, and a
+    report that fails so keeps what it had already paid for.
+  \item \textbf{The daily budget of each user}, \$10.00 by default
+    (\code{LLM_DAILY_BUDGET_USD}); checked before a chat turn, a test run, and the start of a
+    report, a scope approval or a work product, which each need \$0.25 left
+    (\code{MIN_BUDGET_TO_START_USD}). A run already started is never stopped halfway for it.
+  \item \textbf{The estimate before a run.} An upper bound computed without a model
+    (\file{analysis/estimate.py}), shown with the remaining budget before the user confirms.
+    In the chat a start is refused unless the call carries an amount that covers the estimate
+    (\code{COST_NOT_CONFIRMED}, \code{COST_UNKNOWN}).
+  \item \textbf{The scope review before the costly part.} The first part of a report cost
+    \$0.86 on 13~November 2026; the person who approves the list of acts sees the price of the
+    second part for that selection, and per act the obligations it brings
+    (\code{estimate_rest}), before any of it is spent.
+  \item \textbf{Work done once.} Obligations are extracted once per version of an act, an
+    inventory is read again only when the document's text or the prompt changed, and a
+    report is one job of one attempt, so that a failure does not pay twice.
+  \item \textbf{The provider's cache}, used on purpose: the shared block behind the
+    instructions and the first call alone.
+  \item \textbf{Limits per company}: one report at a time, one work product of a kind at a
+    time; an indexing job that meets a spent budget waits for the next day.
+\end{itemize}
+\end{codebox}
+
+\begin{humanbox}{What a person decides about money}
+A user decides to start a run after seeing its estimate, and the person who approves a
+report's scope decides what the costly part will cost. An administrator decides the daily
+budget of each account and, through the model of each prompt, a large lever on what a
+report costs (\model{gpt-6-astra} costs five times \model{gpt-6.1-sol}). The operators of the gateway decide the team budget.
+\end{humanbox}
+
+
+% ============================================================
+\section{What remains uncertain}\label{sec:control:limits}
+
+The controls of this chapter narrow what a model can get wrong without anyone seeing it; they
+do not close it. The following limits are known, and each is stated in the chapter that owns
+its path.
+
+\paragraph{The ground truth.}
+\begin{itemize}
+  \item The labels of the evaluation suites were made by an AI model, not by a compliance
+    expert, and no person has confirmed or overruled one. A score measures agreement with
+    that reading.
+  \item The labellers of the gap suite could see the order the cases were drawn in, which
+    hints at the model's status; the file states it as a flaw of the method.
+  \item The register of obligations that ships was reviewed by the judge and an AI coding
+    assistant, not by a person entry by entry. It is machine-reviewed.
+  \item Every measurement in this chapter was made on one company, \demo, on the day named.
+\end{itemize}
+
+\paragraph{What is not measured.}
+\begin{itemize}
+  \item Seventeen of the 23 prompts have no suite, the extraction prompts among them; a duty
+    the extraction missed is seen by nobody.
+  \item Retrieval quality is not measured continuously.
+  \item Nothing checks the executive summary's text against its input, or the chat's answer
+    against what its tools returned.
+  \item Four suites read the installation's current corpus while their labels were made from
+    the texts of 12~November 2026; the citations suite would score the word-overlap stand-in
+    if the judge could not be reached.
+\end{itemize}
+
+\paragraph{What the paths do not cover.}
+\begin{itemize}
+  \item A finding under a level~2 act takes its consequence from the article of the parent
+    act the standard was adopted under (\cref{ch:obligations}); adopted under several
+    articles that do not cost the same, it shows none, and neither does a finding under the
+    supervisor's instructions or the EBA's guidelines.
+  \item The model's applicability verdict for a level~2 act is its own; nothing derives it
+    from the parent act's verdict.
+  \item The scope reading sees only an act's first three articles, and the sanction reading
+    only articles whose heading speaks of sanctions --- at most eight an act, at most 24
+    tiers. Neither reading can be corrected in the console; the act's page shows whom a
+    scope reading names and how many tiers were read, not the tiers themselves.
+  \item There is no screen to review a company's own requirements: they stay
+    \code{proposed}.
+  \item The sanction tiers do not feed the impact scores of the risk register, which remain
+    the model's reading of the criteria.
+  \item \code{register.standing()} treats a rejected obligation as still standing (on
+    13~November 2026 none of the ten rejected obligations was under an action).
+  \item An edit of an obligation's addressee, conditions, deadline or institution types keeps
+    the judge's earlier verdict; only a new title or text clears it. A rejected obligation is
+    recognised at the next extraction by its exact title.
+  \item A report judges what a company's documents establish, not how the arrangements work in
+    practice, and cannot tell an absent arrangement from an unprovided document.
+  \item Scanned documents (a PDF without text) cannot be read: there is no OCR. The six ISO
+    standards of the course are licensed scans and are not in the corpus, so the standards
+    path and \prompt{corpus.extract_requirements} have not run on the live system.
+  \item The annual compliance report and a monitoring programme are not products of the
+    system.
+\end{itemize}
+
+\paragraph{What rests on a model or a person after all.}
+\begin{itemize}
+  \item The chat's writes that rest on the user's word --- a fact filed in a profile, a
+    credential marked verified, a
+    finding overridden, the amount passed to a cost gate --- rest on the model: no code tells
+    a yes the user gave from one the model claims. An instruction planted in a document an
+    administrator's chat reads could reach every company (\cref{ch:chat,ch:security}).
+  \item A run that has started is not stopped when its user's daily budget runs out, and a
+    call that fails leaves no usage row although the provider may have billed it
+    (\cref{ch:models}).
+  \item A report started without the scope review runs on the model's verdicts about which
+    acts apply; the exports say that nobody approved the list.
+\end{itemize}
+
+The PDF of every report states the limit that covers all the others: \enquote{The conclusions
+support, but cannot replace, the judgement of a lawyer or compliance professional --- verify
+each finding against the cited provision.} The system's controls are built so that this
+verification is possible --- every finding cites its provision, links it, quotes its evidence
+and names the wording that wrote it --- and its records say, for every result, how far a person
+has already done it.

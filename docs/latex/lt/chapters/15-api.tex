@@ -1,0 +1,1438 @@
+% STATUS: reviewed
+\chapter{API}\label{ch:api}
+
+% One route of a table: the methods and the path on a line of their own, across both columns;
+% the row under it says who may call and what the route does.
+\providecommand{\apiroute}[2]{\multicolumn{2}{@{}l@{}}{\route{#1}{#2}}\\*}
+
+Šis skyrius yra sistemos HTTP sąsajos žinynas: kiekvienas maršrutas, kas gali jį kviesti, ką jis
+priima ir ką atmeta. Skyrių sudaro penkios dalys. \Cref{sec:api:conventions} pateikia visiems
+maršrutams bendras taisykles --- kur keliauja užklausa, prieigos raktas, klaidos apvalkalas,
+puslapiavimas, ribos. \Cref{sec:api:routes} išvardija API (Django) maršrutus pagal sritis, kiekvienai
+sričiai po lentelę. \Cref{sec:api:assistant} pateikia tris viešus asistento paslaugos maršrutus,
+kuriais vyksta pokalbis. \Cref{sec:api:internal} aprašo vidines duris, kurias dvi paslaugos atveria
+viena kitai ir niekam kitam. \Cref{sec:api:client} surenka, ką API kviečianti programa turi žinoti
+apie darbą, trunkantį ilgiau nei užklausa, ir apie failus. \term{Klientas} šiame skyriuje --- bet
+kuri programa, kviečianti API: konsolė, naudotojo vardu veikianti asistento paslauga arba scenarijus.
+
+Skyrius sako, ką daro kiekvienas maršrutas, bet ne kodėl: priežastys išdėstytos skyriuje apie
+maršruto dalyką, nurodytame prie kiekvienos lentelės. API failas \file{urls.py} yra sąsajos turinys
+--- kiekvienas API maršrutas jame užima vieną eilutę, --- o kiekvienas rodinių modulis prasideda
+savo maršrutų ir jų užklausų turinio sąrašu.
+
+
+% ============================================================
+\section{Bendros taisyklės}\label{sec:api:conventions}
+% ============================================================
+
+\subsection{Trys kelių šeimos}\label{sec:api:families}
+
+Sistema turi vieną viešą adresą. Už jo stovi \term{įeinančio srauto tarpinis serveris} (toliau ---
+įėjimas), Caddy serveris \code{legalops-endpoint}, sukonfigūruotas faile \file{endpoint/Caddyfile}.
+Jis klauso 80~prievado --- vienintelio, kurį diegimas paskelbia, --- ir kiekvieną užklausą
+paskirsto pagal jos kelią; laimi pirmas atitikmuo (\cref{fig:api:routing}):
+
+\begin{enumerate}
+  \item \code{/api/assistant/*} keliauja į asistento paslaugą (\code{legalops-assistant},
+    3000 prievadas). Tai trys pokalbio maršrutai (\cref{sec:api:assistant}).
+  \item \code{/api/*} keliauja į API (\code{legalops-django}, 8000 prievadas): tai visi kiti šio
+    skyriaus maršrutai, kuriuos klientas gali pasiekti.
+  \item Visa kita keliauja į konsolės ir viešosios svetainės žiniatinklio serverį
+    (\code{legalops-vite}), kuris atsako failais, niekada ne duomenimis (\cref{ch:console}).
+\end{enumerate}
+
+Prieš šiuos tris dar stovi vienas kelias: \code{/dbgate/*} veda į DBGate, duomenų bazės
+administravimo įrankį. Prieš perduodamas tokią užklausą, įėjimas paklausia API, ar kviečiantysis
+yra administratorius (\route{GET}{/api/auth/checkauth/admin}), o atsisakymą grąžina tokį, koks
+jis yra (\cref{ch:ops}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=4mm and 12mm]
+  \node[svc, minimum width=44mm] (assistant) {asistento paslauga\\{\scriptsize\code{legalops-assistant:3000}}};
+  \node[svc, minimum width=44mm, below=of assistant] (django) {API (Django)\\{\scriptsize\code{legalops-django:8000}}};
+  \node[svc, minimum width=44mm, below=of django] (vite) {konsolė ir viešoji svetainė\\{\scriptsize\code{legalops-vite:80}}};
+  \node[svc, minimum width=44mm, below=of vite] (dbgate) {DBGate\\{\scriptsize\code{legalops-dbgate:3000}}};
+  \node[svc, minimum height=16mm, anchor=east] (in) at ([xshift=-36mm]$(django.west)!.5!(vite.west)$) {įėjimas\\{\scriptsize\code{legalops-endpoint}}\\{\scriptsize 80 prievadas}};
+  \node[ext, left=8mm of in] (client) {naršyklė\\ar scenarijus};
+  \node[note, below=3mm of in, text width=34mm] {prieš \code{/dbgate/*} užklausą jis paklausia API, ar kviečiantysis yra administratorius};
+  \draw[flow] (client) -- (in);
+  \draw[flow] (in.east) -- ++(4mm,0) |- (assistant.west) node[lbl, pos=.8] {\code{/api/assistant/*}};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (django.west) node[lbl, pos=.8] {\code{/api/*}};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (vite.west) node[lbl, pos=.8] {visa kita};
+  \draw[flow] (in.east) -- ++(4mm,0) |- (dbgate.west) node[lbl, pos=.8] {\code{/dbgate/*}};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(assistant)(django)(vite)(dbgate)] (lane) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (lane.north west) {izoliuotas tinklas: jokio savo prievado};
+\end{tikzpicture}
+\caption{Kur keliauja užklausa. Įėjimas yra vienintelė paslauga su paskelbtu prievadu; paslaugą jis
+renkasi vien pagal kelią. Niekas, kas yra po \code{/internal/} ar \code{/health}, nepersiunčiama nei
+į API, nei į asistento paslaugą.}\label{fig:api:routing}
+\end{figure}
+
+Trys įėjimo veiksmai liečia kiekvieną klientą. Užklausai, kurios antraštė \code{Origin} nurodo kitą
+svetainę, atsakoma 403 su tuščiu turiniu, dar jai nepasiekus jokios paslaugos. Įėjimas perduoda
+gautą antraštę \code{X-Forwarded-For} ir nukopijuoja ją į \code{X-Real-IP}; pagal šią antraštę API
+skaičiuoja prisijungimo bandymus ir rašo veiksmų žurnalo eilutes (\code{client_ip} faile
+\file{common/http.py}). Reikšmė yra tokia, kokią atnešė gaunamoji užklausa; jos nesant API
+naudoja ryšio adresą, t.~y. paties įėjimo adresą. O kai už kelio stovinti paslauga neveikia arba
+paleidžiama iš naujo, įėjimas pats atsako 502 su tuščiu turiniu. Saugumo antraštės, kurias jis
+prideda prie kiekvieno atsakymo, išskyrus savo paties 403, aprašytos \cref{ch:security}.
+
+\subsection{Užklausos ir atsakymai}\label{sec:api:json}
+
+API kalba tik JSON: užklausos turinys yra JSON objektas, o kiekvienas atsakymas --- ir klaidos
+atsakymas --- yra JSON, kurį rašo \code{json_response} faile \file{common/http.py}, UTF-8 simbolius
+paliekant tokius, kokie yra. Išimčių nedaug, ir jos įvardytos lentelėse: du įkėlimai priima
+\code{multipart/form-data}, trys eksportai atsako failu, vienas maršrutas atsako SVG brėžiniu, o
+pokalbis atsako srautu.
+
+\begin{description}[style=unboxed, leftmargin=0pt]
+  \item[Keliai.] Joks kelias nesibaigia pasviruoju brūkšniu (\code{APPEND_SLASH} išjungtas); tas
+    pats kelias su juo duoda 404. Nežinomas kelias atsako 404 \code{NOT_FOUND}, o metodas, kurio
+    maršrutas neaptarnauja, --- 405 \code{METHOD_NOT_ALLOWED} su antrašte \code{Allow}; abu kaip
+    JSON, niekada ne kaip HTML puslapis.
+  \item[Laukų pavadinimai.] camelCase (\code{displayName}, \code{companyId}). Skiriasi dvi vietos:
+    pokalbio istorijos eilutės išlaiko jas skaitančios pokalbio vykdymo aplinkos pavadinimus
+    (\code{parent_id}), o vidinės durys naudoja snake\_case (\code{user_id}, \code{input_tokens}).
+  \item[Reikšmės.] Data ir laikas --- ISO~8601 su poslinkiu, pvz., \code{2026-09-27T18:00:00+00:00};
+    data --- \code{YYYY-MM-DD}; kaina --- JAV dolerių skaičius.
+  \item[Identifikatoriai.] Kiekviena maršruto sukurta eilutė gauna uuid4 simbolių eilutę kaip
+    identifikatorių. Į instrukcijas kreipiamasi pagal jų identifikatorių (\en{slug}), į
+    instrukcijos versiją --- pagal jos numerį. Identifikatorius, atkeliavęs užklausos turinyje ar
+    parametruose, priimamas tik kaip netuščia ne ilgesnė nei 64 simbolių eilutė (\code{str_id});
+    visa kita laikoma identifikatoriaus nebuvimu, todėl objektas ar sąrašas niekada nepasiekia
+    paieškos duomenų bazėje.
+  \item[Transakcijos.] Kiekviena užklausa vykdoma vienoje duomenų bazės transakcijoje
+    (\code{ATOMIC_REQUESTS} faile \file{settings.py}): nepavykusi užklausa nepalieka nieko
+    įrašyto iki pusės. Už jos ribų lieka keturi maršrutai, laukiantys kažko lėto, --- būklės
+    patikra, dokumento įkėlimas, bandomasis instrukcijos paleidimas ir MCP ryšio patikra.
+\end{description}
+
+\subsection{Prieigos raktas ir kas gali kviesti}\label{sec:api:auth}
+
+Klientas prisijungia per \route{POST}{/api/auth/login} ir gautą prieigos raktą siunčia kiekvienoje
+vėlesnėje užklausoje kaip \code{Authorization: Bearer <token>}. Prieigos raktas yra neskaidri
+atsitiktinė eilutė (256 atsitiktiniai bitai; duomenų bazė saugo tik jos SHA-256), galiojanti
+\code{SESSION_DAYS}~=~30 dienų; paskyra išlaiko \code{SESSIONS_PER_USER}~=~10 naujausių sesijų,
+todėl vienuoliktasis prisijungimas užbaigia seniausią. Paskyra įkeliama iš naujo per kiekvieną
+užklausą, todėl išjungta paskyra užrakinama iš karto. Savarankiškos registracijos ir autentifikacijos
+slapukais nėra: vienintelį API nustatomą slapuką \code{compliance_gate} skaito tik vartai prieš
+DBGate. Užklausai be galiojančio prieigos rakto atsakoma 401 \code{AUTH_REQUIRED}. Mechanizmas yra
+faile \file{users/auth.py}; kodėl jis taip sukurtas, aiškinama \cref{ch:security}.
+
+Yra dvi rolės: \code{user} ir \code{admin}. \Cref{sec:api:routes} lentelės nurodo, kas gali kviesti
+maršrutą, vienu iš keturių žodžių:
+
+\begin{table}[H]
+\caption{Kas gali kviesti maršrutą --- maršrutų lentelėse vartojami žodžiai}\label{tab:api:who}
+\begin{tabularx}{\textwidth}{@{}L{22mm}Y@{}}
+\toprule
+\hd{Žodis} & \hd{Reikšmė} \\
+\midrule
+viešas & Prieigos rakto nereikia. Vieši tik būklės patikra ir prisijungimas. \\
+prisijungęs & Bet kuri aktyvi paskyra su galiojančiu prieigos raktu (\code{@require_auth}). \\
+savininkas & Bet kuris prisijungęs naudotojas --- savo eilutėms; administratorius --- visoms
+  eilutėms. Kurios eilutės yra naudotojo, nustato \term{nuosavybės taisyklė}, aprašyta toliau. \\
+administratorius & Tik administratoriai (\code{@require_role("admin")} arba rolės patikra rodinio viduje).
+  Naudotojas gauna 403 \code{FORBIDDEN}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Nuosavybės taisyklė užrašyta vieną kartą kiekvienai eilučių rūšiai --- kaip funkcija, grąžinanti
+eilutes, kurias kviečiantysis gali liesti, --- ir kiekvienas tos rūšies maršrutas pradeda nuo jos:
+
+\begin{itemize}
+  \item \emph{Įmonė} priklauso ją sukūrusiam naudotojui (\code{visible_companies} faile
+    \file{companies/api/company_views.py}). Jos leidimai, taikomi standartai, rolės, ataskaitos,
+    išvados, veiksmai ir programos dokumentai seka paskui įmonę.
+  \item \emph{Dokumentas} priklauso jį įkėlusiam naudotojui (\code{visible_documents}), nesvarbu,
+    ar jis susietas su įmone.
+  \item \emph{Užduotis} priklauso ją sukėlusiam naudotojui (\code{_visible} faile
+    \file{jobs/api/views.py}), o \emph{modelio iškvietimas} DI sąnaudų žurnale --- naudotojui,
+    kuriam jis priskaičiuotas.
+  \item \emph{Pokalbis} priklauso savo naudotojui, ir čia administratorius nėra išimtis
+    (\code{visible_threads} faile \file{chat/api/views.py}): per pokalbių maršrutus niekas
+    neskaito kito žmogaus pokalbių.
+  \item \emph{Teisės aktų bazę} ir pareigų registrą gali skaityti kiekvienas prisijungęs.
+    Naudotojas mato tik įjungtus teisės aktus; administratorius mato visus. Pareigų maršrutai niekada
+    neišvardija įmonės vidaus reikalavimų.
+\end{itemize}
+
+\paragraph{Ką reiškia 404.} Eilutė, kurios kviečiantysis negali matyti, jam neegzistuoja: maršrutas
+atsako 404 \code{NOT_FOUND}, tą patį atsakymą kaip niekada neišduotam identifikatoriui, todėl API
+niekada nepatvirtina, kad kieno nors kito įmonė, dokumentas, ataskaita ar pokalbis egzistuoja. 403
+paliktas dviem atvejams, kai juo nieko neatskleidžiama: kai naudotojas kviečia tik
+administratoriams skirtą maršrutą ir kai naudotojas DI sąnaudų maršrutų klausia kitų paskyrų
+skaičių.
+
+\subsection{Klaidos}\label{sec:api:errors}
+
+Kiekviena API klaida turi vieną pavidalą --- \term{klaidos apvalkalą} (\code{json_error} faile
+\file{common/http.py}):
+
+\begin{codeblock}
+{"error": "An analysis of this company is already running", "code": "ALREADY_RUNNING"}
+\end{codeblock}
+
+\code{error} yra angliškas sakinys žmogui; \code{code} --- pastovus pavadinimas, pagal kurį klientas
+renkasi, ką daryti. HTTP būsenos kodas nurodo nesėkmės klasę. \Cref{tab:api:codes} išvardija visus
+API grąžinamus kodus; maršrutų lentelės nurodo konkrečiam maršrutui būdingus kodus ir praleidžia
+tuos, kuriuos gali grąžinti bet kuris maršrutas (\code{INVALID_BODY}, \code{AUTH_REQUIRED},
+\code{FORBIDDEN}, \code{NOT_FOUND}, \code{METHOD_NOT_ALLOWED}).
+
+\begin{table}[H]
+\caption{API (Django) klaidų kodai pagal HTTP būseną}\label{tab:api:codes}
+\begin{tabularx}{\textwidth}{@{}L{12mm}Y@{}}
+\toprule
+\hd{Būsena} & \hd{Kodai} \\
+\midrule
+400 & \code{INVALID_BODY} (turinyje nėra JSON objekto), \code{MISSING_FIELDS},
+  \code{INVALID_FIELD}, \code{INVALID_QUERY} (užklausos parametras), \code{EMPTY_UPDATE} (nėra ką
+  keisti), \code{MISSING_FILE}, \code{BAD_REQUEST} (NUL simbolis kelyje ar parametruose),
+  \code{INVALID_VALUE} (reikšmė, kurios duomenų bazė negali priimti: už intervalo ribų arba netinkamai sudaryta), \code{INVALID_EMAIL},
+  \code{INVALID_ROLE}, \code{WEAK_PASSWORD}, \code{WRONG_PASSWORD}, \code{LAST_ADMIN},
+  \code{SELF_LOCKOUT}, \code{UNKNOWN_MODEL}, \code{NOTHING_TO_ASSESS}, \code{NOTE_REQUIRED} \\
+401 & \code{AUTH_REQUIRED} (sesijos nėra arba ji nebegalioja), \code{INVALID_CREDENTIALS}
+  (prisijungimas) \\
+403 & \code{FORBIDDEN} (rolė), \code{ROLE_NOT_ALLOWED} (pokalbio žinutė, kuri nėra paties
+  naudotojo), \code{INTERNAL_ONLY} (vidinės durys be paslapties) \\
+404 & \code{NOT_FOUND}; vidinėse duryse dar \code{PROMPT_NOT_CONFIGURED} \\
+405 & \code{METHOD_NOT_ALLOWED}, su antrašte \code{Allow} \\
+409 & Užklausa sudaryta teisingai, bet eilutė nėra tam tinkamos būsenos:
+  \code{ALREADY_RUNNING}, \code{STILL_RUNNING}, \code{NOT_CANCELLABLE}, \code{NOT_FINISHED},
+  \code{NOT_WAITING}, \code{NOT_DRAFT}, \code{NOT_APPROVED}, \code{NOT_READY},
+  \code{NEWER_VERSION}, \code{RULES_BROKEN}, \code{CLOSED_BY_REPORT}, \code{CORPUS_EMPTY},
+  \code{NOT_INGESTED}, \code{NO_FILE}, \code{NO_DOCUMENTS}, \code{UNCHANGED},
+  \code{UNKNOWN_KIND}; arba pavadinimas užimtas: \code{EMAIL_TAKEN}, \code{DUPLICATE_NAME},
+  \code{SLUG_TAKEN}, \code{ALREADY_ADOPTED}, \code{MESSAGE_ID_TAKEN} \\
+413 & \code{FILE_TOO_LARGE}, \code{QUOTA_EXCEEDED}, \code{MESSAGE_TOO_LARGE} \\
+429 & \code{RATE_LIMITED} (su antrašte \code{Retry-After}), \code{BUDGET_EXCEEDED}
+  (kviečiančiojo dienos biudžetas modelių iškvietimams) \\
+500 & \code{SERVER_ERROR}; klaidos pėdsakas rašomas į žurnalą, niekada nesiunčiamas klientui.
+  Reikšmė, kuri praėjo pačios API patikrą ir pažeidžia duomenų bazės apribojimą, --- išskyrus
+  užimtą pavadinimą, kuriam atsakoma 409, --- taip pat baigiasi čia, ir sąmoningai: tai parodo
+  tos patikros spragą, kurią 400 paslėptų \\
+502 & \code{MODEL_ERROR} (bandomasis instrukcijos paleidimas, kurio modelio iškvietimas nepavyko) \\
+503 & \code{MODELS_UNAVAILABLE} (nepavyksta perskaityti DI tinklų sąsajos modelių sąrašo) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Asistento paslauga savo klaidas apgaubia kitaip, nes tokio pavidalo tikisi konsolėje veikianti
+pokalbio vykdymo aplinka (\code{errorMiddleware} asistento paslaugos faile
+\file{middleware/errors.js}):
+
+\begin{codeblock}
+{"message": "Too many questions in a row — wait a moment",
+ "error": {"code": "RATE_LIMITED", "message": "Too many questions in a row — wait a moment", "retryAfterS": 41}}
+\end{codeblock}
+
+\code{retryAfterS} pasirodo tik su 429 ir pakartojamas antraštėje \code{Retry-After}. Asistento
+paslaugos kodai išvardyti \cref{sec:api:assistant}.
+
+\subsection{Sąrašai: puslapiavimas ir filtrai}\label{sec:api:paging}
+
+Sąrašo maršrutas atsako objektu, kuriame eilutės pateikiamos daugiskaitiniu pavadinimu
+(\code{companies}, \code{reports}), o kai sąrašas puslapiuojamas, --- ir visų atitinkančių eilučių
+skaičius \code{total}. Puslapiuojami tik ilgieji sąrašai; kiti grąžina viską iki nustatytos ribos
+(\cref{tab:api:paging}). Naudojami du skaičių skaitytuvai, ir netinkamą reikšmę jie traktuoja
+skirtingai: \code{query_int} reikšmę už jos intervalo ribų atmeta su 400 \code{INVALID_QUERY}, o
+užduočių, veiksmų žurnalo ir nuostatų maršrutai ją priderina prie intervalo ir atmeta tik tai, kas
+nėra skaičius.
+
+\begin{table}[H]
+\caption{Kaip puslapiuojami sąrašų maršrutai}\label{tab:api:paging}
+\begin{tabularx}{\textwidth}{@{}L{55mm}L{27mm}Y@{}}
+\toprule
+\hd{Sąrašas} & \hd{\code{limit}: numatytoji, didžiausia} & \hd{Puslapiavimas} \\
+\midrule
+\code{/api/documents} & 500, 500 & \code{limit}, \code{offset}; grąžina \code{total}; už ribų: 400 \\
+\code{/api/obligations} & 500, 2000 & \code{limit}, \code{offset}; grąžina \code{total}; už ribų: 400 \\
+\code{/api/usage/calls} & 50, 200 & \code{limit}, \code{offset}; grąžina \code{total}; už ribų: 400 \\
+\code{/api/corpus/documents/{id}/units} & 200, 1000 & \code{limit}, \code{offset}, priderinami; grąžina \code{total}, \code{offset}, \code{limit} \\
+\code{/api/jobs} & 100, 500 & tik \code{limit}, priderinamas; naujausios pirmos \\
+\code{/api/audit} & 100, 500 & žymeklis: \code{before} ir \code{beforeId}, paimti iš ankstesnio puslapio \code{next} \\
+\code{/api/documents/{id}/text} & 20\,000, 100\,000 & simbolių langas: \code{offset}, \code{limit}; grąžina \code{total} \\
+įmonės, pokalbiai, ataskaitos, programos dokumentai, veiksmai & --- & nepuslapiuojami; daugiausia 500, 300, 200, 300 ir 500 eilučių \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Filtrai yra užklausos parametrai, pavadinti pagal lauką, kurį jie filtruoja (\code{companyId},
+\code{status}, \code{kind}, \code{jurisdiction}). \code{q} visur, kur pasitaiko, reiškia teksto
+paiešką. \code{scope=own} susiaurina administratoriaus įmonių ar dokumentų sąrašą iki paties
+administratoriaus eilučių --- būtent to prašo pokalbių asistentas; \code{scope=all} ir
+\code{userId} DI sąnaudų maršrutuose, priešingai, praplečia administratoriaus vaizdą. Filtro
+reikšmę, kurios nėra jo sąraše, teisės aktų bazės ir pareigų sąrašai ignoruoja, o užduočių ir DI
+sąnaudų sąrašai atmeta su 400 \code{INVALID_QUERY}; ataskaitų sąraše nežinoma \code{status}
+reikšmė nieko neatitinka.
+
+\subsection{Kalbos}\label{sec:api:languages}
+
+Pati API turi vieną kalbą: jos klaidų sakiniai angliški, o klientas, rodantis savo formuluotes,
+jas parenka pagal \code{code}. Kai maršrutas kuria tekstą skaitytojui, užklausa nurodo, kuria iš
+dviejų produkto kalbų. Ataskaita ir programos dokumentas priima \code{language} --- \code{lt} arba
+\code{en}, jo nesant lietuvių kalba --- ir išlaiko ją visam laikui. Veiksmų registro eksportas
+\code{language} priima kaip užklausos parametrą. Pareigų išskyrimas priima
+\code{language: "en"}, kitu atveju vyksta lietuviškai. Pokalbio ėjimas \code{locale} priima savo
+turinyje; jo nesant sprendžia antraštė \code{Accept-Language}: anglų kalba, kai ji prasideda
+\code{en}, ir lietuvių kalba visais kitais atvejais (\code{turnLanguage} asistento paslaugos faile
+\file{routes/chat.js}). Teisės akto \code{language} teisės aktų bazėje yra faktas apie jo tekstą,
+o ne išvesties pasirinkimas.
+
+\subsection{Ribos}\label{sec:api:limits}
+
+\paragraph{Užklausų dažnio ribos.} Dažniu ribojami du dalykai, abu su fiksuotu langu kiekvienam
+raktui. Prisijungimas skaičiuoja bandymus kiekvienam kliento adresui --- \code{LOGIN_RATE_PER_IP},
+numatytai 60, per \code{LOGIN_WINDOW_S}~=~60 sekundžių --- ir kiekvienai paskyrai:
+\code{EMAIL_LIMIT}~=~10 bandymų per \code{EMAIL_WINDOW_S}~=~600 sekundžių; šiuo langu dalijasi ir
+\route{POST}{/api/auth/change-password} slaptažodžio patikra. Langai yra lentelės
+\code{rate_limit_windows} eilutės (\file{common/ratelimit.py}), todėl visi API procesai skaičiuoja
+kartu, o atmestas bandymas vis tiek įskaitomas. Pokalbis leidžia \code{RATE_LIMIT_TURNS}~=~12
+ėjimų vienam naudotojui per \code{RATE_LIMIT_WINDOW_MS}~=~60 sekundžių; jie skaičiuojami asistento
+paslaugos atmintyje, ir ten atmestas ėjimas neįskaitomas. Abu atsako 429 \code{RATE_LIMITED} su
+antrašte \code{Retry-After}. Joks kitas maršrutas dažniu neribojamas.
+
+\paragraph{Dienos biudžetas.} Brangius maršrutus riboja pinigai, ne užklausų skaičius. Kiekvienas
+naudotojas turi dienos biudžetą modelių iškvietimams JAV doleriais (\code{LLM_DAILY_BUDGET_USD},
+numatytai 10,00~\$, arba paskyros \code{dailyBudgetUsd}; administratoriaus biudžetas neribotas,
+jei nenustatytas). Pokalbio ėjimas ir bandomasis instrukcijos paleidimas atmetami su 429
+\code{BUDGET_EXCEEDED}, kai nieko nebelieka; ataskaitos paleidimui, jos apimties patvirtinimui ir
+programos dokumento paleidimui reikia, kad liktų \code{MIN_BUDGET_TO_START_USD}~=~0,25~\$.
+Nuorodų tikrintuvas --- vienintelis maršrutas, kuris ne atsisako, o veikia supaprastintai.
+\Cref{ch:models} aprašo, kaip iškvietimai įkainojami ir skaičiuojami.
+
+\paragraph{Dydžiai.} Įėjimas neriboja jokio turinio; kiekviena paslauga taiko savo ribas. API
+skaito turinį, kuris nėra įkeliamas failas, iki \code{DATA_UPLOAD_MAX_MEMORY_SIZE}~=~8~MiB
+(\file{settings.py}); didesnį Django atmeta dar prieš tai, kai jį pamato bet kuris maršrutas.
+Įmonės dokumentas gali būti iki 50~MiB (\code{MAX_FILE_BYTES}), o teisės aktų bazės failas ---
+iki 60~MiB (\code{MAX_UPLOAD_BYTES}); viršijus įkėlimas atsako 413 \code{FILE_TOO_LARGE}.
+Paskyra gali saugoti \code{UPLOAD_QUOTA_FILES}~=~1000 dokumentų ir iš viso
+\code{UPLOAD_QUOTA_BYTES}~=~2~GiB; viršijus --- 413 \code{QUOTA_EXCEEDED}. Saugoma pokalbio žinutė
+gali būti iki 400\,000 simbolių JSON pavidalu (413 \code{MESSAGE_TOO_LARGE}). Asistento paslauga
+pokalbio ėjimui priima 512~kB JSON (413 \code{PAYLOAD_TOO_LARGE}). Teksto laukai turi savo ribas,
+nurodytas lentelėse ten, kur jos svarbios.
+
+\begin{codebox}{Griežtas JSON skaitymas}
+Vienintelis užklausų turinio skaitytuvas, \code{get_json_object} faile \file{common/http.py},
+priima JSON \emph{objektą} ir nieko daugiau. Jis atmeta, lyg turinys nebūtų išsiųstas:
+\begin{itemize}
+  \item masyvą ar paprastą reikšmę viršutiniame lygmenyje;
+  \item \code{NaN} ir \code{Infinity}, užrašytus žodžiu ar gautus perpildžius (\code{1e999});
+  \item NUL simbolį ar pavienį UTF-16 pakaitinį simbolį bet kuriame rakte ar eilutėje --- jų
+    negali laikyti joks duomenų bazės tekstas;
+  \item gilesnį nei \code{MAX_JSON_DEPTH}~=~32 įdėjimą.
+\end{itemize}
+Dauguma maršrutų tada atsako 400 \code{INVALID_BODY}; maršrutas, kurio turinys neprivalomas,
+atmestą turinį skaito kaip tuščią. Laukai skaitomi tipizuotais skaitytuvais: \code{strict_bool}
+priima JSON loginę reikšmę ir niekada eilutės \code{"false"}, \code{bounded_int} priima sveikąjį
+skaičių savo intervale ir niekada eilutės. Maršrutui nežinomas raktas ignoruojamas. Prieš visus
+maršrutus \code{RequestGuardMiddleware} (\file{common/middleware.py}) atsako 400
+\code{BAD_REQUEST}, jei kelyje ar parametruose yra NUL simbolis, o reikšmę, kurios duomenų bazė
+negali priimti, --- esančią už intervalo ribų ar netinkamai sudarytą, ---
+paverčia 400 \code{INVALID_VALUE} vietoj 500. Kai reikšmė pažeidžia duomenų bazės apribojimą,
+paliekamas 500 (\cref{tab:api:codes}).
+\end{codebox}
+
+
+% ============================================================
+\section{API maršrutai}\label{sec:api:routes}
+% ============================================================
+
+\file{urls.py} turi 83 URL šablonus: 77 po \code{/api/}, išvardytus šiame poskyryje, ir 6 po
+\code{/internal/assistant/}, išvardytus \cref{sec:api:internal}. Skaičiuojant pagal metodus, 83
+šablonai aptarnauja 119 metodo ir kelio porų. Kiekvienoje toliau pateiktoje lentelėje vienas
+įrašas skirtas vienam šablonui: pirmoje eilutėje metodai ir kelias, po jais --- kas gali kviesti
+(\cref{tab:api:who}) ir ką maršrutas daro. Kelyje \code{{id}} žymi eilutės identifikatorių.
+\enquote{Klaidos} nurodo tam maršrutui būdingus atsisakymus.
+
+Pirmiausia du langeliai surūšiuoja maršrutus pagal klausimą, kurį šis dokumentas kelia
+kiekvienai sistemos daliai: kas veikia.
+
+\begin{aibox}{Maršrutai, kurie prieš atsakydami kviečia modelį}
+Beveik kiekvienas maršrutas, kuriam reikia modelio, tik įtraukia užduotį į eilę ir atsako iš
+karto; modelį paskui kviečia užduočių vykdytojas (\cref{ch:arch}). Penkios užklausų rūšys modelio
+laukia pačios:
+\begin{itemize}
+  \item \route{POST}{/api/corpus/check-citations} --- vienas vertintojo iškvietimas nuorodų
+    patikroje, kai užklausa nurodo, apie ką nuostata tariamai kalba (\cref{ch:company});
+  \item \route{POST}{/api/prompts/{slug}/test} --- vienas iškvietimas su bandoma instrukcija
+    (\cref{ch:prompts});
+  \item \route{POST}{/api/corpus/search} ir \route{GET}{/api/documents/search} --- vienas
+    užklausos vektorizavimas (\cref{ch:corpus});
+  \item \route{POST}{/api/obligations} ir \code{PATCH}, keičiantis pareigos pavadinimą ar tekstą,
+    --- vienas pareigos vektorizavimas (\cref{ch:obligations});
+  \item \route{POST}{/api/assistant/chat} --- pats pokalbio ėjimas (\cref{ch:chat}).
+\end{itemize}
+\end{aibox}
+
+\begin{humanbox}{Maršrutai, kuriais sprendžia žmogus}
+Kiekvienas sprendimas, kurio sistema niekada nepriima pati, patenka per vieną maršrutą, pažymimas,
+kas ir kada nusprendė, ir įrašomas į veiksmų žurnalą: ataskaitos apimties patvirtinimas
+(\route{POST}{/api/reports/{id}/scope} su \code{approved: true}); išvados būsenos pakeitimas ir
+jos priežasties įrašymas (\route{PATCH}{/api/reports/{id}/findings/{fid}}); ataskaitos
+patvirtinimas (\route{PATCH}{/api/reports/{id}}); pareigos patvirtinimas, taisymas ar atmetimas
+(\route{PATCH}{/api/obligations/{id}}, \route{POST}{/api/obligations/review}); programos dokumento
+patvirtinimas (\route{PATCH}{/api/programme/{id}}); leidimo pažymėjimas patikrintu
+(\route{PATCH}{/api/companies/{id}/credentials/{cid}} arba \code{POST}, kuris jį įrašo su
+šia būsena); veiksmo uždarymas rankiniu būdu, su
+pastaba (\route{PATCH}{/api/actions/{id}}).
+\end{humanbox}
+
+\subsection{Būklė}\label{sec:api:health}
+
+Viena vieša patikra parodo, ar API gali dirbti savo darbą (\file{ops/api/views.py}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: būklė}\label{tab:api:health}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET HEAD}{/api/health}
+viešas & Parengtis: duomenų bazė atsako į paprasčiausią užklausą, o į įkėlimų katalogą galima
+  rašyti. 200 su \code{status: "ok"}, \code{service: "legalops-django"}, \code{database},
+  \code{uploads}; arba 503 su \code{status: "error"} ir \code{reason} --- pirmąja nepavykusia
+  patikra (\code{database} arba \code{uploads}); nurodoma, kuri patikra, bet niekada ne kodėl:
+  priežastis yra žurnale. \\
+\end{xltabular}
+
+\subsection{Autentifikacija}\label{sec:api:authroutes}
+
+Paties kviečiančiojo sesija (\file{users/api/auth_views.py}). \code{user} atsakyme yra paskyra
+taip, kaip ją užrašo \code{serialize_user}: \code{id}, \code{email}, \code{displayName},
+\code{role}, \code{active}, \code{dailyBudgetUsd}, \code{createdAt}, \code{lastLoginAt}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: autentifikacija}\label{tab:api:auth}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/api/auth/login}
+viešas & Turinys \code{email}, \code{password}. Grąžina \code{token} ir \code{user} ir nustato
+  vartų slapuką. El.~pašto adresas lyginamas neatsižvelgiant į raidžių dydį. Nežinomas el.~pašto
+  adresas, neteisingas slaptažodis ir išjungta paskyra gauna tą patį atsakymą, 401
+  \code{INVALID_CREDENTIALS}, per tą patį laiką. Sėkmingi ir nesėkmingi bandymai įrašomi į veiksmų
+  žurnalą. \emph{Klaidos:} 400 \code{MISSING_FIELDS}; 429 \code{RATE_LIMITED}. \\
+\addlinespace
+\apiroute{GET}{/api/auth/me}
+prisijungęs & Paties kviečiančiojo \code{user}. Konsolė jį kviečia kiekvieną kartą pasileisdama;
+  asistento paslauga jį kviečia, kad prieigos raktą paverstų naudotoju. \\
+\addlinespace
+\apiroute{GET}{/api/auth/checkauth/admin}
+administratorius & Vartai, kurių įėjimas klausia prieš užklausą į \code{/dbgate/}. Sesija imama
+  iš prieigos rakto arba --- kadangi naršyklėje atidarytas įrankis siunčia tik slapukus --- iš
+  vartų slapuko. 200 su \code{user} aktyviam administratoriui; 401 \code{AUTH_REQUIRED}; 403
+  \code{FORBIDDEN} bet kuriai kitai rolei. \\
+\addlinespace
+\apiroute{POST}{/api/auth/logout}
+prisijungęs & Užbaigia pateikto prieigos rakto sesiją ir panaikina vartų slapuką. Kituose
+  įrenginiuose naudotojas lieka prisijungęs. \\
+\addlinespace
+\apiroute{POST}{/api/auth/logout-all}
+prisijungęs & Užbaigia visas kviečiančiojo sesijas, įskaitant pateiktąją. Įrašoma į veiksmų
+  žurnalą. \\
+\addlinespace
+\apiroute{POST}{/api/auth/change-password}
+prisijungęs & Turinys \code{currentPassword}, \code{newPassword}. Užbaigiamos visos \emph{kitos}
+  paskyros sesijos. Slaptažodį sudaro mažiausiai 10 simbolių ir daugiausia 72 baitai.
+  \emph{Klaidos:} 400 \code{WRONG_PASSWORD} (įrašoma į veiksmų žurnalą), \code{WEAK_PASSWORD}; 429
+  \code{RATE_LIMITED}. \\
+\end{xltabular}
+
+\subsection{Naudotojai}\label{sec:api:users}
+
+Paskyrų katalogas administratoriams (\file{users/api/users_views.py}). Kiekvienas pakeitimas
+įrašomas į veiksmų žurnalą. Kiekvienam rolės ar būsenos pakeitimui ir šalinimui galioja dvi
+apsaugos: paskutinio aktyvaus administratoriaus negalima nei pažeminti, nei išjungti, nei pašalinti
+(400 \code{LAST_ADMIN}), ir niekas negali to padaryti savo paskyrai (400 \code{SELF_LOCKOUT}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: naudotojai}\label{tab:api:users}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/users}
+administratorius & \code{GET}: visos paskyros, įskaitant išjungtas, seniausios pirmos, kaip
+  \code{users}. \code{POST}: turinys \code{email}, \code{displayName}, \code{password} ir
+  \code{role} (jos nesant --- \code{user}); atsako 201 su paskyra. El.~pašto adresas saugomas
+  mažosiomis raidėmis. \emph{Klaidos:} 400 \code{INVALID_EMAIL}, \code{MISSING_FIELDS},
+  \code{INVALID_ROLE}, \code{WEAK_PASSWORD}; 409 \code{EMAIL_TAKEN} (nesvarbu, kokiomis raidėmis). \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/users/{id}}
+administratorius & \code{PATCH}: bet kuris iš \code{displayName}, \code{role}, \code{active},
+  \code{dailyBudgetUsd} (nuo 0 iki 10\,000; \code{null} reiškia numatytąjį, o 0 --- neribotą).
+  \code{DELETE} išjungia paskyrą ir užbaigia jos sesijas; eilutės lieka. \code{DELETE} su
+  \code{purge=true} visam laikui pašalina paskyrą kartu su jos įmonėmis, dokumentais ir
+  pokalbiais ir grąžina, ką pašalino. \emph{Klaidos:} 400 \code{EMPTY_UPDATE},
+  \code{INVALID_FIELD}; 409 \code{STILL_RUNNING} (šalinimas, kol kurios nors paskyros įmonės
+  ataskaita yra eilėje ar vykdoma). \\
+\addlinespace
+\apiroute{POST}{/api/users/{id}/reset-password}
+administratorius & Turinys \code{password}. Nustato paskyrai naują slaptažodį ir užbaigia visas
+  jos sesijas. \emph{Klaidos:} 400 \code{WEAK_PASSWORD}. \\
+\end{xltabular}
+
+\subsection{Įmonės}\label{sec:api:companies}
+
+Įmonės profilis ir tai, kas prie jo pririšta: leidimai, taikomi standartai ir rolės
+(\file{companies/api/company_views.py}, \file{companies/api/standard_views.py},
+\file{companies/api/role_views.py}). Ką šie laukai reiškia ataskaitai, aptariama \cref{ch:company}.
+Kiekvienas keitimas įrašomas į veiksmų žurnalą.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: įmonės, leidimai, standartai ir rolės}\label{tab:api:companies}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/companies}
+savininkas & \code{GET}: kviečiančiojo įmonės kaip \code{companies}, neseniausiai atnaujintos
+  pirmos, daugiausia 500. \code{q} lyginamas žodis po žodžio su pavadinimu ir registracijos kodu;
+  skyrybos ženklai, teisinės formos (UAB, LTD) ir žodis \enquote{company} praleidžiami.
+  \code{scope=own} susiaurina administratoriaus sąrašą iki jo paties įmonių. \code{POST}:
+  \code{name} ir bet kurie profilio laukai; atsako 201 su įmone; kviečiantysis tampa jos
+  savininku. \emph{Klaidos:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET PUT DELETE}{/api/companies/{id}}
+savininkas & \code{GET}: profilis su \code{credentials}, \code{standards}, \code{roles} ir
+  \code{documents}. \code{PUT} yra dalinis atnaujinimas: bet koks profilio laukų poaibis.
+  \code{DELETE} pašalina įmonę su jos leidimais, taikomais standartais, rolėmis, ataskaitomis ir
+  programos dokumentais; jos dokumentai atsiejami, o ne pašalinami. \emph{Klaidos:} 400
+  \code{INVALID_FIELD}; 409 \code{STILL_RUNNING} (vykdoma ataskaita ar programos dokumentas). \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/credentials}
+savininkas & Leidimas --- tai įmonės turima licencija, sertifikatas, leidimas ar registracija.
+  \code{POST}: \code{kind} (\code{certificate}, \code{license}, \code{permit},
+  \code{registration}), \code{name} ir neprivalomai \code{issuer}, \code{identifier},
+  \code{validFrom}, \code{validTo}, \code{scope}, \code{notes}, \code{status},
+  \code{evidenceDocumentId}. Naujas leidimas yra \code{claimed}, nebent turinyje nurodyta
+  \code{verified}. \emph{Klaidos:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{PATCH DELETE}{/api/companies/{id}/credentials/{cid}}
+savininkas & \code{PATCH}: bet koks tų pačių laukų poaibis. Nustačius \code{status} į
+  \code{verified}, pažymima, kas ir kada patikrino; \code{claimed} žymą panaikina. Įrodymas turi
+  būti vienas iš pačios įmonės dokumentų. \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/standards}
+savininkas & Įmonės taikomi standartai. \code{POST}: \code{documentId} (teisės aktų bazės
+  standartas), \code{status} (\code{certified}, \code{implementing}, \code{planned}; jo nesant
+  --- \code{implementing}), \code{scope}, \code{certificateId} (vienas iš įmonės leidimų),
+  \code{notes}. \emph{Klaidos:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409
+  \code{ALREADY_ADOPTED}. \\
+\addlinespace
+\apiroute{PATCH DELETE}{/api/companies/{id}/standards/{sid}}
+savininkas & \code{PATCH}: bet kuris iš \code{status}, \code{scope}, \code{certificateId}
+  (\code{null} jį atsieja), \code{notes}. Pats standartas per šiuos maršrutus niekada nekeičiamas. \\
+\addlinespace
+\apiroute{GET POST}{/api/companies/{id}/roles}
+savininkas & Rolė --- tai pareigybė įmonėje, pvz., atitikties pareigūnas, aprašyta pokalbių
+  asistentui. \code{POST}: \code{name}, \code{context} (daugiausia 6\,000 simbolių),
+  \code{sources} (daugiausia 50 įrašų iš \code{documentId}, \code{title}, \code{section}).
+  Šaltinis, kuris identifikatoriumi arba pavadinimu nurodo vieną iš įmonės dokumentų,
+  išsaugomas ir grąžinamas su abiem.
+  \emph{Klaidos:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409 \code{DUPLICATE_NAME}
+  (toje pačioje įmonėje). \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/companies/{id}/roles/{rid}}
+savininkas & \code{PATCH}: bet kuris iš \code{name}, \code{context}, \code{sources}. Pašalinta
+  rolė atsiejama nuo ją pasirinkusių pokalbių. \\
+\end{xltabular}
+
+Įmonė priima tokius savo profilio laukus: \code{name}, \code{registrationCode}, \code{country},
+\code{legalForm}, \code{naceCodes}, \code{sector}, \code{sizeCategory}, \code{employees},
+\code{annualTurnoverEur}, \code{activities}, \code{usesAi}, \code{providesAi},
+\code{aiDescription}, \code{processesPersonalData}, \code{isPublicSector},
+\code{institutionType}, \code{financialMarket} ir \code{attributes}. Keturi taip ar ne tipo laukai
+priima \code{true}, \code{false} arba \code{null}, ir \code{null} reiškia \emph{nežinoma}: API
+niekada jų nespėja, o eilutę \code{"false"} atmeta, užuot ją perskaičiusi kaip teigiamą reikšmę.
+
+\subsection{Dokumentai}\label{sec:api:documents}
+
+Įmonės dokumentai: įkėlimas, paieška ir skaitymas (\file{companies/api/document_views.py};
+\cref{ch:company}). Dokumentas priklauso jį įkėlusiam naudotojui ir gali būti susietas su įmone
+įkeliant ar vėliau.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: dokumentai}\label{tab:api:documents}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/documents}
+savininkas & \code{GET}: \code{documents} ir \code{total}, naujausi pirmi, be teksto; filtrai
+  \code{companyId}, \code{q} (pavadinimas), \code{scope=own}. \code{POST} yra
+  \code{multipart/form-data}: \code{file} ir neprivalomai \code{companyId}, \code{title} (jo
+  nesant --- failo vardas), \code{kind} (\code{policy}, \code{procedure}, \code{contract},
+  \code{register}, \code{other}). Tekstas išgaunamas prieš atsakymą --- 201 su dokumentu; jo
+  \code{extractionStatus} yra \code{done}, \code{empty} (teksto nėra, kaip skenuotame PDF) arba
+  \code{failed}. Kai tekstas yra, į eilę įtraukiama užduotis \code{documents.index}.
+  \emph{Klaidos:} 400 \code{MISSING_FILE}, \code{INVALID_FIELD}; 413 \code{FILE_TOO_LARGE},
+  \code{QUOTA_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET}{/api/documents/search}
+savininkas & Kviečiančiojo dokumentų ištraukos, atitinkančios \code{q} (privalomas, daugiausia
+  1\,000 simbolių), kaip \code{hits} su dokumentu, antrašte, tekstu ir \code{charStart}. \code{k}
+  --- rezultatų skaičius, nuo 1 iki 30, jo nesant 8; \code{companyId}, \code{documentIds}
+  (atskirti kableliais, daugiausia 50) ir \code{scope=own} susiaurina paiešką. \emph{Klaidos:} 400
+  \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/documents/{id}}
+savininkas & \code{GET}: metaduomenys su \code{outline} (antraštės ir jų poslinkiai) ir
+  \code{inventory}. \code{PATCH}: \code{companyId} (\code{null} dokumentą atsieja),
+  \code{title}, \code{kind}. \code{DELETE} pašalina eilutę, o paskui failą. \emph{Klaidos:} 400
+  \code{EMPTY_UPDATE}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET}{/api/documents/{id}/text}
+savininkas & Išgauto teksto langas: \code{offset} (jo nesant 0) ir \code{limit} (jo nesant
+  20\,000, daugiausia 100\,000). Grąžina \code{text}, \code{offset}, \code{limit}, \code{total}
+  ir \code{extractionStatus}. \emph{Klaidos:} 400 \code{INVALID_QUERY}. \\
+\end{xltabular}
+
+\subsection{Pokalbis}\label{sec:api:chat}
+
+API saugo pokalbius ir jų žinutes (\file{chat/api/views.py}); į patį ėjimą atsako asistento
+paslauga (\cref{sec:api:assistant}, \cref{ch:chat}). Pokalbius mato tik jų naudotojas.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: pokalbiai ir žinutės}\label{tab:api:chat}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/chat/models}
+prisijungęs & Modeliai, kuriais pokalbis gali atsakyti: \code{models} --- DI tinklų sąsajos
+  pokalbių modeliai su \code{id}, \code{name} ir \code{pricing}, ir \code{default} --- aktyvios
+  \prompt{chat.assistant} versijos modelis. Kol DI tinklų sąsajos pasiekti nepavyksta, sąrašas
+  tuščias. \\
+\addlinespace
+\apiroute{GET POST}{/api/chat/threads}
+tik savininkas & \code{GET}: kviečiančiojo pokalbiai, kurie nėra archyvuoti, neseniausiai
+  atnaujinti pirmi, daugiausia 300; filtras \code{companyId}. \code{POST}: neprivalomi
+  \code{companyId} ir \code{title}; atsako 201 su pokalbiu. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/chat/threads/{id}}
+tik savininkas & \code{PATCH}: \code{title} (daugiausia 200 simbolių), \code{companyId}
+  (\code{null} atsieja įmonę; pakeitus įmonę rolė atmetama), \code{roleId} (pokalbio įmonės
+  rolė), \code{model} (vienas iš \code{/api/chat/models} identifikatorių arba \code{null}
+  numatytajam). \code{DELETE} pokalbį archyvuoja; eilutės lieka. \emph{Klaidos:} 400
+  \code{UNKNOWN_MODEL}, \code{EMPTY_UPDATE}; 503 \code{MODELS_UNAVAILABLE}. \\
+\addlinespace
+\apiroute{GET POST}{/api/chat/threads/{id}/messages}
+tik savininkas & \code{GET}: istorija --- paprastas eilučių \code{id}, \code{parent_id},
+  \code{format}, \code{content} sąrašas. \code{POST} įrašo arba pakeičia vieną žinutę pagal jos
+  identifikatorių pokalbyje ir atsako \code{ok}, \code{created} ir \code{autoTitle} (ar pokalbis
+  vis dar turi sau suteiktą pavadinimą). Čia galima rašyti tik paties naudotojo žinutes;
+  asistento atsakymai ateina per vidines duris. \emph{Klaidos:} 403 \code{ROLE_NOT_ALLOWED}; 409
+  \code{MESSAGE_ID_TAKEN}; 413 \code{MESSAGE_TOO_LARGE}. \\
+\end{xltabular}
+
+\subsection{Teisės aktų bazė}\label{sec:api:corpus}
+
+Teisės aktai, jų redakcijos ir nuostatos, paieška ir nuorodų tikrintuvas
+(\file{corpus/api/views.py}; \cref{ch:corpus}). Skaityti gali kiekvienas prisijungęs; naudotojas
+neįjungtam teisės aktui gauna 404. Rašyti gali tik administratoriai, ir tai įrašoma į veiksmų žurnalą.
+Joks maršrutas čia pats nieko neįkelia: teisės aktą apdorojantys maršrutai įtraukia užduotį į eilę
+ir atsako 202 su ja (\cref{sec:api:client}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: teisės aktų bazė}\label{tab:api:corpus}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/corpus/documents}
+prisijungęs; \code{POST}: administratorius & \code{GET}: katalogas kaip \code{documents}, kiekvienas
+  teisės aktas su dabartine redakcija, būsena, paskutine klaida ir pareigų skaičiumi; filtrai
+  \code{q}, \code{jurisdiction}, \code{docType}, \code{domain}. \code{POST} prideda teisės aktą:
+  \code{title}, \code{jurisdiction} (\code{EU}, \code{LT}, \code{INTL}), \code{sourceKind}
+  (\code{cellar}, \code{etar}, \code{eseimas}, \code{lb}, \code{url}, \code{upload}; jo nesant
+  --- \code{upload}) ir, kaip reikia šaltiniui, \code{externalId} arba https \code{sourceUrl};
+  taip pat \code{shortTitle}, \code{titleEn}, \code{docType}, \code{language}, \code{domains},
+  \code{appliesTo}, \code{applicabilityNotes}, \code{status}, \code{enabled}. Teisės akto, kurio
+  šaltinį galima atsisiųsti, įkėlimas iš karto įtraukiamas į eilę; \code{upload} teisės aktas
+  laukia savo failo. \emph{Klaidos:} 400 \code{INVALID_FIELD}; 409 \code{SLUG_TAKEN}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/corpus/documents/{id}}
+prisijungęs; \code{PATCH}, \code{DELETE}: administratorius & \code{GET}: teisės aktas su
+  \code{versions} ir \code{latestJob}, taip pat tai, ką modeliai perskaitė iš paties dabartinės
+  redakcijos teksto: \code{scopeReading} (\code{types}, \code{reasoning}, \code{readAt}) ir
+  \code{sanctionsReading} (\code{tiers} --- pakopų skaičius, \code{note}, \code{readAt});
+  kiekvienas yra \code{null}, kol dar neskaityta. \code{PATCH} redaguoja tuos pačius laukus. \code{DELETE}
+  pašalina teisės aktą su kiekviena redakcija, nuostata, fragmentu ir saugomu failu. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/refresh}
+administratorius & Įtraukia į eilę atsisiuntimą ir įkėlimą. \code{force} tekstą apdoroja iš naujo
+  net tada, kai šaltinis nepasikeitė; \code{structure} (\code{auto}, \code{rules}, \code{ai},
+  \code{pages}; tik standartui) nurodo, kaip šį kartą atpažįstama standarto struktūra. Atsako
+  202 su užduotimi --- jau esančia eilėje ar vykdoma, jei tokia yra. \emph{Klaidos:} 400
+  \code{INVALID_FIELD}; 409 \code{NO_FILE} (\code{upload} teisės aktas be failo). \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/upload}
+administratorius & \code{multipart/form-data} su \code{file}: failas tampa nauja redakcija, ir jos
+  įkėlimas įtraukiamas į eilę; 202 su užduotimi. \emph{Klaidos:} 400 \code{MISSING_FILE}; 409
+  \code{UNCHANGED} (tie patys baitai kaip dabartinės redakcijos); 413 \code{FILE_TOO_LARGE}. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/documents/{id}/units}
+prisijungęs & Dabartinės redakcijos arba redakcijos \code{version} nuostatos teisės akto tvarka,
+  su sutrumpintais tekstais: \code{units}, \code{total}, \code{offset}, \code{limit}. Filtrai
+  \code{type} (kableliais atskirtas nuostatų tipų sąrašas) ir \code{q}. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/units/{id}}
+prisijungęs & Viena nuostata visa, su jos teisės aktu, \code{versionNo}, \code{isCurrent} ir
+  \code{citationUrl} --- nuoroda į oficialų tekstą. \\
+\addlinespace
+\apiroute{GET}{/api/corpus/provision}
+prisijungęs & Tikslus vienos nuostatos tekstas, randamas pagal nuorodą: \code{document} (trumpasis
+  pavadinimas, sisteminis identifikatorius, identifikatorius ar oficialus numeris), \code{article} (arba
+  \code{clause} --- standartui), \code{paragraph}, \code{type}. Įterptas straipsnis randamas,
+  kad ir kaip būtų užrašytas jo numeris (\enquote{12-1}, \enquote{12¹}, \enquote{12(1)}). 404,
+  kai teisės aktų bazėje
+  tokios nuostatos nėra. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/search}
+prisijungęs & Paieška dabartinėse redakcijose. Turinys \code{query} ir neprivalomai \code{k} (nuo
+  1 iki 30, jo nesant 8), \code{documents} (daugiausia 50 teisės aktų, kiekvienas nurodomas
+  taip, kaip jį priima bet kuri kita teisės akto paieška, --- identifikatoriumi, sisteminiu
+  identifikatoriumi, trumpuoju pavadinimu ar CELEX numeriu, neatsižvelgiant į raidžių dydį;
+  pavadinimas, neatitinkantis jokio teisės akto, paiešką susiaurina tiek, kad ji nieko
+  neranda), \code{jurisdiction}, \code{kind} (\code{acts} arba \code{standards}). Grąžina
+  \code{hits}. \emph{Klaidos:} 400 \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/check-citations}
+prisijungęs & Nuorodų tikrintuvas. Turinys \code{citations} --- nuo 1 iki 50 elementų iš
+  \code{act}, \code{article} ir neprivalomai \code{paragraph}, \code{point},
+  \code{claimedHeading}, kiekvienas daugiausia 300 simbolių. Grąžina \code{results}, po vieną
+  kiekvienai nuorodai ta pačia tvarka: \code{status} (\code{found}, \code{not_found},
+  \code{act_not_in_corpus}), rastą nuostatą, \code{headingMatch} (\code{match}, \code{mismatch},
+  \code{unknown}) ir \code{judgedBy} (\code{model}, \code{overlap} arba \code{null}). Kai
+  kviečiančiojo biudžetas išnaudotas arba modelio iškvietimas nepavyksta, teiginys vertinamas
+  ne modeliu, o pagal žodžių sutapimą; pati patikra niekada nesustoja. \emph{Klaidos:} 400
+  \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/reembed}
+administratorius & Įtraukia į eilę vieno teisės akto (\code{documentId}) arba, jo nenurodžius,
+  visų teisės aktų vektorių perskaičiavimą; 202 su užduotimi. Reikalingas tik pasikeitus
+  vektorizavimo modeliui. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/refresh-all}
+administratorius & Įtraukia į eilę kiekvieno šaltinio patikrą, ar nėra naujos redakcijos; 202
+  su užduotimi. \\
+\end{xltabular}
+
+\subsection{Pareigos}\label{sec:api:obligations}
+
+Pareigų registras ir jo peržiūra (\file{corpus/api/obligation_views.py}; \cref{ch:obligations}).
+Skaityti gali kiekvienas prisijungęs; pareigą keičia tik administratorius, ir kiekvienas
+pakeitimas įrašomas į veiksmų žurnalą.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: pareigos}\label{tab:api:obligations}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/obligations}
+prisijungęs; \code{POST}: administratorius & \code{GET}: \code{obligations} ir \code{total}.
+  Filtrai \code{document}, \code{status} (\code{proposed}, \code{approved}, \code{rejected};
+  viena būsena arba kelios, atskirtos kableliais),
+  \code{category}, \code{q} ir \code{verification} --- vertintojo verdiktas: \code{supported},
+  \code{partly}, \code{unsupported}, \code{doubt} (paskutiniai du kartu) arba \code{unchecked}.
+  \code{order=review} abejotinas pateikia pirmiausia, o tarp jų --- pirmiausia reikšmingiausias.
+  \code{POST} įveda pareigą rankiniu būdu: \code{title}, \code{text}, neprivalomai
+  \code{documentId} ir toliau išvardyti redaguojami laukai; ji saugoma su šaltiniu
+  \code{standard} ir iš karto patvirtinta. \emph{Klaidos:} 400 \code{INVALID_QUERY},
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/obligations/review}
+administratorius & Masinis sprendimas: \code{ids} (nuo 1 iki 500) ir \code{status}. Kiekviena
+  pareiga pažymima peržiūrėtoju; viena veiksmų žurnalo eilutė jas išvardija. Grąžina
+  \code{updated} ir \code{status}. \emph{Klaidos:} 400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/obligations/{id}}
+prisijungęs; \code{PATCH}, \code{DELETE}: administratorius & \code{PATCH}: bet kuris iš
+  \code{title}, \code{titleEn}, \code{text}, \code{textEn}, \code{addressee}, \code{conditions},
+  \code{evidence}, \code{deadline}, \code{notes}, \code{category}, \code{severity},
+  \code{appliesTo}, \code{status}. Nustačius \code{status}, pažymimas peržiūrėtojas. Pakeistas
+  pavadinimas ar tekstas vektorizuojamas iš naujo ir netenka vertintojo verdikto, kuris buvo
+  duotas kitiems žodžiams. \emph{Klaidos:} 400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/extract-obligations}
+administratorius & Įtraukia į eilę pareigų išskyrimą iš dabartinės teisės akto redakcijos;
+  \code{language}. 202 su užduotimi arba su ta, kuri jau vykdoma. \emph{Klaidos:} 409
+  \code{NOT_INGESTED} (teisės aktas dar neturi redakcijos). \\
+\addlinespace
+\apiroute{POST}{/api/corpus/documents/{id}/verify-obligations}
+administratorius & Įtraukia į eilę vertintojo patikrą tų dabartinės redakcijos pareigų, kurių
+  jis dar neįvertino, --- su \code{again: true} visų. 202 su užduotimi arba su ta, kuri jau vykdoma.
+  \emph{Klaidos:} 400 \code{INVALID_FIELD}; 409 \code{NOT_INGESTED}. \\
+\end{xltabular}
+
+\subsection{Ataskaitos}\label{sec:api:reports}
+
+Atitikties ataskaitos paleidimas, apimties peržiūra, išvadų peržiūra, patvirtinimas ir eksportai
+(\file{analysis/api/views.py}; \cref{ch:report}). Ataskaita seka paskui savo įmonę: ją mato įmonės
+savininkas ir administratoriai. Vienu metu vienai įmonei rengiama viena ataskaita.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: ataskaitos}\label{tab:api:reports}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/reports}
+savininkas & \code{GET}: \code{reports}, naujausios pirmos, daugiausia 200, kiekviena su savo
+  užduoties \code{jobStatus} ir \code{progress}; filtrai \code{companyId} ir \code{status}
+  (ataskaitos būsena), taip pat \code{scope=own}, kuris administratoriaus sąrašą susiaurina
+  iki jo paties įmonių ataskaitų, --- visi pritaikomi prieš sutrumpinant sąrašą iki tų 200. \code{POST} paleidžia
+  ataskaitą: \code{companyId}, \code{language} ir neprivalomai \code{documentIds} (daugiausia 200
+  įjungtų teisės aktų, kuriais ataskaita apribojama), \code{review} (sustoti apimties peržiūrai)
+  ir \code{internal} (vertinti ir įmonės vidaus reikalavimus). Atsako 201 su į eilę įtraukta
+  ataskaita; užduotis yra \code{report.analyze}. \emph{Klaidos:} 400 \code{INVALID_FIELD}; 409
+  \code{CORPUS_EMPTY}, \code{ALREADY_RUNNING} (ir tada, kai įmonės ataskaita laukia apimties
+  patvirtinimo); 429 \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET}{/api/reports/estimate}
+savininkas & Kiek dabar kainuotų įmonės \code{companyId} ataskaita --- viršutinė riba JAV
+  doleriais, su kviečiančiojo \code{budget}; \code{documentIds} ir \code{internal=true} kaip
+  paleidžiant. \emph{Klaidos:} 400 \code{INVALID_FIELD}, kai \code{documentIds} atmestų ir
+  paleidimas (teisės akto nėra teisės aktų bazėje arba jis išjungtas); 404 \code{NOT_FOUND}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/reports/{id}}
+savininkas & \code{GET}: visa ataskaita --- \code{acts}, \code{findings}, \code{actions},
+  \code{citations}, \code{summary}, \code{stats}, patvirtinimai ir užduoties būsena bei eiga.
+  \code{PATCH} yra patvirtinimas: \code{approved} (\code{true} arba \code{false}) ir
+  \code{note}; atsakymas papildomas \code{register} --- tuo, ką patvirtinimas pakeitė veiksmų
+  registre. \code{DELETE} pirmiausia atšaukia patvirtinimą. \emph{Klaidos:} 400
+  \code{MISSING_FIELDS}; 409 \code{NOT_FINISHED} (patvirtinimas), \code{STILL_RUNNING}
+  (šalinimas). \\
+\addlinespace
+\apiroute{POST}{/api/reports/{id}/cancel}
+savininkas & Sustabdo eilėje esančią ar vykdomą ataskaitą, o apimties patvirtinimo laukiančią
+  atšaukia iš karto. \emph{Klaidos:} 409 \code{NOT_CANCELLABLE}. \\
+\addlinespace
+\apiroute{POST}{/api/reports/{id}/scope}
+savininkas & Ataskaitos, laukiančios būsenoje \code{scope_review}, apimties peržiūra. Turinys
+  \code{acts} --- žemėlapis iš teisės akto identifikatoriaus ataskaitoje į \code{assess} arba
+  \code{skip} (nepaminėtam teisės aktui paliekamas vykdymo sprendimas) --- ir \code{approved}. Be
+  \code{approved} nieko neįrašoma, o atsakymas įkainoja pasirinkimą: \code{estimate} ir
+  \code{budget}. Su \code{approved: true} pasirinkimai pritaikomi, patvirtinimas pažymimas ir su
+  kiekvienu pakeitimu įrašomas į veiksmų žurnalą, o užduotis įtraukiama į eilę antrajai daliai;
+  atsakymas yra ataskaita. \emph{Klaidos:} 400 \code{INVALID_FIELD}, \code{NOTHING_TO_ASSESS};
+  409 \code{NOT_WAITING}; 429 \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{PATCH}{/api/reports/{id}/findings/{fid}}
+savininkas & Žmogaus sprendimas dėl vienos išvados: \code{overrideStatus} (\code{met},
+  \code{partial}, \code{missing}, \code{unknown}, \code{not_applicable} arba \code{null}, kad jį
+  panaikintų), \code{reviewerNote} (4\,000 simbolių), \code{cause} (2\,000). Bet kuris iš jų
+  atšaukia patvirtinimą; ataskaitos suvestiniai skaičiai perskaičiuojami. Įrašoma į veiksmų
+  žurnalą. \emph{Klaidos:} 400 \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{GET}{/api/reports/{id}/export}
+savininkas & Užbaigta ataskaita kaip failas: \code{format} yra \code{pdf} (jo nesant) arba
+  \code{xlsx}. Įrašoma į veiksmų žurnalą. \emph{Klaidos:} 400 \code{INVALID_QUERY}; 409
+  \code{NOT_FINISHED}. \\
+\end{xltabular}
+
+\subsection{Veiksmų registras ir teisės pokyčiai}\label{sec:api:actions}
+
+Tai, kas lieka gyventi po ataskaitos patvirtinimo (\file{analysis/api/views.py},
+\file{analysis/register.py}; \cref{ch:register}). Pats registras keičiasi tik patvirtinus
+ataskaitą; šie maršrutai jį skaito ir leidžia žmogui dirbti su atskirais veiksmais.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: veiksmų registras ir teisės pokyčiai}\label{tab:api:actions}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/companies/{id}/actions}
+savininkas & Įmonės veiksmų registras: \code{actions} (daugiausia 500) --- pirmiausia
+  vėluojantys, tada kiti atviri pagal terminą, tada atlikti ir uždaryti; ir \code{counts} pagal
+  būseną (\code{late}, \code{open}, \code{in_progress}, \code{done}, \code{closed}). \\
+\addlinespace
+\apiroute{GET}{/api/companies/{id}/actions/export}
+savininkas & Registras kaip darbaknygė (\code{.xlsx}); \code{language}. Įrašoma į veiksmų
+  žurnalą. \\
+\addlinespace
+\apiroute{PATCH}{/api/actions/{id}}
+savininkas & Žmogaus darbas su vienu veiksmu: \code{status} (\code{open}, \code{in_progress},
+  \code{done}, \code{closed}), \code{owner}, \code{dueDate}, \code{note}. Įrašoma į veiksmų
+  žurnalą. \emph{Klaidos:} 400 \code{INVALID_FIELD}, \code{NOTE_REQUIRED} (uždarant rankiniu būdu
+  be pastabos); 409 \code{CLOSED_BY_REPORT} (iš naujo atidarant veiksmą, kurį uždarė patvirtinta
+  ataskaita). \\
+\addlinespace
+\apiroute{GET}{/api/companies/{id}/law-changes}
+savininkas & Pagal naujausią užbaigtą įmonės ataskaitą: vertinti teisės aktai, kurie nuo tada
+  turi naujesnę redakciją, jų pasikeitusios nuostatos ir jomis paremtos išvados. Grąžina
+  \code{reportId}, \code{reportDate}, \code{acts}. \\
+\end{xltabular}
+
+\subsection{Atitikties programa}\label{sec:api:programme}
+
+Įmonės programos dokumentai --- rūšys \code{policy}, \code{governance} ir \code{risks}
+(\file{programme/api/views.py}; \cref{ch:programme}). Nuosavybė seka paskui įmonę. Vienai įmonei
+vienu metu rengiamas vienas tos pačios rūšies dokumentas.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: programos dokumentai}\label{tab:api:programme}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/companies/{id}/programme}
+savininkas & \code{GET}: \code{products} --- pagal rūšį, naujausia versija pirma, be turinio,
+  kiekvienas su savo užduoties būsena ir eiga; ir \code{kinds} --- trys rūšys su pavadinimais ir
+  tuo, kuo kiekviena remiasi. \code{POST}: \code{kind} ir \code{language}; paleidžia naujos
+  versijos rengimą (užduotis \code{programme.generate}) ir atsako 201 su į eilę įtrauktu
+  dokumentu. \emph{Klaidos:} 400 \code{INVALID_FIELD}; 409 \code{NO_DOCUMENTS} (įmonė neturi
+  perskaitomo dokumento), \code{ALREADY_RUNNING}; 429 \code{BUDGET_EXCEEDED}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/programme/{id}}
+savininkas & \code{GET}: dokumentas su \code{content}. \code{PATCH} su \code{approved: true} ir
+  neprivalomai \code{note} yra žmogaus atliekamas projekto patvirtinimas. \code{DELETE} pašalina
+  versiją. \emph{Klaidos:} 400 \code{MISSING_FIELDS}; 409 \code{NOT_DRAFT}, \code{RULES_BROKEN}
+  (pažeista blokuojanti tos rūšies taisyklė; sakinys įvardija taisykles), \code{STILL_RUNNING}
+  (šalinimas). \\
+\addlinespace
+\apiroute{PUT}{/api/programme/{id}/content}
+savininkas & Žmogaus atliktas projekto pakeitimas, siunčiamas visas kaip \code{content}. Turinys
+  tikrinamas pagal savo rūšies taisykles be modelio iškvietimo, o atsakymas yra dokumentas taip,
+  kaip įrašytas, su iš naujo apskaičiuotomis išvestinėmis reikšmėmis. \emph{Klaidos:} 400
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409 \code{NOT_DRAFT}, \code{UNKNOWN_KIND}. \\
+\addlinespace
+\apiroute{POST}{/api/programme/{id}/revise}
+savininkas & Naujas projektas, viena versija aukštesnis, nukopijuotas iš patvirtinto dokumento,
+  kuris lieka patvirtintas; 201. \emph{Klaidos:} 409 \code{NOT_APPROVED}, \code{NEWER_VERSION}. \\
+\addlinespace
+\apiroute{POST}{/api/programme/{id}/cancel}
+savininkas & Sustabdo eilėje esantį ar vykdomą rengimą. \emph{Klaidos:} 409
+  \code{NOT_CANCELLABLE}. \\
+\addlinespace
+\apiroute{GET}{/api/programme/{id}/chart}
+savininkas & Valdymo struktūros dokumento struktūra, nubraižyta kaip organizacinė schema,
+  \code{image/svg+xml}. 404, kai dokumentas neturi struktūros. \\
+\addlinespace
+\apiroute{GET}{/api/programme/{id}/export}
+savininkas & Dokumentas kaip failas: \code{format} yra \code{pdf} bet kuriai rūšiai, taip pat
+  \code{docx} politikai ir \code{xlsx} rizikos registrui. Projektas eksportuojamas taip pat, kaip
+  ir patvirtintas dokumentas. Įrašoma į veiksmų žurnalą. \emph{Klaidos:} 400
+  \code{INVALID_QUERY}; 409 \code{NOT_READY}. \\
+\end{xltabular}
+
+\subsection{Instrukcijos}\label{sec:api:prompts}
+
+Instrukcijų ir jų versijų saugykla administratoriams (\file{prompts/api/views.py};
+\cref{ch:prompts}). Kiekvienas įrašymas ir kiekvienas bandomasis paleidimas įrašomas į veiksmų
+žurnalą. Modelių sąrašas, iš kurio pildomas redaktoriaus modelio pasirinkimas, yra faile
+\file{assistant/api/mcp_views.py}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: instrukcijos ir modeliai}\label{tab:api:prompts}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/prompts}
+administratorius & Visos instrukcijos kaip \code{prompts}: \code{slug}, \code{name}, \code{kind},
+  \code{variables}, \code{activeVersion}, \code{activeModel}, \code{pendingDefault}. \\
+\addlinespace
+\apiroute{GET}{/api/prompts/{slug}}
+administratorius & Viena instrukcija su \code{versions}, naujausios pirmos, kiekviena su savo
+  tekstu. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/versions}
+administratorius & Prideda versiją: \code{text} (daugiausia 60\,000 simbolių), \code{model} ir
+  neprivalomai \code{temperature} (nuo 0 iki 2), \code{maxTokens} (nuo 1 iki 128\,000),
+  \code{note} (500 simbolių), \code{activate}. Atsako 201 su versija. \emph{Klaidos:} 400
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/versions/{n}/activate}
+administratorius & Padaro versiją \code{n} aktyvia; grąžina instrukciją. \\
+\addlinespace
+\apiroute{POST}{/api/prompts/{slug}/test}
+administratorius & Vienas modelio iškvietimas, kai instrukcija yra įrašyta versija
+  (\code{versionNo}; jo nesant --- aktyvioji) arba neįrašytas projektas (\code{text},
+  \code{model}), o duomenys --- \code{input} (daugiausia 200\,000 simbolių); naudojama
+  instrukcijos etapo išvesties schema, jei instrukcija ją turi; \code{variables} užpildo
+  kintamuosius. Grąžina \code{text}, \code{object}, \code{model}, \code{finishReason},
+  \code{usage}, \code{costUsd}, \code{durationMs}, \code{renderedInstructions}. Atsakęs
+  iškvietimas priskaičiuojamas prie kviečiančiojo biudžeto ir įrašomas kaip modelio
+  iškvietimas; nepavykęs tik įrašomas į veiksmų žurnalą. \emph{Klaidos:} 400
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 429 \code{BUDGET_EXCEEDED}; 502
+  \code{MODEL_ERROR}. \\
+\addlinespace
+\apiroute{GET}{/api/llm/models}
+administratorius & DI tinklų sąsajos siūlomi modeliai taip, kaip juos pateikia asistento
+  paslauga: \code{providers} ir \code{models}, kiekvienas su \code{id}, \code{name},
+  \code{kind} (\code{chat} arba \code{embedding}), \code{contextLength}, \code{maxOutputTokens}
+  ir \code{pricing}. \\
+\end{xltabular}
+
+\subsection{MCP serveriai}\label{sec:api:mcp}
+
+Išorinių įrankių serverių, kurių įrankius gali kviesti pokalbių asistentas, registras
+administratoriams (\file{assistant/api/mcp_views.py}; \cref{ch:chat}). Serverio antraščių
+reikšmės yra prisijungimo duomenys: jos niekada negrąžinamos, grąžinami tik jų pavadinimai
+(\code{headerNames}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: MCP serveriai}\label{tab:api:mcp}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET POST}{/api/mcp/servers}
+administratorius & \code{POST}: \code{name} (nuo 2 iki 31 simbolio: mažosios raidės, skaitmenys ir
+  pabraukimo brūkšnys, pirma --- raidė), \code{url} ir neprivalomai \code{transport} (\code{http}
+  arba \code{sse}), \code{headers} (daugiausia 10), \code{allowedTools} (tuščias reiškia visus
+  serverio įrankius), \code{description}, \code{enabled}. URL turi būti https, standartiniu
+  prievadu, į viešą DNS vardą --- jokio IP adreso, jokio konteinerio ar vietinio vardo, jokių
+  prisijungimo duomenų jame. Naujas serveris iš pradžių būna išjungtas. \emph{Klaidos:} 400
+  \code{MISSING_FIELDS}, \code{INVALID_FIELD}; 409 \code{DUPLICATE_NAME}. \\
+\addlinespace
+\apiroute{GET PATCH DELETE}{/api/mcp/servers/{id}}
+administratorius & \code{PATCH}: bet koks tų pačių laukų poaibis. Antraštės sujungiamos:
+  reikšmė \code{null} tą antraštę pašalina, kitos išlaikomos. Serverio, kurio įrašytas URL
+  pažeidžia taisyklę, įjungti negalima. \emph{Klaidos:} 400 \code{INVALID_FIELD}; 409
+  \code{DUPLICATE_NAME}. \\
+\addlinespace
+\apiroute{POST}{/api/mcp/servers/{id}/test}
+administratorius & Asistento paslauga prisijungia prie serverio ir išvardija jo įrankius.
+  Atsakymas visada yra 200 su serveriu ir \code{ok}: pavykus \code{tools} pateikia sąrašą,
+  nepavykus \code{lastError} nurodo priežastį. Bet kuriuo atveju įrašoma į veiksmų žurnalą.
+  \emph{Klaidos:} 400 \code{INVALID_FIELD} (įrašytas URL pažeidžia taisyklę). \\
+\end{xltabular}
+
+\subsection{Užduotys}\label{sec:api:jobs}
+
+Užduočių vykdytojo eilės stebėjimas (\file{jobs/api/views.py}; \cref{ch:arch}). Naudotojas mato
+savo sukeltas užduotis, administratorius --- visas.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: užduotys}\label{tab:api:jobs}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/jobs}
+savininkas & \code{jobs}, naujausios pirmos; filtrai \code{status}, \code{kind}, \code{subject};
+  \code{limit}. Su teisės aktu susijusi užduotis turi teisės akto pavadinimą lauke \code{subjectTitle}.
+  \emph{Klaidos:} 400 \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/jobs/counts}
+savininkas & Kiek kviečiančiajam matomų užduočių yra kiekvienoje būsenoje: \code{queued},
+  \code{running}, \code{done}, \code{failed}, \code{cancelled}. \\
+\addlinespace
+\apiroute{GET}{/api/jobs/{id}}
+savininkas & Viena užduotis su \code{steps}: kiekvieno etapo pavadinimas, būsena, trukmė, klaida,
+  instrukcijos versija, su kuria jis vykdytas, ir ką sunaudojo jo modelių iškvietimai
+  (\code{usage}). \\
+\addlinespace
+\apiroute{POST}{/api/jobs/{id}/cancel}
+savininkas & Eilėje esanti užduotis atšaukiama iš karto; vykdoma gauna \code{cancelRequested} ir
+  sustoja per kitą savo patikrą. Įrašoma į veiksmų žurnalą. \emph{Klaidos:} 409
+  \code{NOT_CANCELLABLE} (jau baigta). \\
+\end{xltabular}
+
+\subsection{DI sąnaudos}\label{sec:api:usage}
+
+Kiek kainavo modelių iškvietimai, pagal dieną ir pagal žmogų (\file{assistant/api/usage_views.py};
+\cref{ch:models}). Kiekvienas skaito savo sąnaudas. Administratorius praplečia vaizdą iki visų
+paskyrų su \code{scope=all} arba žiūri vieną paskyrą su \code{userId}; naudotojas, paprašęs bet
+kurio iš jų, gauna 403 \code{FORBIDDEN}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: DI sąnaudos}\label{tab:api:usage}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/usage}
+savo; administratorius: plačiau & Paskutinės \code{days} dienos (nuo 1 iki 366, jo nesant 30)
+  pagal UTC, po eilutę kiekvienai dienai: \code{days}, \code{byKind}, \code{byModel},
+  \code{totals}, \code{from}, \code{to}; \code{byUser} administratoriaus plačiajame vaizde; ir
+  \code{budget} --- žiūrimos paskyros šiandienos \code{limit}, \code{used} ir \code{remaining}
+  (\code{remaining} yra \code{null}, kai biudžetas neribotas). \emph{Klaidos:} 400
+  \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/usage/calls}
+savo; administratorius: plačiau & Modelių iškvietimų žurnalas, naujausi pirmi: \code{calls} ir
+  \code{total}; filtras \code{kind} (\code{chat}, \code{job_step}, \code{embed},
+  \code{prompt_test}). Kiekvienas iškvietimas turi savo modelį, žetonus (įvesties, nuskaitytus
+  iš podėlio, įrašytus į jį, išvesties, samprotavimo), \code{costUsd}, trukmę ir baigtį.
+  \emph{Klaidos:} 400 \code{INVALID_QUERY}. \\
+\addlinespace
+\apiroute{GET}{/api/usage/calls/{id}}
+savo; administratorius: visi & Vienas iškvietimas su \code{toolCalls} ir, pokalbio ėjimo atveju,
+  \code{transcript}: ko naudotojas paklausė ir ką asistentas atsakė. \\
+\end{xltabular}
+
+\subsection{Veiksmų žurnalas}\label{sec:api:audit}
+
+Įrašai apie tai, kas ką padarė (\file{audit/api/views.py}; \cref{ch:security}).
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: veiksmų žurnalas}\label{tab:api:audit}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/api/audit}
+administratorius & \code{entries}, naujausi pirmi, kiekvienas su \code{id}, \code{userId},
+  \code{userName}, \code{action}, \code{targetType}, \code{targetId}, \code{details}, \code{ip},
+  \code{createdAt}; ir \code{next}. Filtrai: \code{action} --- priešdėlis (\code{users.} visiems
+  paskyrų pakeitimams) ir \code{user} --- vienos paskyros identifikatorius. \code{next} turi
+  \code{before} ir \code{beforeId} kitam puslapiui; juos reikia grąžinti tokius, kokie yra, o po
+  paskutinio puslapio jis yra \code{null}. \emph{Klaidos:} 400 \code{INVALID_QUERY}. \\
+\end{xltabular}
+
+
+% ============================================================
+\section{Vieši asistento paslaugos maršrutai}\label{sec:api:assistant}
+% ============================================================
+
+Asistento paslauga į išorę atsako trimis maršrutais, visais po \code{/api/assistant/chat}
+(asistento paslaugoje --- \file{routes/chat.js}; prijungti faile \file{app.js}). Jie priima tą
+patį prieigos raktą kaip API: paslauga nustato jo naudotoją, kviesdama \route{GET}{/api/auth/me}, ir
+atsakymą prisimena 15 sekundžių. Kas vyksta ėjimo viduje --- instrukcija, įrankiai, modelis, ---
+aptariama \cref{ch:chat}.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: asistento paslauga, vieši}\label{tab:api:assistant}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/api/assistant/chat}
+prisijungęs, savas pokalbis & Vienas pokalbio ėjimas. Turinyje yra viena nauja naudotojo žinutė;
+  ankstesnis pokalbis nuskaitomas iš API. Atsakymas yra srautas (\code{text/event-stream})
+  pokalbio vykdymo aplinkos naudotojo sąsajos žinučių formatu. \\
+\addlinespace
+\apiroute{POST}{/api/assistant/chat/{threadId}/stop}
+prisijungęs, savas pokalbis & Sustabdo kviečiančiojo vykstantį ėjimą tame pokalbyje. Grąžina
+  \code{stopped} --- \code{true} arba \code{false}; dalinis atsakymas įrašomas su būsena
+  \code{stopped}. Kito naudotojo pokalbis traktuojamas taip, lyg nebūtų ko stabdyti. \\
+\addlinespace
+\apiroute{GET}{/api/assistant/chat/{threadId}/status}
+prisijungęs, savas pokalbis & Ar pokalbyje vyksta ėjimas: \code{running} ir \code{startedAt}.
+  Konsolė jo periodiškai klausia, kai puslapis įkeliamas iš naujo atsakymo viduryje. Niekada
+  nelaikomas podėlyje. \\
+\end{xltabular}
+
+\paragraph{Ėjimo turinys.} \code{readTurnBody} priima tokį pavidalą ir atkuria jį laukas po
+lauko, kad nieko netikėto nepasiektų nei API, nei modelio:
+
+\begin{codeblock}
+{"id": "<thread id>",
+ "trigger": "submit-message" | "regenerate-message",
+ "message": {"id": "<message id>", "role": "user",
+             "parts": [{"type": "text", "text": "..."},
+                       {"type": "data-document", "data": {"id": "<document id>", "title": "...",
+                        "kind": "...", "charCount": 1234, "extractionStatus": "done"}}],
+             "metadata": {...}},
+ "parentId": "<message id>" | null,
+ "locale": "lt" | "en"}
+\end{codeblock}
+
+Pokalbio identifikatorius turi būti uuid; \code{trigger} jo nesant yra \code{submit-message};
+neprivalomas žinutės \code{metadata} išlaikomas tik tol, kol jis yra objektas, JSON pavidalu
+neviršijantis 2\,000 simbolių. Žinutę sudaro nuo 1 iki 30 dalių (\code{MAX_PARTS}); tekstinės
+dalys kartu turi daugiausia \code{MAX_MESSAGE_CHARS}~=~60\,000 simbolių. \code{data-document}
+dalis yra žymeklis dokumentui, iš anksto įkeltam per \route{POST}{/api/documents}; pats failas
+niekada nėra žinutės dalis. Žinutės identifikatorių pasirenka klientas iš raidžių, skaitmenų ir
+\code{_ . : -}, daugiausia 128 simbolių.
+
+\paragraph{Prieš srautą.} Pirmiausia veikia turinio analizatorius: 400 \code{INVALID_JSON}
+turiniui, kuris nėra JSON, 413 \code{PAYLOAD_TOO_LARGE} viršijus 512~kB. Tada ėjimas nustatyta
+tvarka praeina savo patikras, o nepavykus bet kuriai iš jų grąžinama įprasta JSON klaida asistento
+paslaugos apvalkale: prieigos raktas (401 \code{AUTH_REQUIRED}, kai jo nėra,
+\code{SESSION_INVALID}, kai jis nebegalioja); sukonfigūruotas modelis (503
+\code{NOT_CONFIGURED}); užklausų dažnio riba (429 \code{RATE_LIMITED}); turinys (400
+\code{INVALID_BODY}, \code{INVALID_THREAD}, \code{INVALID_TRIGGER}, \code{INVALID_MESSAGE},
+\code{INVALID_PARENT}, \code{INVALID_PART}, \code{INPUT_TOO_LARGE}, \code{EMPTY_MESSAGE}); dienos
+biudžetas (429 \code{BUDGET_EXCEEDED}; jei pati biudžeto patikra nepavyksta, ėjimas vis tiek leidžiamas);
+aktyvi \prompt{chat.assistant} versija (503 \code{PROMPT_NOT_CONFIGURED} arba
+\code{PROMPT_UNAVAILABLE}, kai jos nepavyksta įkelti); ir pokalbis, gaunamas iš API naudotojo
+vardu (404 \code{THREAD_NOT_FOUND}). Kai API pasiekti nepavyksta, atsakymas yra 502
+\code{DJANGO_UNREACHABLE}; bet koks kitas API atsisakymas perduodamas su paties API būsena ir
+kodu. Išsijungianti paslauga atsako 503 \code{SHUTTING_DOWN}.
+
+\paragraph{Srauto viduje.} Srautui prasidėjus, HTTP būsena yra 200, kad ir kas nutiktų, o
+nesėkmė ateina kaip srauto klaidos fragmentas su kodu: \code{MODEL_TIMEOUT} (ėjimas trunka
+daugiausia \code{CHAT_TIMEOUT_MS}~=~900 sekundžių), \code{AI_BUDGET_EXHAUSTED} (išnaudotas pačios
+DI tinklų sąsajos biudžetas), \code{MODEL_UNAVAILABLE} (laikina nesėkmė: vėliau bandyti dar kartą
+gali padėti), \code{MODEL_REFUSED}, \code{MODEL_CONTEXT_EXCEEDED}, \code{MODEL_CONTENT_FILTERED},
+\code{MODEL_ACCESS_DENIED} arba \code{STREAM_FAILED} visais kitais atvejais. Ėjimas nepriklauso
+nuo ryšio: jei naršyklė atsijungia, atsakymas vis tiek užbaigiamas ir įrašomas, o atsakymo
+metaduomenys užfiksuoja, kaip ėjimas baigėsi, jei jis baigėsi nesėkmingai (\code{stopped},
+\code{interrupted}, \code{timeout}, \code{budget}, \code{error} arba baigiamosios eilutės, kurią
+paslauga turėjo pridėti, rūšis: \code{step-limit}, \code{length}, \code{content-filter},
+\code{empty}).
+
+
+% ============================================================
+\section{Vidinės durys}\label{sec:api:internal}
+% ============================================================
+
+API ir asistento paslauga reikalingos viena kitai: užduočių vykdytojas ir API kiekvienam modelio
+iškvietimui kreipiasi į asistento paslaugą, o asistento paslauga prašo API pokalbio instrukcijos
+ir biudžeto ir perduoda jai atsakymus. Šie kreipiniai eina per dvejas \term{vidines duris} ---
+kiekvienos paslaugos kelius po \code{/internal/} (\cref{fig:api:doors}). Nė vienų durų negalima
+pasiekti iš išorės, ir tam yra dvi nepriklausomos priežastys:
+
+\begin{itemize}
+  \item \emph{Ten neveda joks kelias.} Įėjimas persiunčia \code{/api/assistant/*} į asistento
+    paslaugą ir \code{/api/*} į API, ir nieko kito nė vienai iš jų. Užklausa
+    \code{/internal/...} iš išorės patenka į trečiąją šeimą, ir į ją atsako konsolės
+    žiniatinklio serveris. Nė viena iš dviejų paslaugų neskelbia savo prievado.
+  \item \emph{Bendra paslaptis.} Kiekvienas vidinis maršrutas reikalauja antraštės
+    \code{X-Internal-Secret}, kuri turi sutapti su reikšme, abiem paslaugoms perduodama kaip
+    \code{ASSISTANT_INTERNAL_SECRET} paleidžiant diegimą. Palyginimas trunka pastovų laiką, o
+    paslauga, kurios paslaptis tuščia, atmeta kiekvieną vidinę užklausą: sutrikus durys
+    lieka uždarytos. Atsisakymas yra 403 \code{INTERNAL_ONLY} (\code{require_internal} faile
+    \file{assistant/api/internal_views.py}; asistento paslaugoje --- \code{requireInternal}
+    faile \file{middleware/internal.js}, kuris veikia dar prieš analizuojant turinį).
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=8mm and 50mm]
+  \node[svc, minimum width=34mm, minimum height=22mm] (django) {API ir\\užduočių\\vykdytojas\\(Django)};
+  \node[svc, minimum width=34mm, minimum height=22mm, right=of django] (assistant) {asistento\\paslauga};
+  \node[ext, right=14mm of assistant] (gw) {DI tinklų\\sąsaja};
+  \draw[call] ([yshift=7mm]django.east) -- ([yshift=7mm]assistant.west)
+    node[lbl, midway, above=1pt] {\code{/internal/llm/*}, \code{/internal/mcp/*}};
+  \draw[call] (assistant.west) -- (django.east)
+    node[lbl, midway] {\code{/internal/assistant/*}};
+  \draw[flow] ([yshift=-7mm]assistant.west) -- ([yshift=-7mm]django.east)
+    node[lbl, midway, below=1pt] {\code{/api/*} su naudotojo prieigos raktu};
+  \draw[call] (assistant) -- (gw);
+  \begin{scope}[on background layer]
+    \node[lane, fit=(django)(assistant), inner ysep=9mm] (lane) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (lane.north west) {izoliuotas tinklas};
+  \node[note, anchor=north west] at ([yshift=-1mm]lane.south west) {tarp dviejų paslaugų --- punktyrinės: būtina antraštė \code{X-Internal-Secret}; ištisinės: viešoji API, su paties naudotojo teisėmis};
+\end{tikzpicture}
+\caption{Vidinės durys. API ir jos užduočių vykdytojas kiekvienam modelio iškvietimui kviečia
+asistento paslaugą; asistento paslauga kreipiasi atgal dėl to, ką žino tik API. Visa, kas susiję
+su paties naudotojo duomenimis, asistento paslauga gauna per viešus maršrutus su to naudotojo
+prieigos raktu, todėl nuosavybės taisyklė taikoma vienoje vietoje.}\label{fig:api:doors}
+\end{figure}
+
+\subsection{API vidinės durys}\label{sec:api:door-django}
+
+Šeši maršrutai po \code{/internal/assistant/} aptarnauja asistento paslaugą
+(\file{assistant/api/internal_views.py}). Jų laukų pavadinimai rašomi snake\_case.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: API vidinės durys}\label{tab:api:door-django}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{GET}{/internal/assistant/prompt}
+paslaptis & Instrukcijos, nurodytos \code{slug}, aktyvi versija su tekstu, modeliu ir
+  parametrais. 404 \code{PROMPT_NOT_CONFIGURED}, kai instrukcija neturi aktyvios versijos ---
+  tada pokalbis atsako 503, užuot veikęs pagal instrukcijas, kurių niekas nemato. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/turn-log}
+paslaptis & Viena DI sąnaudų žurnalo eilutė pokalbio ėjimui: \code{user_id}, \code{thread_id},
+  \code{model}, \code{prompt_version_id}, žetonų skaičiai (\code{input_tokens},
+  \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens},
+  \code{reasoning_tokens}), \code{duration_ms}, \code{tool_calls}, \code{outcome} ir
+  \code{transcript} (naudotojo tekstas, sutrumpintas iki 20\,000 simbolių, atsakymas --- iki
+  100\,000). Kainą apskaičiuoja API. Atsako 201 su \code{id} ir naudotojo \code{budget}. \\
+\addlinespace
+\apiroute{GET}{/internal/assistant/budget}
+paslaptis & Naudotojo \code{user_id} šiandienos biudžetas: \code{limit}, \code{used},
+  \code{remaining} (\code{null}, kai neribotas), \code{unit}. Klausiama prieš kiekvieną ėjimą. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/threads/{id}/messages}
+paslaptis & Įrašo vieną asistento atsakymą: \code{user_id}, \code{id}, \code{parent_id},
+  \code{format}, \code{content}. Tai vienintelis asistento žinučių rašytojas, todėl naršyklė
+  niekada negali suklastoti įrankio išvesties. Pokalbis turi priklausyti \code{user_id} (kitaip
+  404). 201, kai žinutė nauja, 200, kai ji pakeičia esamą. \\
+\addlinespace
+\apiroute{POST}{/internal/assistant/threads/{id}/title}
+paslaptis & Modelio pokalbiui parašytas pavadinimas: \code{user_id}, \code{title}. Jis
+  pritaikomas tik tol, kol pokalbis dar turi automatinį pavadinimą, todėl naudotojo nustatytas
+  pavadinimas išlieka. Grąžina \code{ok} ir \code{applied}. \\
+\addlinespace
+\apiroute{GET}{/internal/assistant/mcp-servers}
+paslaptis & Įjungti MCP serveriai \emph{su} antraščių reikšmėmis --- vienintelė vieta, kur šie
+  prisijungimo duomenys palieka API. Serveris, kurio įrašytas URL pažeidžia adreso taisyklę,
+  praleidžiamas. \\
+\end{xltabular}
+
+\subsection{Asistento paslaugos vidinės durys}\label{sec:api:door-assistant}
+
+Keturi maršrutai po \code{/internal/} aptarnauja API ir jos užduočių vykdytoją (asistento
+paslaugoje --- \file{routes/internal.js} ir \file{routes/internalMcp.js}); klientas API pusėje
+yra \file{assistant/gateway.py}. Tai vienintelis sistemos kelias į modelį, ir \cref{ch:models}
+juos aprašo išsamiai. Penktajam maršrutui, \code{/health}, paslapties nereikia, ir įėjimas jo taip
+pat nepersiunčia.
+
+\begin{xltabular}{\textwidth}{@{}L{19mm}Y@{}}
+\caption{Maršrutai: asistento paslaugos vidinės durys}\label{tab:api:door-assistant}\\
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endfirsthead
+\toprule \hd{Kas} & \hd{Ką daro maršrutas} \\ \midrule \endhead
+\bottomrule \endlastfoot
+\apiroute{POST}{/internal/llm/generate}
+paslaptis & Vienas modelio iškvietimas. Turinys \code{prompt} ir neprivalomai \code{system},
+  \code{shared}, \code{model}, \code{schema}, \code{schemaName}, \code{temperature},
+  \code{maxOutputTokens}. Grąžina \code{model}, \code{text} arba \code{object} (su schema ---
+  pagal ją patikrintas atsakymas), \code{finishReason}, \code{usage}, \code{durationMs}.
+  Iškvietimo atsisakoma po \code{GENERATE_TIMEOUT_MS} (numatytai 900 sekundžių).
+  \emph{Klaidos:} 400 netinkamai sudarytai užklausai; 402 \code{AI_BUDGET_EXHAUSTED}, kai
+  išnaudotas pačios DI tinklų sąsajos biudžetas; kitais atvejais \code{GENERATION_FAILED} su DI
+  tinklų sąsajos būsena arba 502 --- ir 429 su \code{retryAfterS}, kai pasiekta užklausų dažnio
+  riba. \\
+\addlinespace
+\apiroute{POST}{/internal/llm/embed}
+paslaptis & Vektoriai tekstams \code{texts}, daugiausia 256 per iškvietimą; neprivalomai
+  \code{model}. Grąžina \code{model}, \code{embeddings}, \code{dimensions}, \code{usage},
+  \code{durationMs}. \emph{Klaidos:} 400 \code{INVALID_TEXTS}, \code{TOO_MANY_TEXTS},
+  \code{UNKNOWN_MODEL}; \code{EMBEDDING_FAILED}; 402 \code{AI_BUDGET_EXHAUSTED}. \\
+\addlinespace
+\apiroute{GET}{/internal/llm/models}
+paslaptis & \code{providers} ir \code{models}: DI tinklų sąsajos modelių sąrašas su kainomis,
+  naujausi pirmi, laikomas dešimt minučių. \\
+\addlinespace
+\apiroute{POST}{/internal/mcp/list-tools}
+paslaptis & Prisijungia prie MCP serverio, aprašyto \code{url}, \code{transport} ir
+  \code{headers}, ir išvardija jo įrankius --- tai \route{POST}{/api/mcp/servers/{id}/test} ryšio
+  patikra. \emph{Klaidos:} 400 \code{INVALID_URL}, \code{INVALID_TRANSPORT},
+  \code{INVALID_HEADERS}; 502 \code{MCP_UNREACHABLE}, iš pranešimo pašalinus prisijungimo
+  duomenis. \\
+\addlinespace
+\apiroute{GET}{/health}
+tinklo viduje & Gyvybingumo ir konfigūracijos patikra (Compose failas būklės patikros nenustato): \code{status},
+  \code{model} (\code{configured} arba \code{missing-key}), \code{providers},
+  \code{activeTurns}. \\
+\end{xltabular}
+
+
+% ============================================================
+\section{Ką turi žinoti klientas}\label{sec:api:client}
+% ============================================================
+
+Du API elgesio bruožai nematomi viename maršrute: darbas, trunkantis ilgiau nei jį pradėjusi
+užklausa, ir atsakymai, kurie yra failai.
+
+\subsection{Ilgas darbas: paleisti, tikrinti, nuspręsti, atšaukti}\label{sec:api:polling}
+
+Joks maršrutas neverčia kliento laukti įkėlimo, išskyrimo, ataskaitos ar programos dokumento.
+Maršrutas užfiksuoja, ko norima, įtraukia užduotį į užduočių vykdytojo eilę ir atsako iš karto;
+tada klientas klausia vėl ir vėl, kol darbas baigiasi. Serverio inicijuojamų pranešimų kanalo nėra: pokalbio
+srautas yra vienintelis srautas sistemoje. \Cref{fig:api:polling} rodo ataskaitos seką.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=5mm and 6mm]
+  \node[svc] (s1) {\code{queued}};
+  \node[svc, right=of s1] (s2) {\code{running}};
+  \node[man, right=of s2] (s3) {\code{scope_review}};
+  \node[svc, right=of s3] (s4) {\code{queued}};
+  \node[svc, right=of s4] (s5) {\code{running}};
+  \node[svc, right=of s5] (s6) {\code{done}};
+  \draw[flow] (s1) -- (s2); \draw[flow] (s2) -- (s3); \draw[flow] (s3) -- (s4);
+  \draw[flow] (s4) -- (s5); \draw[flow] (s5) -- (s6);
+  \draw[opt] (s2.south) -- ++(0,-5mm) -| (s5.south) node[lbl, pos=.25] {be \code{review}};
+  \node[data, above=11mm of s1] (c1) {\code{POST /api/reports}};
+  \node[data, above=11mm of s3] (c3) {\code{POST .../scope}};
+  \node[data, above=11mm of s6] (c6) {\code{GET .../export}};
+  \node[data] (c2) at ($(c1)!.5!(c3)$) {\code{GET} \ldots};
+  \node[data] (c5) at ($(c3)!.5!(c6)$) {\code{GET} \ldots};
+  \draw[call] (c1) -- (s1) node[lbl, midway] {201};
+  \draw[call] (c3) -- (s3) node[lbl, midway] {patvirtinimas};
+  \draw[call] (c6) -- (s6) node[lbl, midway] {failas};
+  \draw[call] (c2) -- (s2.north);
+  \draw[call] (c5) -- (s5.north);
+  \node[lanelabel, anchor=south west] at ([yshift=1mm]c1.north west) {kliento užklausos};
+  \node[lanelabel, anchor=north west] at ([yshift=-7mm]s1.south west) {ataskaitos \code{status}; ataskaita gali baigtis ir \code{failed} arba \code{cancelled}};
+\end{tikzpicture}
+\actorlegend
+\caption{Ataskaita taip, kaip ją mato klientas. Paleidimas atsako iš karto; klientas periodiškai
+klausia \code{GET /api/reports/{id}} apie \code{status} ir \code{progress}; su \code{review}
+ataskaita sustoja ir apimties maršrute laukia žmogaus; užbaigtą ataskaitą galima
+eksportuoti.}\label{fig:api:polling}
+\end{figure}
+
+\paragraph{Ką atsako paleidimas.} Ataskaitos ar programos dokumento paleidimas atsako 201 su
+nauja eilute, jau turinčia \code{jobId}, \code{jobStatus} ir \code{progress}. Teisės aktų bazę
+keičiantys maršrutai --- atnaujinimas, įkėlimas, pareigų išskyrimas, vertintojas, vektorių
+perskaičiavimas, visų šaltinių atnaujinimas --- atsako 202 su pačia užduotimi. Dokumento
+įkėlimas yra išimtis kita kryptimi: tekstas išgaunamas prieš atsakymą, ir tik po to vykstantis
+indeksavimas yra užduotis, kurios atsakymas neįvardija; ją galima rasti per \route{GET}{/api/jobs}
+su \code{subject=document:<id>}.
+
+\paragraph{Dukart ta pati užklausa.} API atmeta arba sujungia antrą paleidimą, užuot tą patį darbą
+vykdžiusi du kartus. Antra įmonės ataskaita ar antras tos pačios rūšies dokumentas atsako 409
+\code{ALREADY_RUNNING}. Antras to paties teisės akto atnaujinimas, išskyrimas ar vertintojo
+paleidimas atsako 202 su užduotimi, kuri jau yra eilėje ar vykdoma, todėl klientas abu atsakymus
+gali traktuoti vienodai.
+
+\paragraph{Ką tikrinti.} Ilgo darbo būseną rodo trys ištekliai (\cref{tab:api:polling}).
+\code{progress} yra pačios užduoties pranešimas, kur ji yra, --- etapas, procentas ir žinutė.
+Užduotis papildomai išvardija savo etapus, kiekvieną su tuo, ką sunaudojo jo modelių
+iškvietimai, kai etapas baigiasi.
+
+\begin{table}[H]
+\caption{Ištekliai, kuriuos klientas periodiškai tikrina, ir jų būsenos reikšmės}\label{tab:api:polling}
+\begin{tabularx}{\textwidth}{@{}L{38mm}Y@{}}
+\toprule
+\hd{Išteklius} & \hd{\code{status} yra viena iš} \\
+\midrule
+\code{GET /api/jobs/{id}} & \code{queued}, \code{running}, \code{done}, \code{failed}, \code{cancelled}; su \code{progress}, \code{result}, \code{error}, \code{cancelRequested}, \code{attempts} \\
+\code{GET /api/reports/{id}} & \code{queued}, \code{running}, \code{scope_review}, \code{done}, \code{failed}, \code{cancelled}; su \code{jobStatus}, \code{progress}, \code{error} \\
+\code{GET /api/programme/{id}} & \code{queued}, \code{running}, \code{draft}, \code{approved}, \code{failed}, \code{cancelled}; su \code{jobStatus}, \code{progress}, \code{error} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Sąrašų maršrutai turi tuos pačius laukus, todėl klientas, rodantis daug eilučių, periodiškai
+klausia \route{GET}{/api/reports}, \route{GET}{/api/companies/{id}/programme} ar
+\route{GET}{/api/jobs}, o ne kiekvienos eilutės atskirai. Teisės akto išsamioje informacijoje yra
+\code{latestJob} --- įkėlimas ar išskyrimas, kuris su juo dirba dabar, arba, jei tokio nėra,
+naujausias. Pokalbyje tą patį vaidmenį perkrovus puslapį atlieka asistento paslaugos būsenos
+maršrutas (\cref{sec:api:assistant}).
+
+\paragraph{Kur klausiama žmogaus.} Ataskaita, paleista su \code{review: true}, nevyksta iki galo:
+nusprendusi, kurie teisės aktai taikomi, ji sustoja būsenoje \code{scope_review}, ir jokia
+užduotis su ja nedirba. Ji tęsiama tik tada, kai \route{POST}{/api/reports/{id}/scope} iškviečiamas
+su \code{approved: true}, ir tai vėl įtraukia užduotį į eilę. Tą patį maršrutą be
+\code{approved} galima kviesti kiek norima kartų pasirinkimui įkainoti; jis nieko neįrašo.
+Programos dokumento rengimas baigiasi būsena \code{draft}, o \code{approved} dokumentas tampa tik
+žmogui iškvietus \route{PATCH}{/api/programme/{id}}.
+
+\paragraph{Atšaukimas.} Kiekvienas iš trijų išteklių turi atšaukimo maršrutą. Užduotis, ataskaita
+ar dokumentas, vis dar esantys eilėje, atšaukiami iš karto; vykdomas gauna žymą, kurios užduočių
+vykdytojas paiso per kitą savo patikrą, todėl būsena pasikeičia šiek tiek vėliau; apimties
+patvirtinimo laukianti ataskaita atšaukiama iš karto. Viskas, kas jau baigta, atsako 409
+\code{NOT_CANCELLABLE}. Ataskaitos ar dokumento, kuris rengiamas, šalinimas atmetamas su 409
+\code{STILL_RUNNING}: pirmiausia jį reikia atšaukti.
+
+\paragraph{Pinigai prieš darbą.} Klientas gali paklausti prieš panaudodamas naudotojo biudžetą:
+\route{GET}{/api/reports/estimate} pateikia viršutinę ataskaitos kainos ribą kartu su šiandien
+likusiu biudžetu, apimties maršrutas įkainoja antrąją dalį pasirinktiems teisės aktams, o
+\route{GET}{/api/usage} pateikia šiandienos \code{budget}. Pradėtas vykdymas niekada nestabdomas
+pusiaukelėje dėl biudžeto stokos; biudžetas lemia tik tai, ar jį galima pradėti.
+
+\subsection{Failai}\label{sec:api:files}
+
+Trys maršrutai vietoj JSON atsako failu, sukurtu užklausos metu (\cref{tab:api:exports}).
+Kiekvienas nustato \code{Content-Disposition: attachment} su failo vardu ir
+\code{Cache-Control: no-store}, ir kiekvienas įrašomas į veiksmų žurnalą. Failo varde įmonės pavadinimo
+lietuviškos raidės paverčiamos paprastomis lotyniškomis, kiekviena kita seka simbolių, kurie
+nėra raidės, skaitmenys, taškas, pabraukimo brūkšnys ar brūkšnelis, virsta vienu brūkšneliu, o
+vardas iki plėtinio sutrumpinamas iki 80 simbolių (ataskaitos atveju --- prieš pridedant priešdėlį
+\code{legalops-}). Klaida šiuose maršrutuose vis tiek yra JSON apvalkalas, todėl klientas
+patikrina būseną prieš traktuodamas turinį kaip failą.
+
+\begin{table}[H]
+\caption{Maršrutai, kurie atsako failu}\label{tab:api:exports}
+\begin{tabularx}{\textwidth}{@{}L{47mm}L{24mm}Y@{}}
+\toprule
+\hd{Maršrutas} & \hd{Formatai} & \hd{Failo vardas; sąlyga} \\
+\midrule
+\code{GET /api/reports/{id}/export} & \code{pdf}, \code{xlsx} & \code{legalops-<company>-<date>}; tik \code{done} ataskaita \\
+\code{GET /api/companies/{id}/actions/export} & \code{xlsx} & \code{actions-<company>-<date>}; visada \\
+\code{GET /api/programme/{id}/export} & \code{pdf}; \code{docx} (politika); \code{xlsx} (rizikos) & \code{<kind>-<company>-v<version>}; \code{draft} arba \code{approved} dokumentas \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Valdymo struktūros dokumento organizacinė schema (\route{GET}{/api/programme/{id}/chart}) yra
+vienintelis API teikiamas brėžinys: SVG paveikslas, siunčiamas įterptas, o ne kaip priedas. Failai
+į sistemą patenka tik dviem maršrutais, abu \code{multipart/form-data} su dalimi \code{file}:
+\route{POST}{/api/documents} --- įmonės dokumentui ir
+\route{POST}{/api/corpus/documents/{id}/upload} --- naujai teisės akto redakcijai. Visų kitų
+užklausų turinys yra JSON.

@@ -1,0 +1,802 @@
+% STATUS: reviewed
+\chapter{Testavimas}\label{ch:testing}
+
+Šiame skyriuje aprašyti produkto (\product{}) automatiniai testai: ką paleidžia kiekvienas rinkinys, kuo jis
+pakeičia dalis, kurių nepaleidžia, ir ką sėkmingas paleidimas apie sistemą pasako, o ko ne.
+Skyrius pradedamas viena takoskyra, kurią DI sistemos testų skaitytojas turi nuolat turėti
+omenyje, paskui paeiliui aptariami trys rinkiniai --- API, asistento paslaugos ir konsolės ---, o
+po jų pateikiamos bendros rinkinių konvencijos, 2026~m.
+lapkričio~13~d. skaičiai ir sąrašas to, ko nepadengia joks testas.
+
+
+\section{Ką įrodo sėkmingas paleidimas}\label{sec:testing:principle}
+
+Saugykloje yra trys regresinių testų rinkiniai, po vieną kiekvienai paslaugai, kurioje yra
+logikos: API (Django), asistento paslaugai ir konsolei. Kiekvienas paleidžiamas savo
+scenarijumi, kiekvienas veikia vienkartiniuose konteineriuose, todėl serveriui nereikia nieko,
+išskyrus Docker, ir nė vienas nekviečia kalbos modelio. Ten, kur produktas kviestų modelį ar
+vektorizavimo modelį, testas jo vietoje įstato \term{pakaitalą}: testo kodą, kuris atsako taip,
+kaip atsakytų tikroji dalis, tačiau turiniu, kurį testas žino iš anksto.
+
+Šis pasirinkimas lemia, ką rinkiniai gali pasakyti. Pakeitus modelį, viskas, ką testas stebi,
+yra paties produkto kodo rezultatas: instrukcijai surinkti duomenys, atsakymo nuskaitymas,
+nuorodos, vėl susietos su eilutėmis, dokumentuose surastos citatos, teisės aktų bazėje rastos
+nuostatos, apskaičiuoti balai, įrašytos eilutės. Todėl rinkiniai įrodo tris dalykus:
+\emph{sujungimus} (reikiami duomenys tinkamu pavidalu pasiekia reikiamą vietą), \emph{taisykles}
+(ką užtikrina kodas, kad ir ką pasakytų modelis) ir \emph{nesėkmės kelius} (dėl biudžeto atmesta užklausa,
+atšaukta užduotis, nepasiekiamas vertintojas, netaisyklingas atsakymas).
+
+\begin{notebox}{Takoskyra, kurią reikia turėti omenyje}
+Trys rinkiniai nieko nepasako apie tai, ar instrukcija gera. Modelio imitacija, kuri visada
+atsako \enquote{taikoma}, negali parodyti, kad tikrasis modelis gerai vertina taikytinumą; ji
+parodo, kad ataskaita teisingai elgiasi su sprendimu \enquote{taikoma}. Ar modelio atsakymai
+teisingi, matuojama atskirai, vertinimo rinkiniais: pažymėti atvejai pateikiami \emph{tikrajam}
+modeliui per tą patį kodą, kurį vykdo produktas, ir įvertinami pagal įrašytą bazinį rezultatą
+(\cref{ch:control}). Sėkmingas testų paleidimas ir geras vertinimo rezultatas yra du skirtingi
+teiginiai, ir sistemai reikia abiejų. Tų atvejų žymas 2026~m. lapkričio~12~d. sudarė DI
+programavimo asistentas, kuriuo sistema buvo kuriama (Claude, bendrovės Anthropic modelis), o ne
+atitikties ekspertas, ir nė vienos jų dar nepatvirtino ir nepakeitė žmogus; rezultatas matuoja
+sutapimą su tokia interpretacija.
+\end{notebox}
+
+\Cref{fig:testing:real} palygina paleidimų rūšis. Modelis kviečiamas tik vienoje jos eilutėje.
+Pati vertinimų vykdyklė irgi padengta regresiniu rinkiniu: API failas \file{tests/test_evals.py}
+patikrina, ar visų šešių rinkinių atvejų failai taisyklingi, ir penkių iš jų atvejus perleidžia
+per vertinimų vykdyklę su modelio imitacija, kuri, kaip sako failo antraštinis komentaras,
+\enquote{įrodo sujungimus, o ne instrukcijas}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\matrix[matrix of nodes, row sep=1.4mm, column sep=1.5mm,
+        nodes={text width=18.5mm, align=center, font=\sffamily\scriptsize}] {
+  & |[lanelabel]| Konsolė & |[lanelabel]| API (Django) & |[lanelabel]| Duomenų bazė
+  & |[lanelabel]| Asistento paslauga & |[lanelabel]| Modelis \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| API rinkinys
+  & |[text=muted]| —
+  & |[svc]| tikra, testuojama
+  & |[svc]| vienkartinė Postgres su pgvector
+  & |[ext]| modelio ir vektorizavimo imitacijos
+  & |[text=muted]| — \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Asistento paslaugos rinkinys
+  & |[text=muted]| —
+  & |[ext]| pagal scenarijų atsakantis pakaitalas
+  & |[text=muted]| —
+  & |[svc]| tikra, testuojama
+  & |[ext]| iš anksto surašyti modeliai, vietinė tinklų sąsajos imitacija \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Konsolės rinkinys
+  & |[svc]| tikra, atvaizduojama jsdom
+  & |[ext]| pakaitalas tame pačiame procese
+  & |[text=muted]| —
+  & |[ext]| pakaitalas tame pačiame procese
+  & |[text=muted]| — \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Gyvoji dūmų patikra (rankiniu būdu)
+  & |[text=muted]| —
+  & |[svc]| veikianti: viena tapatybės patikra
+  & |[text=muted]| —
+  & |[svc]| veikianti paslauga
+  & |[svc]| nuskaitomas modelių sąrašas, be iškvietimo \\
+  |[text width=23mm, align=right, text=ink, font=\sffamily\scriptsize\bfseries]| Vertinimo rinkiniai
+  & |[text=muted]| —
+  & |[svc]| paties produkto kodas
+  & |[svc]| diegimo teisės aktų bazė
+  & |[svc]| tikra
+  & |[ai]| tikrasis modelis \\
+};
+\end{tikzpicture}
+\caption{Kas tikra ir kas pakaitalas kiekvienoje paleidimo rūšyje. Baltas langelis --- tikroji
+dalis, brūkšniuotas langelis --- testo kodo valdomas pakaitalas, brūkšnys --- nesanti dalis.
+Geltonas langelis yra vienintelė vieta, kur kviečiamas modelis: vertinimo rinkiniai
+(\cref{ch:control}).}\label{fig:testing:real}
+\end{figure}
+
+
+\section{Trys paleidimo scenarijai}\label{sec:testing:runners}
+
+\Cref{tab:testing:runners} apibendrina scenarijus. Visi trys pirmiausia sukuria atvaizdą, kad
+paleidimas testuotų tas priklausomybes, kurios pateikiamos produkte, o ne tai, ką kūrėjas yra
+įsidiegęs savo kompiuteryje.
+
+\begin{table}[H]
+\caption{Trijų regresinių rinkinių paleidimo scenarijai}\label{tab:testing:runners}
+\begin{tabularx}{\textwidth}{@{}L{38mm}L{44mm}Y@{}}
+\toprule
+\hd{Scenarijus} & \hd{Sukuria} & \hd{Paleidžia} \\
+\midrule
+\file{django/runTests.sh} &
+\code{legalops-postgres} ir \code{legalops-django-test} su įdiegtu dabartiniu šaltinio
+kodu &
+Vienkartinę Postgres su pgvector (duomenys laikomi tmpfs) tinkle, sukurtame paleidimui; migracijų
+patikrą, paskui Django testų vykdyklę su keturiais lygiagrečiais procesais. \\
+\file{assistant/runTests.sh} &
+Gamybinį atvaizdą kaip \code{legalops-assistant-check} &
+Node įtaisytąją testų vykdyklę be tinklo, su tik skaitoma šaknine failų sistema, naudotojo id
+1000, 4~procesoriais ir 3~GB. Testai ir paslaugos README prijungiami tik skaitymui. \\
+\file{vite/runTests.sh} &
+Gamybinio atvaizdo kūrimo etapą kaip \code{legalops-vite-check}: užfiksuotas priklausomybes
+ir gamybinį surinkimą &
+vitest jsdom aplinkoje be tinklo, su keturiais lygiagrečiais procesais, 6~procesoriais ir
+6~GB. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Asistento paslaugos ir konsolės konteineriai paleidžiami su \code{--network} \code{none}:
+testas, kuris bando pasiekti ką nors už vietinės sąsajos, nepavyksta, užuot kreipęsis į išorę.
+API rinkiniui reikia duomenų bazės, todėl jo konteineris yra paleidimui sukurtame tinkle,
+kuriame yra tik duomenų bazės konteineris; jo parametrai asistento paslaugos adresą nukreipia į
+serverio vardą, kurio adreso neįmanoma nustatyti (\file{tests/settings.py} \code{ASSISTANT_URL} yra
+\code{http://gateway.invalid}), o testai, kurie atsisiunčia iš oficialių šaltinių, pakeičia HTTP
+sluoksnį. Nė vienam testų konteineriui neperduodamos sistemos paslaptys, todėl joks
+testas negali išleisti modelio biudžeto.
+
+\begin{humanbox}{Rinkinių niekas nepaleidžia už jus}
+Nė vienas paleidimo scenarijus nėra diegimo dalis: sistemos atnaujinimo scenarijus nepaleidžia
+nė vieno jų (\file{docs/markdown/en/operations.md} §12). Paleisti rinkinius prieš diegiant kodo pakeitimą
+yra žmogaus žingsnis, kaip ir viena patikra, kuriai reikia veikiančios sistemos, --- gyvoji dūmų
+patikra (\cref{sec:testing:assistant}).
+\end{humanbox}
+
+
+\section{API rinkinys}\label{sec:testing:api}
+
+API rinkinį sudaro 30 modulių aplanke \file{tests/} (šiame poskyryje keliai nurodomi nuo
+\file{django/compliance/}). Jis veikia su gamybiniais parametrais tikrame duomenų bazės
+variklyje, pakeitus modelį, vektorizavimo modelį ir du su jais susijusius dalykus
+(\cref{sec:testing:api:fake}).
+
+\subsection{Vienkartinė duomenų bazė ir migracijų patikra}\label{sec:testing:api:db}
+
+\file{django/runTests.sh} sukuria abu atvaizdus, sukuria Docker tinklą, jame paleidžia Postgres
+konteinerį, kurio duomenų aplankas yra tmpfs, ir laukia, kol duomenų bazė atsilieps. Tada tame
+pačiame tinkle paleidžia testų konteinerį, kuris eilės tvarka vykdo dvi komandas:
+
+\begin{codeblock}
+python3 manage.py makemigrations --check --dry-run --settings=compliance.tests.settings
+python3 manage.py test compliance.tests --settings=compliance.tests.settings --parallel 4 -v 1
+\end{codeblock}
+
+Pirmoji yra \term{migracijų patikra}. Projekto migracijos rašomos rankiniu būdu, todėl modelio
+pakeitimas, kurio neperkelia jokia migracija, kitaip išryškėtų tik migruojant gyvąją duomenų
+bazę. Su \code{--check} komanda baigiasi klaida, kai modeliai ir migracijos nesutampa, ir
+rinkinys net nepradedamas. Valymo gaudyklė pašalina duomenų bazės konteinerį ir tinklą, kad ir
+kaip baigtųsi paleidimas: po jo nelieka nieko, o nieko, kas veikia, jis neliečia.
+
+\file{tests/settings.py} importuoja visą gamybinį \file{settings.py} ir keičia tik tai, nuo ko
+vienkartinis paleidimas neturi priklausyti: duomenų bazė imama iš \code{TEST_DATABASE_URL}
+(be jo modulis atsisako įsikelti), įkelti failai dedami į laikinąjį aplanką, o žurnalai
+nutildomi, nes rinkinys tyčia sukelia daug 4xx ir 5xx atsakymų. Duomenų bazė yra tikra Postgres
+su pgvector, nes, kaip sako antraštinis komentaras, \enquote{teisės aktų bazės paieškai, SKIP
+LOCKED ir funkciniams unikaliems indeksams reikia tikrojo variklio}. Su \code{--parallel}
+kiekvienas lygiagretus procesas iš Django gauna atskirą testinę duomenų bazę;
+\file{tests/runner.py} dar kiekvienam suteikia naują įkeltų failų aplanką, nes bendrame aplanke
+vieno proceso testas matytų atsirandančius kito proceso failus, o našlaičių failų valymas galėtų
+ištrinti failą, kurį vis dar nurodo kito proceso duomenų bazė. \file{tests/utils.py} pateikia
+paskyras: \code{signed_in} grąžina klientą su ką tik sukurta sesija, todėl kiekviena užklausa
+praeina tikrąjį autentifikavimą.
+
+\subsection{Modelio imitacija}\label{sec:testing:api:fake}
+
+Kiekvienas API modelio iškvietimas eina per vieną funkciją, \code{gateway.generate} faile
+\file{assistant/gateway.py}, kuri užklausą siunčia asistento paslaugai (\cref{ch:models}).
+Konteksto tvarkyklė \code{fake_models()} faile \file{tests/fakes.py} testo metu pakeičia šią
+funkciją ir šalia esančią \code{gateway.embed}:
+
+\begin{codefile}{\file{tests/fakes.py} --- ką pakeičia \code{fake_models()}}
+@contextmanager
+def fake_models():
+    model = FakeModel()
+    with mock.patch.object(gateway, "generate", side_effect=model), \
+            mock.patch.object(gateway, "embed", side_effect=fake_embed), \
+            mock.patch("compliance.assistant.usage.price_table", return_value={}), \
+            mock.patch("compliance.analysis.pipeline.parallel_map",
+                       side_effect=lambda fn, items, workers=4: [fn(item) for item in items]):
+        yield model
+\end{codefile}
+
+Kartu pakeičiami dar du dalykai. Kainų lentelė tuščia, todėl jokia kaina nepriklauso nuo
+gyvųjų kainų. Ataskaitos konvejerio \code{parallel_map} savo elementus vykdo vieną po kito paties
+testo gijoje, nes Django testas savo eilutes laiko vienoje nepatvirtintoje transakcijoje, kurios
+darbinės gijos atskiras ryšys nematytų. Vykdomas tas pats kodas; dingsta tik lygiagretumas.
+
+\begin{codebox}{Kaip atsako modelio imitacija}
+\code{FakeModel} kviečiama su tais pačiais argumentais kaip tikroji funkcija. Ji žiūri į vieną
+jų, \emph{schemos vardą} --- vardą, kuriuo siunčiama instrukcijos JSON schema, pvz.,
+\code{findings} ar \code{applicability} --- ir kviečia savo to paties vardo metodą; į vardą, kuriam
+metodo neturi, atsakoma tuščiu objektu. Kiekvienas metodas perskaito trumpąsias nuorodas, kurias
+produktas įdėjo į instrukciją (\code{A1} --- teisės aktui, \code{P1} --- nuostatai, \code{O2} ---
+pareigai, \code{F3} --- išvadai, \code{C1} --- nuorodai, \code{D1} --- dokumentui), ir grąžina
+objektą, kuris atitinka griežtą schemą ir mini tas nuorodas. Jame nėra nieko atsitiktinio ir
+nieko protingo: atsakymas yra fiksuota instrukcijos teksto funkcija.
+\end{codebox}
+
+Kadangi atsakyme minimos tikros nuorodos, viskas po iškvietimo vyksta iš tikrųjų: konvejeris
+nuskaito objektą, susieja \code{O2} su pareigos eilute, ieško cituoto sakinio dokumente ir
+įrašo rezultatą. \Cref{fig:testing:fake} rodo šį kelią, o \cref{tab:testing:fake} --- ką
+imitacija atsako kiekvienam schemos vardui.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=8mm and 7mm]
+  \node[svc, text width=22mm] (step) {produkto užduoties etapas};
+  \node[svc, text width=28mm, right=of step] (rp) {\code{run_prompt}: išsaugota instrukcija, duomenys, schema};
+  \node[ext, text width=27mm, right=of rp] (gen) {\code{gateway.generate}, pakeista testui};
+  \node[chk, text width=29mm, right=of gen] (fake) {\code{FakeModel}: po metodą kiekvienam schemos vardui};
+  \node[chk, text width=62mm, below=of $(rp.south)!.5!(gen.south)$] (checks) {paties produkto kodas: nuskaito atsakymą, susieja nuorodas su eilutėmis, randa citatų vietas, suranda nuostatas};
+  \node[store] (rows) at (step |- checks) {eilutės};
+  \node[data, text width=34mm, above=of fake] (script) {testas nustato \code{verdicts}, \code{scopes}, \code{checks}, \code{tiers}; skaito \code{calls}, \code{shared}, \code{instructions}};
+  \draw[flow] (step) -- (rp);
+  \draw[flow] (rp) -- (gen);
+  \draw[flow] (gen) -- (fake);
+  \draw[flow] (fake.south) |- node[lbl, pos=.75] {atsakymas} (checks.east);
+  \draw[flow] (checks) -- (rows);
+  \draw[opt, <->] (script) -- (fake);
+\end{tikzpicture}
+\caption{Modelio iškvietimas API rinkinyje. Nuo gamybinės aplinkos skiriasi tik brūkšniuotas
+langelis ir už jo esanti imitacija: funkciją, kuri užklausą siųstų asistento paslaugai, pakeičia
+imitacija. Tai, kas daroma su atsakymu, yra paties produkto kodas.}\label{fig:testing:fake}
+\end{figure}
+
+\begin{xltabular}{\textwidth}{@{}L{33mm}L{39mm}Y@{}}
+\caption{Ką atsako modelio imitacija, pagal schemos vardą}\label{tab:testing:fake}\\
+\toprule
+\hd{Schemos vardas} & \hd{Instrukcija} & \hd{Imitacijos atsakymas} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Schemos vardas} & \hd{Instrukcija} & \hd{Imitacijos atsakymas} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{inventory} & \prompt{report.inventory} &
+Fiksuotas politikos inventorius su keturiomis \code{CITATIONS} nuorodomis: testinėje teisės aktų
+bazėje po vieną kiekvienai nuorodų patikros baigčiai --- teisinga, klaidinga, tokio straipsnio
+nėra, teisės akto nėra bazėje. \\
+\code{scope} & \prompt{corpus.scope} &
+Kiekvienam instrukcijoje esančiam teisės aktui --- įstaigų tipai, kuriuos testas įrašė į
+\code{scopes}; kitu atveju jokių. \\
+\code{applicability} & \prompt{report.applicability} &
+Kiekvienas teisės aktas \code{applies}, pasitikėjimas 0,9, poveikis \code{direct};
+\code{verdicts} pakeičia laukus teisės aktui, nurodytam trumpuoju pavadinimu. \\
+\code{obligations}, \code{requirements} & \prompt{corpus.extract_obligations},
+\prompt{corpus.extract_requirements} &
+Po vieną pareigą kiekvienai iš dviejų pirmųjų paketo nuostatų (po vieną reikalavimą
+kiekvienai iš trijų pirmųjų), nurodant tą nuostatą. \\
+\code{checks} & \prompt{corpus.verify_obligations} &
+\code{supported} kiekvienai pareigai; \code{checks} pakeičia sprendimą pareigai, nurodytai jos
+pavadinimu. \\
+\code{sanctions} & \prompt{corpus.sanctions} &
+Pakopos iš \code{tiers}; numatytuoju atveju viena pakopa įmonei pagal 59~straipsnį. \\
+\code{verdicts} & \prompt{corpus.check_citations} &
+\code{match}, kai deklaruotame dalyke yra kiekvienas ilgesnis tikrosios nuostatos antraštės
+žodis, kitu atveju \code{mismatch}. \\
+\code{outline} & \prompt{corpus.standard_outline} &
+Pažymi eilutes, prasidedančias kontrolės kodu, ir eilutes, išspausdintas didžiosiomis
+raidėmis; prideda tai, ką testas įdėjo į \code{extra_headings}, --- tai, ką modelis galėtų
+išsigalvoti. \\
+\code{findings} & \prompt{report.gap_analysis}, \prompt{report.internal_gap} &
+Po vieną išvadą kiekvienai pareigai, būsenos ratu eina per \code{STATUS_CYCLE}
+(\code{missing}, \code{partial}, \code{met}, \code{unknown}). Kiekviena cituoja pirmąją pirmojo
+pateikto dokumento eilutę --- ir vieną sakinį, kurio nėra jokiame dokumente. \\
+\code{action_plan} & \prompt{report.action_plan} &
+Vienas veiksmas per iškvietimą, uždarantis tris pirmąsias iškvietime išvardytas išvadas. \\
+\code{plan_merge} & \prompt{report.plan_merge} & Tuščias sąrašas: nieko nesujungiama. \\
+\code{summary} & \prompt{report.summary} & Fiksuotas pavadinimas ir fiksuota santrauka. \\
+\code{internal_requirements} & \prompt{company.internal_requirements} &
+Trys reikalavimai: vienas tvarkingas; vienas su citata, kurios dokumente nėra, ir su kategorija
+bei reikšmingumu už leidžiamų reikšmių ribų; vienas be pavadinimo. \\
+\code{policy}, \code{documents}, \code{structure}, \code{raci}, \code{risk_criteria},
+\code{risk_scenarios} & šešios \code{programme.*} instrukcijos &
+Fiksuotas kiekvienos programos dokumento dalies projektas. Atsakymas \code{documents} trūkstamą
+dokumentą grindžia neegzistuojančiu MiCA 999~straipsniu. \\
+\end{xltabular}
+
+Keli iš šių atsakymų tyčia klaidingi, ir testai tikrina, ar kodas juos sugauna. Sakiniui,
+kurio nėra jokiame dokumente, atitikties spragų analizė neturi rasti vietos: tikroji citata
+įrašoma su savo pozicija, išgalvotoji --- be jos (\file{tests/test_pipeline.py}). Reikalavimas
+be pavadinimo turi būti atmestas, o neleistinos reikšmės pakeistos (\file{tests/test_internal.py}).
+999~straipsnis turi būti pažymėtas kaip nerastas ir pažeisti blokuojančią taisyklę, kad
+parengtos politikos nebūtų galima patvirtinti (\file{tests/test_programme.py}). Antraštės, kurias
+modelis \enquote{išsigalvoja}, --- neegzistuojanti eilutė, antrašte pavadinta pastraipa --- neturi
+patekti į standarto medį (\file{tests/test_standard_outline.py}).
+
+Testas atsakymą \term{surašo iš anksto} vienu iš dviejų būdų. Įprastais atvejais jis nustato
+imitacijos, kurią grąžina konteksto tvarkyklė, atributą. Pavyzdžiui,
+\file{tests/test_assessment.py} priskiria \code{model.verdicts} žodyną, kuriame vienas teisės
+aktas taikomas tik nuo datos 2099~metais, kitas yra \code{uncertain} su klausimu, kurį reikia
+patikslinti, o trečias turi poveikį \code{institutional}, ir tada tikrina, ar ataskaita pirmąjį
+vertina kaip pasirengimą (\enquote{dar netaikomas}), antrąjį palieka tikslintinu, o trečiąjį
+išvardija kaip taikomą netiesiogiai. Visais kitais atvejais testas pakeičia vieną imitacijos
+egzemplioriaus metodą savo funkcija: tas pats modulis grąžina planą, kuris praleidžia atvirą
+išvadą ir mini neegzistuojančią išvadą, ir tikrina, ką iš jo padarė konvejeris.
+
+Imitacija taip pat įrašo, kas jai buvo išsiųsta: \code{model.calls} laiko kiekvieno iškvietimo
+schemos vardą ir visą tekstą, \code{model.shared} --- bloką, kurį etapas dalijasi tarp savo
+iškvietimų (\cref{ch:models}), o \code{model.instructions} --- kiekvieno iškvietimo instrukciją
+su užpildytais kintamaisiais. Testai juos skaito, kad patikrintų, kas modeliui \emph{buvo
+pateikta}: kad įmonės profilis yra taikytinumo iškvietimų bendras blokas, kad atitikties
+spragų analizės iškvietime yra kiekvienas dokumentas visas ir toks pat kiekviename iškvietime
+arba kad nė viena visos ataskaitos instrukcija nepasiekia modelio su neužpildytu kintamuoju.
+
+\subsection{Vektorizavimo modelio imitacija}\label{sec:testing:api:embed}
+
+\code{fake_embed} tekstą be modelio paverčia \code{DIMENSIONS}~=~1536 skaičių vektoriumi:
+kiekvienas trijų ar daugiau simbolių žodis maišos funkcija priskiriamas vienai pozicijai, o
+skaičiai normalizuojami iki vienetinio ilgio. Tekstai su bendrais žodžiais yra arti vienas
+kito, tekstai be bendrų žodžių --- toli. To pakanka, kad mišrioji paieška, įrodymų atranka ir
+dokumentų rikiavimas elgtųsi kaip gamybinėje aplinkoje, --- su ta riba, kad imitacija žino
+bendrus žodžius, o ne prasmę. Ar tikrasis vektorizavimo modelis priartina anglišką politiką prie
+lietuviškos pareigos, šis rinkinys parodyti negali.
+
+\subsection{Tikri leidiniai kaip testiniai duomenys}\label{sec:testing:api:fixtures}
+
+Oficialių šaltinių struktūros atpažinimo programos testuojamos su tikrais leidiniais. Aplanke
+\file{tests/fixtures/corpus/} saugomi septyni sutrumpinti failai, atsisiųsti 2026~m.
+rugsėjo~27~d.: MiCA iš CELLAR lietuvių kalba --- taip, kaip jį paskelbė Oficialusis leidinys, ir
+kaip konsoliduota redakcija --- kartu su užklausos, išvardijančios jo redakcijas, atsakymu;
+Mokėjimo įstaigų įstatymas iš e-TAR kartu su puslapiu, kuriame išvardytos jo redakcijos;
+Lietuvos banko nutarimas 03-126 iš e-TAR; ir Lietuvos banko svetainės licencijavimo puslapis.
+\file{tests/test_sources.py} kiekvieną jų atpažįsta toje pačioje izoliuotoje aplinkoje, kurią
+naudoja produktas, patikrina gautą struktūrą ir paleidžia vieną visą įkėlimą iš CELLAR, HTTP
+sluoksniui atsakant iš testinių duomenų: teisės aktas sukuriamas per API, užduotis atsisiunčia,
+atpažįsta struktūrą, suskaido į fragmentus, vektorizuoja ir aktyvuoja redakciją, o antrasis tos
+pačios konsoliduotos redakcijos atnaujinimas nieko neprideda. Standartai yra licencijuojami
+dokumentai, jų negalima laikyti saugykloje; jų testiniai duomenys parašyti testams, o išdėstymai
+nukopijuoti iš to, ką teksto išgavimo programa davė tikroms kopijoms.
+
+\begin{lessonbox}{Nuo nesėkmės su tikru dokumentu iki testo}
+Keli moduliai atsirado todėl, kad kodas suklydo su tikra medžiaga, ir jų antraštiniai
+komentarai tai sako. \file{tests/test_standard_layouts.py} išvardija pavidalus, kurie 2026~m.
+lapkritį sugadino punktų atpažinimą tikruose standartuose arba būtų jį sugadinę, --- kelių
+eilučių spaudą po kiekvienu puslapiu, į dvi eilutes perkeltą turinio įrašą, --- kiekvienam skirdamas po vieną
+atvejį. \file{tests/test_evidence.py} užfiksuoja, kad 2026~m. rugsėjo~28~d.
+pavyzdinėje įmonėje vien lietuviškas pareigos vektorius kiekvieną anglišką ištrauką nustūmė už
+ribos, todėl modelis pranešė apie spragas, kurias politikos akivaizdžiai uždaro; šalia jo buvo
+pridėtas angliškas vektorius, ir testas užtikrina, kad jis ten ir liktų.
+\end{lessonbox}
+
+\subsection{Visa ataskaita nuo galo iki galo}\label{sec:testing:api:report}
+
+\code{test_full_run_review_and_exports} faile \file{tests/test_pipeline.py} yra ilgiausias
+rinkinio kelias, ir jis į sistemą patenka taip, kaip naudotojas. Parengiamoji dalis per API
+maršrutus sukuria įmonę, leidimą ir įkeltą politiką. Testas per administratoriaus maršrutus ir
+tikrąją įkėlimo užduotį įkelia teisės aktą, užklausa \route{POST}{/api/reports} pradeda
+ataskaitą ir leidžia paties užduočių vykdytojo funkcijai (\code{run_once}) imti užduotis, kol
+eilė ištuštėja. Tada tikrina, ar ataskaita yra \code{done}, o jos išvados surikiuotos nuo
+blogiausios, ar pirmasis įrodymas yra įmonės leidimas, ar nuoroda veda į oficialų tekstą ir ar
+ataskaitos statistikoje nurodytos panaudotos instrukcijos ir teisės aktų bazės redakcijos.
+Kaip peržiūrėtojas jis pakeičia išvados būseną ir tikrina, ar galiojanti būsena pasikeičia, o
+modelio būsena išlieka, ar išsaugoti skaičiai atitinkamai pasikeičia ir ar Excel eksportas rodo
+pakeistą būseną. Jis eksportuoja PDF ir darbaknygę, patvirtina ataskaitą, tikrina, ar vėlesnis
+išvados pakeitimas atšaukia patvirtinimą, įkelia naujesnę teisės akto redakciją ir tikrina, ar
+ataskaita pažymima kaip pasenusi, o baigia kaip kitas naudotojas, kuris į ataskaitą ir jos
+eksportą gauna 404.
+
+\subsection{Testų moduliai}\label{sec:testing:api:modules}
+
+\Cref{tab:testing:modules} išvardija 30 modulių ir kiekvieno jų testų metodų skaičių pagal
+2026~m. lapkričio 16~d. kodą: iš viso 417. Dvylika iš jų pridėta tą dieną moduliuose
+\code{test_scope_review}, \code{test_citation_audit}, \code{test_programme},
+\code{test_corpus}, \code{test_sanctions} ir \code{test_sources} ir į lapkričio 13~d. paleidimo skaičių neįeina
+(\cref{tab:testing:numbers}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}rY@{}}
+\caption{API rinkinio moduliai}\label{tab:testing:modules}\\
+\toprule
+\hd{Modulis} & \hd{Testai} & \hd{Ką įrodo} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Modulis} & \hd{Testai} & \hd{Ką įrodo} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{test_pipeline} & 16 & Ataskaita nuo užklausos iki eksportų; jos apsaugos ir nesėkmės keliai; citatos vietos radimas. \\
+\code{test_assessment} & 11 & Ką vertina ataskaita: vertinami, dar netaikomi, tikslintini, netiesiogiai taikomi arba atrankoje atmesti teisės aktai; planas, uždarantis kiekvieną atvirą išvadą. \\
+\code{test_scope_review} & 6 & Ataskaita laukia, kol žmogus patvirtins jos apimtį, su įtrauktais ir neįtrauktais teisės aktais; jos antroji dalis įmonę perskaito iš naujo ir rodo ją tokią, kokia ji buvo vertinta. \\
+\code{test_citation_audit} & 27 & Teisės aktų nuorodų patikra: nuoroda vertinama vieną kartą, paketai, atsarginis žodžių sutapimo būdas, kai vertintojas nepasiekiamas, eksportai; nė viena ataskaitos instrukcija nepasiekia modelio su neužpildytu kintamuoju. \\
+\code{test_internal} & 4 & Įmonės vidaus reikalavimai, perskaityti iš jos politikų ir vertinami kaip atskira grupė. \\
+\code{test_sanctions} & 6 & Sankcijų nuostatos, kartą kiekvienai redakcijai perskaitytos į pakopas; pakopa, apimanti išvados nuostatą; techninio standarto pasekmė per straipsnį, pagal kurį jis priimtas, ir tam skirtas katalogo raktas. \\
+\code{test_evidence} & 5 & Pagal kurias ištraukas vertinama pareiga; visas vektorių perskaičiavimas. \\
+\code{test_register} & 7 & Veiksmų registras: ką patvirtinimas įtraukia, patvirtina ir uždaro ir ką jo atšaukimas atima. \\
+\code{test_programme} & 19 & Programos dokumentai: kiekvienos rūšies taisyklės, kodo apskaičiuojami balai, žmogaus redagavimas ir patvirtinimas, eksportai; teisinis pagrindas, nurodantis įterptą straipsnį. \\
+\code{test_corpus} & 21 & Struktūros atpažinimas, įkėlimas per tikrąją užduotį, iš naujo išleista redakcija su tuo pačiu tekstu, mišrioji paieška, įterpto straipsnio radimas pagal bet kurią rašybą, Teisės aktų registro akto saitas, nuorodų patikra, pareigų išskyrimas ir jų peržiūra. \\
+\code{test_sources} & 13 & Struktūros atpažinimas tikruose leidiniuose; atsisiuntimo programų taisyklės išeinančioms užklausoms; Lietuvos banko puslapio ir failo žymos. \\
+\code{test_standards} & 18 & Standarto punktų medis, paieška, reikalavimai, įmonės taikomas standartas, jo vieta ataskaitoje. \\
+\code{test_standard_layouts} & 16 & Punktų atpažinimas pagal tikrų kopijų išdėstymus; apsaugoti PDF. \\
+\code{test_standard_outline} & 30 & Ne pagal ISO numeruojami standartai: pirma taisyklės, tada modelis, tada puslapiai; tai, ką modelis išsigalvoja, nepriimama. \\
+\code{test_verify_obligations} & 5 & Registro vertintojas pažymi ir surikiuoja, bet nieko nesprendžia. \\
+\code{test_evals} & 7 & Vertinimo atvejų failai taisyklingi; vertinimų vykdyklė veikia ir atmeta rezultatą, žemesnį už bazinį. \\
+\code{test_prompts} & 15 & Instrukcijų saugykla ir jos atnaujinimo taisyklės, sąnaudos ir biudžetai, iš podėlio nuskaitytos įvesties kainos, pakartojimai, kantrybė pasiekus užklausų ribą. \\
+\code{test_jobs} & 25 & Eilė ir užduočių vykdytojas: užduoties perėmimas, pakartojimas, apleistų užduočių atkūrimas, atšaukimas, ką etapas įrašo apie savo modelio iškvietimus. \\
+\code{test_indexing} & 3 & Dokumento indeksavimas laukia, kai įkėlusio naudotojo dienos biudžetas išnaudotas. \\
+\code{test_chat} & 19 & Pokalbiai ir išsaugotos žinutės; atsakymą įrašo tik vidinės durys; pavadinimas; modelis kiekvienam pokalbiui. \\
+\code{test_mcp} & 8 & Išorinių įrankių serverių parametrai: patikra, antraščių reikšmės niekada negrąžinamos. \\
+\code{test_companies} & 8 & Įmonės, leidimai, dokumentai: patikra, įkėlimas ir teksto išgavimas, savininkų atskyrimas. \\
+\code{test_company_profile} & 10 & Trijų reikšmių profilio požymiai, rolės, teksto langai, ištraukų paieška tik savininkui, įkėlimo kvota. \\
+\code{test_auth_flow} & 17 & Prisijungimas, sesijos, rolės, užklausų ribos. \\
+\code{test_users_admin} & 8 & Paskyrų katalogas: sukūrimas, išjungimas, išvalymas. \\
+\code{test_audit} & 8 & Veiksmų žurnalas įrašomas ir niekada nesukelia klaidos; jo puslapiavimas nieko nepraleidžia ir nekartoja. \\
+\code{test_authz_matrix} & 32 & Kiekvienas maršrutas su kiekviena kvietėjų rūšimi; užklausų turinio trikdymas (\cref{sec:testing:api:matrix}). \\
+\code{test_security_review} & 43 & Regresinis testas kiekvienai 2026~m. rugsėjo saugumo peržiūros išvadai ir užfiksuotos patikros, kurias ji rado tvarkingas (\cref{ch:security}). \\
+\code{test_ops} & 9 & Operatoriaus komandos ir kasdienė priežiūra. \\
+\code{test_health} & 1 & Parengties patikra atsako be prisijungimo duomenų. \\
+\end{xltabular}
+
+\subsection{Prieigos teisių matrica ir užklausų turinio trikdymas}\label{sec:testing:api:matrix}
+
+Dauguma modulių testuoja vieną funkciją. \file{tests/test_authz_matrix.py} testuoja vieną
+savybę per jas visas: kas ką gali kviesti. Jo lentelė \code{ROUTES} kiekvieną \file{urls.py}
+maršrutą --- 83 šablonus --- pagal metodą priskiria vienai iš šešių politikų
+(\cref{tab:testing:policies}). Lentelė tikrinama su kodu abiem kryptimis: testas skaito pačius
+URL šablonus, todėl be eilutės pridėtas maršrutas neišlaiko \code{test_every_route_is_classified},
+o rodinys, kuris priima savo eilutėje nedeklaruotą metodą arba atmeta deklaruotą, irgi
+neišlaiko. Maršruto negalima pridėti nenurodžius, kas gali jį kviesti.
+
+\begin{table}[H]
+\caption{Šešios prieigos teisių matricos politikos}\label{tab:testing:policies}
+\begin{tabularx}{\textwidth}{@{}L{21mm}Y@{}}
+\toprule
+\hd{Politika} & \hd{Kas įleidžiamas ir ką gauna visi kiti} \\
+\midrule
+\code{public} & Būklės patikra ir prisijungimas: sesijos nereikia. \\
+\code{signed-in} & Bet kuri aktyvi paskyra; kelias nenurodo jokios eilutės. \\
+\code{admin} & Tik administratoriai; naudotojas gauna 403 \code{FORBIDDEN}. \\
+\code{owned} & Kelias nurodo vieno naudotojo eilutes: įleidžiamas jų savininkas ir
+administratoriai. Visi kiti gauna 404 --- niekada 403, nes tai patvirtintų, kad toks id
+egzistuoja. \\
+\code{personal} & Kaip \code{owned}, tik atmetami ir administratoriai: kito naudotojo
+pokalbis ir jo žinutės. \\
+\code{internal} & Maršrutai po \code{/internal/}: 403 \code{INTERNAL_ONLY} be paslapties,
+kurią dalijasi paslaugos. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Testiniai duomenys dviem naudotojams ir administratoriui suteikia po vieną kiekvienos rūšies
+įrašą, susietą taip, kaip juos susieja produktas, o testai pereina lentelę. Šešios kvietėjų be
+galiojančios sesijos rūšys (be prieigos rakto, su išgalvotu, su pasibaigusiu, su išjungtos
+paskyros, su netinkama autentifikavimo schema, su tuščiu prieigos raktu) gauna 401 kiekviename maršrute, kuris
+nėra nei viešas, nei vidinis. Naudotojas gauna 403 kiekviename administratoriaus maršrute.
+Naudotojas B gauna 404 kiekviename maršrute ir kiekvienu metodu, kurie nurodo naudotojo A eilutę, ---
+užklausa siunčiama su turiniu, kuris savininko eilutei \emph{būtų sėkmingas}
+(\code{TENANT_BODIES}), kad trūkstama savininko patikra pasirodytų kaip sėkmė, o ne pasislėptų
+už duomenų tikrinimo klaidos, --- o po to patikrinama, ar A eilutės liko nepaliestos. Kiekvienam
+administratoriaus galimam įrašymui yra atvejis sąraše \code{AUDIT_CASES}, ir jis turi palikti veiksmų
+žurnalo eilutę.
+
+Paskutinė klasė, \code{NoServerErrorTests}, yra \term{trikdomų užklausų testas} (angl.
+\en{fuzz}): ji siunčia sistemingai klaidingus užklausų turinius ir reikalauja, kad joks
+maršrutas neatsakytų serverio klaida. Jai nereikia kiekvieno maršruto laukų sąrašo. Kiekvienam
+maršrutui su JSON turiniu ji per \code{Recorder} --- žodyną, kuris pasižymi kiekvieną rodinio
+skaitomą raktą, --- išsiunčia vieną tinkamą užklausą ir taip sužino laukus; vėliau pridėtas laukas
+trikdomas, niekam jo neišvardijus. Tada kiekvienas laukas po vieną pakeičiamas kiekviena
+\code{CONFUSED} reikšme: penkiais pavidalais, kurie pasiekia aibę, maišos funkciją, ilgio
+skaičiavimą ar duomenų bazės adapterį, kai trūksta tipo patikros (įdėtinis objektas, sąrašų
+sąrašas, pavienis surogatinis simbolis kaip reikšmė ir kaip raktas, loginė reikšmė). Joks
+atsakymas negali turėti būsenos kodo 500 ar aukštesnio, kiekvienas atsakymas turi būti JSON, o sesija
+turi likti galiojanti. Antrasis testas kiekvienam įrašymo maršrutui siunčia dešimt
+\code{MALFORMED} turinių --- sąrašą, pliką teksto eilutę, \code{null}, nukirptą JSON, \code{NaN},
+perpildantį skaičių, pavienį surogatinį simbolį, NUL simbolį, keturiasdešimties lygių gylio
+įdėtinius sąrašus ir objektus. Dar du testai užfiksuoja, kaip klaida atrodo iš išorės: lūžis
+rodinyje atsako tik pliku apvalkalu (\enquote{Internal server error}, kodas
+\code{SERVER_ERROR}), o netaisyklingo turinio atmetime nėra nei steko pėdsako, nei failo kelio,
+nei bibliotekos pavadinimo.
+
+
+\section{Asistento paslaugos rinkinys}\label{sec:testing:assistant}
+
+Asistento paslauga atlieka kiekvieną sistemos modelio iškvietimą ir vykdo pokalbį
+(\cref{ch:models,ch:chat}). Jos rinkinį sudaro 37 failai Node įtaisytajai testų vykdyklei aplanke
+\file{tests/} (šiame poskyryje keliai nurodomi nuo \file{assistant/app/}). Jis valdo
+\emph{tikrąją} Express programą ir pakeičia abi jos kaimynes.
+
+\paragraph{API --- pagal scenarijų atsakantis pakaitalas.} \file{tests/stubDjango.mjs} paleidžia
+HTTP serverį atsitiktiniame vietiniame prievade. Testas jam pateikia maršrutus --- metodą, kelio
+šabloną ir atsakymą, --- o pakaitalas įrašo kiekvieną gautą užklausą su jos metodu, keliu,
+užklausos parametrais, turiniu, prieigos raktu, persiųstu kliento adresu ir vidine paslaptimi,
+kad testas galėtų tiksliai patikrinti, ko ir kieno vardu buvo paklaustas API. Maršrutas, kurio
+niekas nesurašė, atsako 404 paties API klaidos apvalkalu. Antrasis pagalbinis modulis,
+\file{tests/helpers/rawServer.mjs}, yra netinkamai besielgianti kaimynė: HTML puslapiai, tušti
+turiniai, nukirpti turiniai, tyla.
+
+\paragraph{Modeliai --- iš anksto surašyti.} \file{tests/mockModel.mjs} kuria iš anksto
+surašytus modelius pagal paties AI SDK testavimo priemonių imitacijos klasę: \code{textStream}
+(vienas tekstinis atsakymas), \code{toolCallStream} (vienas įrankio iškvietimas) ir
+\code{scripted}, kuris į kiekvieną iškvietimą atsako kitu sąrašo žingsniu, todėl testas skaitomas
+kaip scenarijus to, ką sako modelis. Žingsnis gali būti funkcija, gaunanti iškvietimo
+parinktis, --- taip testas gali patikrinti, kas buvo išsiųsta modeliui. Dar du pakaitalai
+padengia tai, ko scenarijus negali. \file{tests/helpers/liveModel.mjs} kuria srautus su tiekėjo
+laiko charakteristikomis, kurie nutrūksta nutraukus taip, kaip nutrūksta tiekėjų srautai; juo
+remiasi kiekvienas pokalbio ėjimas, kurį testas sustabdo atsakymo viduryje.
+\file{tests/helpers/fakeGateway.mjs} yra vietinė DI tinklų sąsaja OpenAI duomenų formatu, su
+kuria vykdomas \emph{tikrasis} tiekėjo kodas. Išoriniai įrankių serveriai (MCP) irgi yra vietiniai
+pakaitalai.
+
+Testų vykdyklė kiekvieną failą paleidžia atskirame procese, o paslaugos \file{config.js} aplinką
+perskaito vieną kartą per procesą; todėl kiekvienas failas pirmiausia importuoja
+\file{tests/env.mjs}, kuris nustato žinomą vidinę paslaptį, niekada nepasiekiamą DI tinklų
+sąsajos adresą ir pakankamai aukštą pokalbio ėjimų limitą, kad testai nebūtų stabdomi. Testai
+niekada nelaukia, kol praeis laikas: podėliai ir užklausų ribojimo langai testuojami pakeitus laikrodį.
+\Cref{tab:testing:assistant} sugrupuoja failus pagal tai, ką jie padengia.
+
+\begin{xltabular}{\textwidth}{@{}L{31mm}Y@{}}
+\caption{Ką padengia asistento paslaugos rinkinys}\label{tab:testing:assistant}\\
+\toprule
+\hd{Sritis} & \hd{Kas užfiksuota} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Sritis} & \hd{Kas užfiksuota} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Pokalbio ėjimas (11~failų) & Vienas ėjimas nuo užklausos iki išsaugoto atsakymo: kiekvienas
+atsisakymas prieš bet kokias modelio išlaidas, nustatyta tvarka; iš API atkurtas pokalbio
+įrašas; instrukcija su įmone, role ir kalba; srauto duomenų formatas, skaitomas taip, kaip jį
+skaito pačios konsolės transporto sluoksnis; srauto klaidos kaip kodai; būsena, sustabdymas ir
+pakeitimas naujesniu; ėjimų limitas; ėjimas, kuris išlieka naršyklei išėjus; modelio parašytas
+pavadinimas. \\
+Pokalbio įrankiai (8~failai) & 32 įrankiai pagal vardą (\cref{app:tools}); griežtos įvesties
+schemos; kiekvienas kiekvieno įrankio iškvietimas pasiekia API naudotojo vardu --- su naudotojo
+prieigos raktu ir adresu ir be parametro, kuris galėtų nurodyti kitą naudotoją; API nesėkmė
+modelį pasiekia kaip rezultatas su API kodu, niekada kaip lūžis; kiekvieno įrankio užklausos ir
+rezultatai; ataskaitų įrankių kainos užtvaros. \\
+Vidinės durys (5~failai) & Maršrutai, kuriuos kviečia užduočių vykdytojas, --- generavimas,
+vektorizavimas, modelių sąrašas: bendra paslaptis tikrinama prieš skaitant turinį, pastoviu
+laiku; atsakymai priverstinai atitinka schemą ir yra tikrinami; srautas, nutrūkęs jau prasidėjęs,
+yra nepavykęs iškvietimas, niekada ne trumpesnis atsakymas; tiekėjo nesėkmės pagal klases, tarp
+jų išnaudotas biudžetas; penki iškvietimo žetonų skaičiai. \\
+Išoriniai įrankių serveriai (3~failai) & Įrankiai siūlomi ir žymimi kaip išoriniai,
+leidžiamų adresų sąrašai, prisijungimo duomenys niekada nenuteka, sugedęs serveris praleidžiamas,
+administratoriaus ryšio patikra. \\
+Paslaugos klientai (3~failai) & Kreipiniai į API: kurios antraštės eina per kurias duris,
+neveikianti, tylinti ar strigusi kaimynė; tapatybės podėlis; instrukcijų podėlis. \\
+Procesas ir šaltinio kodas (6~failai) & Kiekvienas netinkamas metodas ir nežinomas kelias
+atsakomi JSON; turinio ribos; klaidos apvalkalas; kiekvieno aplinkos kintamojo numatytoji
+reikšmė ir intervalas; serveris iš tikrųjų paleidžiamas ir sustabdomas signalu (ėjimai baigiami
+ir išsaugomi, nauji ryšiai atmetami); šaltinio kodo lygmens taisyklės. \\
+\end{xltabular}
+
+Šaltinio kodo lygmens taisyklės (\file{tests/structural.test.mjs}) tikrinamos skaitant kodą, o
+ne jį vykdant: maršrutų lentelė yra būtent laukiamas sąrašas, o kiekvienas maršrutas paminėtas
+paslaugos README; jokiam žurnalo įrašo kvietimui neperduodami prisijungimo duomenys, užklausos
+antraštės ar aplinka; kiekvienas išeinantis \code{fetch} turi laiko limitą; aplinką skaito tik
+\file{config.js}, išskyrus tikslų iškvietimo metu pakartotinių skaitymų sąrašą. Paslaptys
+testuose yra savitos teksto eilutės, todėl nutekėjimas į žurnalą, atsakymo turinį ar modelio instrukciją
+neabejotinai matomas; keli testai tikrina, ar niekas nenutekėjo.
+
+\paragraph{Gyvoji dūmų patikra.} Dar vienas failas, \file{tests/live-smoke.test.mjs}, yra kitokios
+rūšies: jis po diegimo tikrina \emph{veikiančią} asistento paslaugą. Jis paleidžiamas tik
+pasirinkus --- praleidžiamas, jei nenustatytas \code{RUN_LIVE}, todėl paleidimo scenarijus jo
+niekada nevykdo, --- ir nieko nekainuoja, nes nepradeda jokio pokalbio ėjimo ir neprašo nei
+atsakymo generavimo, nei vektorizavimo. Jo septyni testai tikrina, ar \code{/health} atsako ir
+nurodo sukonfigūruotą modelį; ar nežinomas kelias ir netinkamas metodas gauna JSON apvalkalus;
+ar pokalbis užklausą be prieigos rakto atmeta nieko neklausęs, o išgalvotą prieigos raktą ---
+paklausęs API (tai įrodo, kad API atsako asistento paslaugai); ar vidinės durys atmeta trūkstamą
+ir netinkamą paslaptį; ar DI tinklų sąsajos modelių sąraše yra sukonfigūruoti modeliai; ir ar
+jokiame atsakyme nėra DI tinklų sąsajos rakto ar vidinės paslapties. Failo antraštinis
+komentaras nurodo modelių sąrašo patikros ribą: sąrašas laikomas podėlyje, o nesėkmės atveju
+išlaikomas paskutinis sėkmingai gautas, todėl sėkmė įrodo tik tai, kad DI tinklų sąsaja kada nors po
+proceso paleidimo atsakė.
+
+
+\section{Konsolės rinkinys}\label{sec:testing:console}
+
+Konsolės rinkinys didžiausias: 94 testų failai aplanke \file{vite/app/tests/} (šiame poskyryje
+keliai nurodomi nuo \file{vite/app/}), vykdomi vitest jsdom aplinkoje --- Node įgyvendintame
+naršyklės dokumento modelyje, be naršyklės ir be išdėstymo. Kiekvienas puslapis, bendras
+komponentas, kabliukas (angl. \en{hook}) ir pagalbinė funkcija iš \file{src/} ten atvaizduojami arba
+iškviečiami (ir viešosios svetainės puslapiai, aplanke \file{tests/site/}). Konsolės puslapis
+veikia gamybiniame rėme: \file{tests/support/render.jsx} pagalbinės funkcijos jį apgaubia
+konteksto teikėjais, maršrutizatoriumi ir užklausų klientu, kuriuos naudoja programa, o \code{renderApp}
+atvaizduoja tikrąją maršrutų lentelę per tikrąją sesijos patikrą.
+
+\subsection{Pakaitalas, kuris turi žinoti kiekvieną galinį tašką}\label{sec:testing:console:double}
+
+Šiame rinkinyje konsolė niekada nesikreipia į tikrą paslaugą. Biblioteka msw perima kiekvieną
+užklausą, kurią siunčia testuojamas kodas, --- per bendrą HTTP klientą su jo perėmėjais ir per
+pokalbio srautinį \code{fetch}, --- ir atsako iš apdorojimo funkcijų.
+\file{tests/support/backend/handlers.js} laiko numatytąją apdorojimo funkciją kiekvienam galiniam
+taškui, kurį kviečia konsolė, tiek API, tiek asistento paslaugos. Apdorojimo funkcijos sėkmingo
+scenarijaus atsakymus pateikia iš \file{tests/support/backend/fixtures.js}: po vieną turinį kiekvienam galiniam
+taškui tokiu pavidalu, kokį sukuria API serializatoriai; kartu jie sudaro vieną nuoseklų
+išgalvotą pasaulį, kad puslapis, jungiantis du atsakymus, matytų sutampančias eilutes. Tarp
+užklausų jos nelaiko jokios būsenos. Testas deklaruoja tik savo nuokrypį vienos eilutės
+\code{given} perrašymais iš \file{tests/support/backend/server.js} (\code{given.apiError},
+\code{given.hang}, \code{given.capture} užklausos turiniui patikrinti ir kitais), kurie galioja,
+kol tas testas baigiasi.
+
+Pakaitalas griežtas, ir \file{tests/support/setup.js} tai užtikrina po kiekvieno testo.
+Užklausa, į kurią neatsakė jokia apdorojimo funkcija, užrašoma, ir testas nepavyksta (pasiekti
+ko nors kito ji negali, nes konteineris neturi tinklo) --- puslapis, kviečiantis pakaitalui
+nežinomą galinį tašką, yra būtent tas konsolės ir jos pakaitalo išsiskyrimas, kuriam sugauti
+rinkinys ir egzistuoja. Defektas, apie kurį React praneša klaidų konsolėje, irgi lemia testo
+nesėkmę: trūkstamas sąrašo raktas, būsenos atnaujinimas, kol atvaizduojamas kitas komponentas,
+nežinoma DOM savybė, neleistinas įdėjimas, įvesties laukas, persijungiantis tarp valdomo ir
+nevaldomo. Taip pat ir atvaizdavimo lūžis, net jei jį sugavo klaidų riba. Testas, kuris vieną iš
+jų sukelia tyčia, turi tai pasakyti iš anksto.
+
+\subsection{Kiekvienas puslapis prieš atsakymų matricą}\label{sec:testing:console:matrix}
+
+Puslapio testas apima elgseną: ką mato naudotojas ir ką siunčia konsolė, ieškant pagal rolę,
+etiketę ir tekstą, kaip juos skaito naudotojas. Pagal nutylėjimą testai skaito anglų kalbą, o
+kiekvienas puslapis turi bent vieną testą lietuvių kalba; dvi \file{tests/support/auth.js}
+sesijos, administratoriaus ir paprasto naudotojo, apima abi roles.
+
+Be to, puslapis perleidžiamas per \term{kontrakto matricą} kiekvienam galiniam taškui, kurį jis
+skaito. \code{describeEndpointContract} faile \file{tests/support/backend/contract.js} gauna
+galinį tašką, jo testinius duomenis, kaip atvaizduoti puslapį ir kaip atpažinti jo rėmą, ir
+sukuria po vieną testą kiekvienam \code{VARIANTS} įrašui --- 26 būdus, kuriais atsakymas gali
+būti sugadintas, klaidingas, pavėluotas ar trūkstamas (\cref{tab:testing:variants}). Testai ją
+kviečia 58 kartus, iš jų 57 --- puslapių testuose. Puslapiui beprasmis variantas praleidžiamas,
+šalia nurodžius priežastį, --- pavyzdžiui, 404 dingusiam pokalbiui, kurį pokalbis laiko
+pranešimu, o ne nesėkme.
+
+\begin{xltabular}{\textwidth}{@{}L{23mm}YL{43mm}@{}}
+\caption{26 kontrakto matricos variantai}\label{tab:testing:variants}\\
+\toprule
+\hd{Grupė} & \hd{Atsakymas, kurį gauna puslapis} & \hd{Ką turi padaryti puslapis} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Grupė} & \hd{Atsakymas, kurį gauna puslapis} & \hd{Ką turi padaryti puslapis} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Nesėkmės (12) & API klaidos apvalkalas su būsena 500, 403, 404, 400 su paties API sakiniu, 429
+su laukimo laiku, išnaudotas modelio biudžetas (402) ir konsolei niekada nematytas kodas;
+tarpinio serverio HTML klaidos puslapis; 500 ir 503 be turinio; nutrūkęs ryšys; 401. &
+Parodyti įspėjimą su tai nesėkmei skirtu išverstu sakiniu (400 atveju --- paties API), niekada
+ne neapdorotą kodą, ir išlaikyti savo rėmą. 401 atveju: pašalinti prieigos raktą ir pereiti į
+prisijungimo puslapį. \\
+Klaidingi turiniai (12) & Tuščias turinys, \code{null}, teksto eilutė, skaičius, sąrašas ten, kur turi
+būti objektas, tuščias objektas, eilutės, kuriose trūksta visų laukų, visos reikšmės \code{null}, sukeisti
+skaičiai ir tekstai, nežinomi papildomi laukai, 300 eilučių ir priešiškas tekstas --- žymės ir
+keisti simboliai --- kiekvienoje teksto reikšmėje. &
+Nelūžti: jokios atvaizdavimo klaidos, rėmas vis dar stovi. Su papildomais laukais vis tiek
+rodyti duomenis. Žymės tekste atvaizduojamos kaip tekstas, niekada kaip elementai. \\
+Laikas (2) & Užklausa, kuri niekada neatsako; atsakymas po 200~ms. &
+Laikyti įkėlimo būseną be įspėjimo; tada parodyti duomenis. \\
+\end{xltabular}
+
+\subsection{Maršrutų perėjimas ir struktūriniai testai}\label{sec:testing:console:sweep}
+
+Atskirų puslapių testai negali įrodyti, kad nė vienas puslapis nepamirštas.
+\file{tests/contract/route-sweep.test.jsx} gali: jis skaito tikrąją maršrutų lentelę ir kiekvieną
+iš jos 19 įrėmintų maršrutų (visus, išskyrus prisijungimo puslapį ir bendrąjį likusių kelių
+maršrutą) atvaizduoja aštuoniomis sąlygomis: administratoriaus sesijoje, kurioje puslapis turi
+suteikti pavadinimą naršyklės skirtukui ir siųsti tik pakaitalui žinomas užklausas; kaip
+paprastas naudotojas, kai administratoriaus puslapis turi rodyti \enquote{Prieiga ribojama}
+nieko neatsisiuntęs; lietuvių kalba; kai kiekviena GET užklausa atsako 500; su 401, kuris turi
+nuvesti į prisijungimo puslapį, nurodant puslapį kaip vietą, į kurią grįžti; ir kai kiekviena GET
+užklausa atsako teksto eilute, tuščiu objektu arba niekada. Į lentelę pridėtas maršrutas
+perėjimu patikrinamas, niekam neparašius jam testo.
+
+\file{tests/core/structural.test.js} laiko taisykles apie visą kodą. Svarbiausia iš jų pakaitalą
+išlaiko sąžiningą \emph{statiškai}: ji iš šaltinio kodo išrenka kiekvieną kreipinį į API ---
+tiesioginius kreipinius, kelių konstantas, iš kurių jie sudaromi, eilėje laukiančių užduočių
+adresus, atsisiuntimus, pokalbio srautą --- ir kiekvienam reikalauja numatytosios apdorojimo
+funkcijos. Kitos taisyklės: HTTP biblioteką tiesiogiai kviečia tik prisijungimo puslapis;
+kiekvienas iššokantis pranešimas eina per vieną pagalbinę funkciją; kiekvieno maršruto
+pavadinimas yra pranešimas, esantis abiem kalbomis; tik administratoriui skirti maršrutai yra
+būtent tie puslapiai, kuriuos šoninė juosta slepia nuo paprasto naudotojo; kiekvienas puslapių
+aplankas turi puslapio testą.
+
+\subsection{Statinė analizė ir vertimų sargas}\label{sec:testing:console:lint}
+
+Konsolė kalba dviem kalbomis, o jos vykdymo aplinka neturi atsarginio varianto tarp jų: raktas,
+kurio trūksta aktyviojoje kalboje, naudotojui parodytų savo kelią su taškais.
+\file{scripts/check-messages.js} neleidžia tam patekti į laidą. Jis nepavyksta, kai raktas yra
+vienoje kalboje, bet nėra kitoje; kai to paties rakto kintamieji abiejose kalbose skiriasi; kai
+angliškas tekstas sutampa su lietuvišku, nebent už kintamųjų ribų jame nėra raidžių arba jis yra
+trumpame neverčiamų pavadinimų sąraše; ir kai vertimo kvietimui perduotas pažodinis raktas
+niekur neišsisprendžia. Jis vykdomas prieš eslint komandoje \code{npm run lint}, kaip
+struktūrinio failo testas ir prieš gamybinį surinkimą komandoje \code{npm run build} --- todėl
+konsolės atvaizdo negalima sukurti su sugadintu pranešimų medžiu, o testų paleidimo scenarijus,
+kuris pirmiausia kuria tą atvaizdą, irgi negali prasidėti.
+
+
+\section{Konvencijos}\label{sec:testing:conventions}
+
+\paragraph{Žinomas defektas užfiksuojamas, o ne slepiamas.} \term{Fiksuojantis testas} tikrina
+teisingą elgseną ir yra pažymėtas kaip turintis nepavykti. Asistento paslaugos rinkinyje tai
+testas su parinktimi \code{expectFailure} ir defekto identifikatoriumi pavadinime. Kol defektas
+egzistuoja, testas nepavyksta, kaip tikėtasi, ir paleidimas sėkmingas; ištaisius defektą testas
+pavyksta --- ir tai \emph{sužlugdo paleidimą}, o tai ženklas pašalinti žymą ir testą palikti kaip
+apsaugą. \enquote{Darytino darbo} testas šiam tikslui nepriimamas, nes vykdyklė pavykusį tokį
+testą skaičiuoja kaip sėkmę, todėl ištaisytas defektas liktų pažymėtas, ir to niekas nepastebėtų; rinkinio
+struktūrinės taisyklės atmeta tokius testus ir fiksuojančius testus be identifikatoriaus.
+Konsolės rinkinys turi tokią pat priemonę (\code{it.fails} arba \code{pins} kontrakto
+matricoje). 2026~m. lapkričio~16~d. kode nė viename rinkinyje nėra atviro fiksuojančio testo.
+
+\paragraph{Vienos dalies paleidimas.} Kiekvienas paleidimo scenarijus perduoda savo argumentus
+toliau, todėl vienas modulis, vienas failas ar vienas testas vykdomas per tuos pačius
+konteinerius:
+
+\begin{codeblock}
+django/runTests.sh compliance.tests.test_audit.AuditPagingTests
+assistant/runTests.sh tests/server.test.mjs
+vite/runTests.sh tests/pages/users.test.jsx
+\end{codeblock}
+
+Greitam darbui su vienu asistento paslaugos ar konsolės failu \file{docs/markdown/en/operations.md} §12
+pateikia greitesnį būdą, kuris darbinį medį prijungia prie paprasto Node konteinerio, vis dar be
+tinklo. Šiuo būdu asistento paslaugos README neprijungiamas, o jį skaitančios taisyklės
+praleidžiamos nurodant priežastį, todėl prieš diegimą lemiamas yra paleidimas visu paleidimo
+scenarijumi.
+
+\paragraph{Lygiagretūs paleidimai.} Trys paleidimo scenarijai gali veikti tuo pačiu metu, ir
+kiekvienas --- šalia antrojo savo paties paleidimo. API scenarijus savo duomenų bazės konteinerį
+ir tinklą pavadina pagal paleidimą (\code{legalops-test-db-} ir \code{legalops-test-net-},
+po kurių eina proceso id ir atsitiktinis skaičius), o kiekvienas lygiagretus procesas turi savo
+įkeltų failų aplanką; kiti du savo konteinerius pavadina pagal proceso id.
+
+
+\section{Skaičiai 2026 m. lapkričio 13 d.}\label{sec:testing:numbers}
+
+2026~m. lapkričio~13~d. kiekvienas rinkinys vieną kartą buvo paleistas visas, vienkartiniuose
+konteineriuose. \Cref{tab:testing:numbers} pateikia rezultatus šalia apytikslio testuojamo kodo
+ir testų dydžio eilutėmis.
+
+\begin{table}[H]
+\caption{Rinkiniai 2026 m. lapkričio 13 d.: kiekvienas paleistas visas vieną kartą}\label{tab:testing:numbers}
+\begin{tabularx}{\textwidth}{@{}Yrrrrrr@{}}
+\toprule
+\hd{Rinkinys} & \hd{Failai} & \hd{Testai} & \hd{Pavyko} & \hd{Praleista} & \hd{Kodo eilutės} & \hd{Testų eilutės} \\
+\midrule
+API (Django) & 30 & 405 & 405 & 0 & 33\,600 & 11\,400 \\
+Asistento paslauga & 37 & 509 & 502 & 7 & 10\,700 & 17\,800 \\
+Konsolė & 94 & 5\,180 & 5\,164 & 16 & 46\,800 & 64\,800 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Septyni praleisti asistento paslaugos testai yra gyvoji dūmų patikra; šešiolika konsolės ---
+kontrakto matricos variantai, kuriuos puslapis praleidžia nurodęs priežastį. Konsolės skaičius
+didelis, nes didelė jo dalis sugeneruota: kiekviena iš 58 kontrakto matricų sukuria iki 26
+testų, o maršrutų perėjimas --- po aštuonis kiekvienam iš 19 maršrutų. Tą pačią dieną eslint
+konsolėje praėjo be klaidų, o vertimų sargas pranešė apie 2\,824 raktus kiekvienoje iš dviejų
+kalbų ir 2\,093 patikrintus vertimo kvietimus. API skaičius 405 yra to paleidimo skaičius:
+dvylika testų, pridėtų 2026~m. lapkričio 16~d. (\cref{sec:testing:api:modules}), atsirado po jo.
+
+Šie skaičiai rodo, kiek kodo išbandoma, o ne kaip gerai sistema samprotauja. Skaitytojas,
+vertinantis sistemos DI dalį, turėtų juos skaityti kartu su vertinimo rezultatais
+(\cref{ch:control}).
+
+
+\section{Ko testai nepadengia}\label{sec:testing:gaps}
+
+Ribos išplaukia iš projektavimo sprendimų. Jos išvardytos, kad iš sėkmingo paleidimo nebūtų
+išskaitoma daugiau, nei jis sako.
+
+\begin{itemize}
+  \item \textbf{Bet kurios instrukcijos kokybė.} Joks regresinis testas nekviečia modelio.
+        Vertinimo rinkiniai matuoja šešias instrukcijas su tikruoju modeliu (\cref{ch:control});
+        už jų ribų esančių instrukcijų atveju modelio atsakymų niekas nematuoja.
+  \item \textbf{Tikroji DI tinklų sąsaja.} Asistento paslaugos tiekėjo kodas vykdomas su vietine
+        DI tinklų sąsajos imitacija. Gyvoji dūmų patikra perskaito DI tinklų sąsajos modelių
+        sąrašą ir neprašo nei atsakymo generavimo, nei vektorizavimo, nes jie išleidžia
+        biudžetą.
+  \item \textbf{Paslaugos kartu.} Kiekvienas rinkinys testuoja vieną paslaugą su jos kaimynių
+        pakaitalais. Abi sandūros pusės užfiksuotos atskirai --- API rinkinys fiksuoja
+        atsakymą, kurio tikisi iš asistento paslaugos, asistento paslaugos rinkinys --- savo
+        vidines duris, konsolės testiniai duomenys --- API turinius, --- ir niekas mechaniškai
+        netikrina, ar abi pusės vis dar sutaria. Sandūros išbandomos tik
+        gyvosios dūmų patikros tapatybės patikra ir --- nuo API per asistento paslaugą iki
+        modelio --- vertinimo rinkiniais.
+  \item \textbf{Įeinančio ir išeinančio srauto tarpiniai serveriai.} Joks rinkinys netestuoja
+        Caddy konfigūracijos, kuri nukreipia užklausas į sistemą, nei išeinančių užklausų
+        leidžiamų adresų sąrašo. Prieigos teisių matricos komentaras mini įėjimo paleidimo
+        scenarijų, kuris užfiksuoja, kad \code{/internal/} niekada neperduodamas toliau;
+        tokio scenarijaus saugykloje nėra.
+  \item \textbf{Išdėstymas ir išvaizda.} jsdom nieko nematuoja: konsolės rinkinys įrodo, kas
+        yra dokumente, bet ne kaip tai atrodo.
+  \item \textbf{Prasmė vektoriuose ir tikras lygiagretumas.} Vektorizavimo modelio imitacija
+        žino tik bendrus žodžius (\cref{sec:testing:api:embed}), o ataskaitos konvejerio
+        lygiagretūs iškvietimai su imitacija vykdomi po vieną (\cref{sec:testing:api:fake}).
+\end{itemize}

@@ -1,0 +1,1235 @@
+% STATUS: verified
+\chapter{The model layer}\label{ch:models}
+
+Every other chapter of this part follows one path on which a model is asked something. This
+chapter describes what all of those paths share: how a model is reached at all, what one call
+looks like on the wire, how the shape of its answer is enforced, what is recorded about it,
+what it costs and who pays. It goes from the outside in. \Cref{sec:models:door} states the
+principle of one door to the models; \cref{sec:models:providers} the providers and the ids of
+models; \cref{sec:models:generate,sec:models:embed} the two routes of the assistant service,
+one for generated text and one for embeddings; \cref{sec:models:client} the client the API
+calls them with, and its error handling. The second half is about money and limits: what is
+recorded for a call (\cref{sec:models:usage}), the budgets (\cref{sec:models:budgets}), the
+provider's prompt cache and what it did to the design (\cref{sec:models:cache}), rate limits
+(\cref{sec:models:ratelimits}), and the model each step runs on by default, with the measured
+reason for the choice (\cref{sec:models:defaults}).
+
+
+\section{One door to the models}\label{sec:models:door}
+
+The system runs as several services (\cref{ch:arch}). Two of them matter here. The
+\term{API} is the Django service that holds all data and, through its \term{worker}, runs the
+background \term{jobs} --- reading an act, indexing a document, making a report. The
+\term{assistant service} (\code{legalops-assistant}: Node~24, Express~5 and version~7 of
+the AI~SDK, as \file{package.json} in \file{assistant/app/} declares them) is the only process
+that ever opens a connection to a model. The API does not call a model: when a job step
+needs one, it sends an HTTP request to the assistant service, which makes the call and
+returns the answer. The chat assistant lives inside the assistant service and reaches the
+models through the same code (\cref{ch:chat}).
+
+The division is deliberate, and \file{docs/markdown/en/architecture.md} states it as two design rules:
+\enquote{Django never calls a model provider} and \enquote{the assistant owns no data}.
+Three things follow from it.
+
+\begin{itemize}
+  \item \textbf{Providers and keys are configured once.} Which providers exist, what their
+    addresses and keys are, and how each one is spoken to is written in one file of one
+    service (\file{llm/provider.js}). Adding a provider or changing the key touches nothing
+    else.
+  \item \textbf{The API never holds a key.} The settings of the API name the assistant
+    service (\code{ASSISTANT_URL}), the shared secret of the door between them and the id of
+    the embedding model --- no provider's address and no provider's key. The process that
+    parses uploaded files and serves the public routes cannot leak what it does not have.
+  \item \textbf{Every call is logged the same way.} Whatever asked --- a chat turn, a job
+    step, an embedding batch, a test run in the prompt editor --- the result is one row in the
+    table \code{llm_calls} with the same columns (\cref{sec:models:usage}). Costs, budgets
+    and the usage page read that one table.
+\end{itemize}
+
+The assistant service, in turn, stores nothing: prompts, conversations and usage rows live in
+the API's database, and the assistant service reads and writes them through the API.
+
+\paragraph{The internal door.} The routes the API calls are under \code{/internal/llm/}
+(\file{routes/internal.js}; \cref{tab:models:routes}). They exist only on the isolated
+network between the containers: the public reverse proxy forwards only paths under
+\code{/api/} to the services, so a path that begins with \code{/internal/} never reaches them
+from outside. Every request must also carry the header \code{X-Internal-Secret}.
+The gate (\file{middleware/internal.js}, \code{requireInternal}) compares it with the
+configured secret in constant time and runs before the body of the request is read; an empty
+configured secret refuses every call with 403~\code{INTERNAL_ONLY} instead of letting
+everything through. The API guards its own internal routes the same way
+(\file{assistant/api/internal_views.py}, \code{require_internal}). A request body on this door
+may be 16~MB; the public chat route, which takes one message, allows 512~kB.
+
+\begin{table}[H]
+\caption{The routes of the assistant service that the API calls}\label{tab:models:routes}
+\begin{tabularx}{\textwidth}{@{}L{58mm}Y@{}}
+\toprule
+\hd{Route} & \hd{What it does} \\
+\midrule
+\route{POST}{/internal/llm/generate} & One generation: plain text, or an object that follows a JSON schema (\cref{sec:models:generate}). \\
+\route{POST}{/internal/llm/embed} & The embeddings of a batch of texts (\cref{sec:models:embed}). \\
+\route{GET}{/internal/llm/models} & The configured providers and the gateway's models with their prices; the source of the price list (\cref{sec:models:usage}) and of the model picker in the prompt editor. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\Cref{fig:models:path} shows one call from end to end. The rest of the chapter walks along
+it.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  % the API
+  \node[svc, text width=27mm] (step) at (14,0) {a job step\\{\scriptsize or a route a person waits at}};
+  \node[svc, text width=27mm] (rp) at (14,-18) {\code{run_prompt}\\{\scriptsize finds the prompt version, fills its variables}};
+  \node[svc, text width=27mm] (gen) at (14,-37) {\code{gateway.generate}\\{\scriptsize retries; waits out a rate limit}};
+  \node[chk, text width=27mm] (rec) at (14,-56) {\code{record_call}\\{\scriptsize \code{cost_of}: each part of the input at its price}};
+  \node[store] (calls) at (14,-74) {\code{llm_calls}};
+  \node[store] (pv) at (49,-18) {prompt\\versions};
+  \node[store] (prices) at (49,-56) {\code{model_prices}};
+  % the assistant service
+  \node[chk, text width=28mm] (gate) at (89,-37) {\code{requireInternal}\\{\scriptsize the shared secret}};
+  \node[svc, text width=28mm] (route) at (89,-56) {the generate route\\{\scriptsize asks for a stream, reads it to its end}};
+  \node[chk, text width=28mm] (check) at (89,-74) {the object is checked against the schema};
+  % outside
+  \node[ext, text width=17mm] (gw) at (130,-56) {the gateway};
+  \node[ai, text width=17mm] (model) at (130,-74) {the model};
+
+  \draw[flow] (step) -- (rp);
+  \draw[flow] (rp) -- (gen);
+  \draw[flow] (pv) -- node[lbl, above] {active} (rp);
+  \draw[call] (gen) -- node[lbl, above] {POST \code{/internal/llm/generate}} (gate);
+  \draw[flow] (gate) -- (route);
+  \draw[call] (route) -- node[lbl, above] {Responses API} (gw);
+  \draw[call] (gw) -- (model);
+  \draw[flow] (route) -- (check);
+  \draw[flow] (gen) -- node[lbl, right, pos=.45] {answer and five token counts} (rec);
+  \draw[flow] (prices) -- node[lbl, above] {prices} (rec);
+  \draw[flow] (rec) -- node[lbl, right] {one row} (calls);
+
+  \begin{scope}[on background layer]
+    \node[lane, fit=(step)(calls)(pv)(prices)] (laneapi) {};
+    \node[lane, fit=(gate)(route)(check)] (laneas) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (laneapi.north west) {The API (Django): the worker or the web process};
+  \node[lanelabel, anchor=south west] at (laneas.north west) {The assistant service};
+\end{tikzpicture}
+\actorlegend
+\caption{The path of one model call. A job step calls \code{run_prompt}, which takes the
+instructions and the model from the active prompt version; the API's client posts the request
+through the internal door; the assistant service asks the gateway for a stream, reads it to
+its end, checks the object and answers whole. Usage is written in one place: after the answer
+has come back, \code{record_call} prices the call and inserts one row into
+\code{llm_calls}. A dashed arrow is a request together with its answer.}\label{fig:models:path}
+\end{figure}
+
+
+\section{Providers and model ids}\label{sec:models:providers}
+
+A \term{provider} is whoever runs models behind an API. A model is named everywhere in the
+system by one string of the form \texttt{provider:model}, for example
+\texttt{gateway:azure/gpt-6.1-sol}: a prefix that selects the provider, a colon, and the id the
+provider itself gives the model. This string is what a prompt version stores in its
+\code{model} field (\cref{ch:prompts}), what a usage row records and what the price list is
+keyed by.
+
+\subsection{The registry}
+
+\file{llm/provider.js} holds the registry: one entry per prefix, saying whether the provider
+has its credentials, how its client is built (once, on first use) and how it makes a language
+model and an embedding model (\cref{tab:models:providers}). \code{parseModelId} splits a
+string at its first colon, but only when what stands before the colon is a known prefix; any
+other string is read as an id of the gateway, so \model{azure/gpt-6.1-sol} and
+\texttt{gateway:azure/gpt-6.1-sol} are the same model. The answer of a call always names the
+model in the full form (\code{qualifiedModel}), because the API prices the call by it.
+
+\begin{table}[H]
+\caption{The provider registry of the assistant service}\label{tab:models:providers}
+\begin{tabularx}{\textwidth}{@{}L{21mm}L{37mm}YL{28mm}@{}}
+\toprule
+\hd{Prefix} & \hd{Configured when} & \hd{Language models} & \hd{Embeddings} \\
+\midrule
+\texttt{gateway:} & \code{AI_GATEWAY_KEY} is set (address: \code{AI_GATEWAY_URL}) & The gateway's Responses API, every call stateless & The gateway's \code{/embeddings} \\
+\texttt{openai:} & \code{OPENAI_API_KEY} is set & OpenAI, through its own client of the SDK & yes \\
+\texttt{anthropic:} & \code{ANTHROPIC_API_KEY} is set & Anthropic, through its own client of the SDK & none: asking for one is an error \\
+\texttt{ollama:} & \code{OLLAMA_BASE_URL} is set & An Ollama server, as OpenAI-compatible chat models & yes \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A provider without credentials fails loudly: \code{providerFor} throws, and the route answers
+400~\code{UNKNOWN_MODEL} before any call is made. A call is never handed to another provider
+in its place, and a string that names no model at all is refused in the same way rather than
+sent on to fail in the middle of a stream.
+
+Of the four, this installation uses one. \file{docs/markdown/en/architecture.md} records the decision ---
+the faculty's gateway is the only model provider --- and the network enforces it: the only
+model host on the allowlist of outgoing connections is the gateway's (\cref{ch:security}).
+The other three prefixes are optional: each is switched on by setting its key or its
+address, and the compose file of this installation passes none of them to the assistant
+service.
+
+\subsection{The gateway and its wire format}
+
+The \term{gateway} is the faculty's Bifrost gateway (default address
+\texttt{https://ai.knf.vu.lt/v1}). It speaks the wire formats of OpenAI and passes each call on
+to a model deployed behind it; the ids of its models begin with \code{azure/}. The key is sent
+in two headers at once, as \code{x-bf-vk} and as a bearer token in \code{Authorization}.
+
+The registry builds two clients on that one key, because the two kinds of call use two
+different formats:
+
+\begin{itemize}
+  \item \textbf{Language models are called on the Responses API} (\code{/v1/responses}), not
+    on the older chat-completions format. The reason is in the header of
+    \file{llm/provider.js}: the gateway's newer models (GPT-6 Astra, GPT-6.1 Sol) accept
+    function tools only there, and the chat assistant always sends its tools.
+  \item \textbf{Embeddings are called on} \code{/v1/embeddings}, through the SDK's
+    OpenAI-compatible client.
+\end{itemize}
+
+The list of models and prices is read from \code{/v1/models}.
+
+\paragraph{Stateless calls.} The Responses API can keep a conversation on the provider's
+side and let the next request refer to it. The system never uses that.
+\code{gatewayLanguageModel} wraps every gateway model so that each request carries the option
+\code{store} set to \code{false}: neither the gateway nor the provider behind it keeps what
+was asked and answered, and a request always contains everything the model is to read. For a
+structured generation that is simply one request and one answer. For the chat it means that
+each step of a turn sends the earlier steps back in full (\cref{ch:chat}).
+
+\paragraph{Reasoning models.} Some models \enquote{reason} before they answer: they produce
+internal tokens that are billed as output and are not part of the answer. The SDK recognises
+such models by OpenAI's own ids, but the gateway's ids carry a deployment prefix
+(\code{azure/}) that the SDK does not expect. \code{isReasoningModel} therefore applies the
+same rule to the name after the last slash.
+
+\begin{codebox}{How a reasoning model is recognised, and what changes}
+A gateway model counts as a reasoning model when its name is \code{gpt-N} or
+\code{gpt-N.M} with $N \ge 5$ and any suffix --- except a whole-number version whose suffix
+begins with \code{chat} --- or when it belongs to the \code{o} series (the letter and a
+number). For such a model the wrapper does three things:
+\begin{itemize}
+  \item it marks the model as reasoning (\code{forceReasoning}), so that the SDK sends the
+    instructions as the \enquote{developer} message and asks for the model's reasoning in
+    encrypted form --- which a later step of a stateless chat turn has to hand back;
+  \item it removes \code{temperature} and \code{topP} from the request, because a reasoning
+    model takes neither;
+  \item it leaves \code{store} off, as for every model.
+\end{itemize}
+Every model the shipped prompts name (\cref{sec:models:defaults}) is a reasoning model by
+this rule. The temperature stored on a prompt version is therefore not sent with the shipped
+defaults; it takes effect only when an administrator moves a prompt to a model that is not a
+reasoning model.
+\end{codebox}
+
+\paragraph{The fallback models.} Two settings of the assistant service name the model to use
+when a request names none: \code{AI_CHAT_MODEL} (default \texttt{gateway:azure/gpt-5.5}) for
+generation and \code{AI_EMBED_MODEL} (default \texttt{gateway:azure/text-embedding-3-large})
+for embeddings. Every shipped prompt version names its own model, so the first is a safety
+net. The second is the model of every search query's vector; the stored vectors are made with
+the API's own setting of the same name (\code{AI_EMBED_MODEL} in \file{settings.py}), which
+the callers send with every batch, so the two settings must name the same model
+(\cref{sec:models:embed}).
+
+
+\section{The generate route}\label{sec:models:generate}
+
+\route{POST}{/internal/llm/generate} makes one generation. It is the route behind every
+structured answer in the system: the obligations of a batch of provisions, the verdict on an
+act, the findings for fifteen obligations, an action plan. This section goes through the
+request, the way the model is read, the limits in time, the schema and the failures.
+
+\subsection{What the API sends}
+
+The request is a JSON object. \code{readGenerateBody} validates it field by field before any
+model is involved (\cref{tab:models:request}); a field that fails is a 400 with a code of its
+own, and nothing reaches the model.
+
+\begin{table}[H]
+\caption{The fields of a generate request}\label{tab:models:request}
+\begin{tabularx}{\textwidth}{@{}L{27mm}L{45mm}Y@{}}
+\toprule
+\hd{Field} & \hd{Rule} & \hd{What it carries} \\
+\midrule
+\code{prompt} & required, a non-empty string (\code{INVALID_PROMPT}) & The data of this one call: the provisions to read, the obligations to judge. It is sent as the single user message. \\
+\code{system} & optional string (\code{INVALID_SYSTEM}) & The instructions: the text of the prompt version with its variables filled in. \\
+\code{shared} & optional string (\code{INVALID_SHARED}) & Data that every call of one step carries unchanged, for example the company's profile and documents in a report. Placed behind the instructions (\cref{sec:models:cache}). \\
+\code{model} & optional string, trimmed & The model id of the prompt version; without one, \code{AI_CHAT_MODEL}. \\
+\code{schema} & optional JSON object, not a list (\code{INVALID_SCHEMA}) & The JSON schema the answer must follow. Without it the answer is plain text. \\
+\code{schemaName} & optional string, cut to 64 characters; default \code{result} & The name the schema is sent under. \\
+\code{temperature} & optional number from 0 to 2 (\code{INVALID_TEMPERATURE}) & The sampling temperature of the prompt version; dropped for a reasoning model. \\
+\code{maxOutputTokens} & optional whole number from 1 to 128\,000 (\code{INVALID_MAX_TOKENS}) & The output cap of the prompt version, when it sets one. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{aibox}{What the model receives in a structured generation}
+The route joins \code{system} and \code{shared} with a blank line and sends the result as
+the \emph{instructions} of the request; \code{prompt} follows as one user message; the
+schema, when there is one, goes as a strict response format under its name. That is all. There
+is no conversation history, there are no tools, and nothing of an earlier call is referred to:
+whatever the model is to know about the law, the company or the task is in these three texts.
+What they contain on each path is the subject of the chapters that follow.
+\end{aibox}
+
+\subsection{Read as a stream, answered whole}
+
+The route does not ask the provider for a finished answer. It asks for a stream
+(\code{streamText} of the SDK), reads the stream to its end inside the assistant service, and
+only then answers the API with the whole result in one JSON object:
+
+\begin{codeblock}
+{ "model": "gateway:azure/gpt-6.1-sol",
+  "text": null,  "object": { ... },      one of the two is null
+  "finishReason": "stop",
+  "usage": { "inputTokens", "cachedInputTokens", "cacheWriteTokens",
+             "outputTokens", "reasoningTokens" },
+  "durationMs": 187000 }
+\end{codeblock}
+
+The API therefore sees an ordinary request that takes long. The stream exists for one reason,
+stated in the header of \file{routes/internal.js}: a slow model writes a long answer for many
+minutes, and Node drops a response whose first byte takes longer than five minutes to arrive.
+A stream begins at once, so the wait for the first byte is short however long the model
+writes.
+
+\begin{lessonbox}{Measured, 10 November 2026}
+On that day the GPT-6 models of the gateway wrote about 70 tokens a second. A dense batch of
+provisions sent for the extraction of obligations took four to six minutes; one verified call
+ran 338~seconds and wrote 24\,000 output tokens. A call of that length cannot be made as a
+single response under a five-minute limit on the first byte, which is why the generation is
+read as a stream and why the ceilings below are fifteen minutes.
+\end{lessonbox}
+
+A stream can also fail after it has begun --- the provider reports an error as an event inside
+it. The SDK would end such a stream quietly, which would look like a shorter answer. The route
+keeps the first error it sees (\code{onError}) and throws it once the stream is over:
+\enquote{a stream that reports an error after it began is a failed call, never a shorter
+answer}, in the words of the route's header. A test in \file{tests/internal.test.mjs} pins it
+(\enquote{no partial answer reaches the worker}).
+
+\subsection{Timeouts on both sides}
+
+The two sides of the door have matching ceilings (\cref{tab:models:timeouts}). The assistant
+service gives one generation fifteen minutes; the API waits half a minute longer, so that the
+assistant's refusal arrives before the API gives up and the reason is not lost.
+
+\begin{table}[H]
+\caption{The time limits of a model call}\label{tab:models:timeouts}
+\begin{tabularx}{\textwidth}{@{}L{42mm}L{50mm}Y@{}}
+\toprule
+\hd{Constant} & \hd{Where} & \hd{Value and meaning} \\
+\midrule
+\code{GENERATE_TIMEOUT_MS} & assistant service, \file{config.js} & 900\,000~ms: one generation. Past it the provider call is aborted and the route answers a 502 that names the timeout. \\
+\code{GENERATE_TIMEOUT_S} & API, \file{assistant/gateway.py} & 930~s: how long \code{generate} waits for the assistant service. \\
+\code{EMBED_TIMEOUT_MS} & assistant service, \file{config.js} & 60\,000~ms: one embedding batch, retries included. \\
+\code{timeout} of \code{embed} & API, \file{assistant/gateway.py} & 120~s: twice the assistant's ceiling, so that a hung call becomes a 502 the client retries instead of running on after the API gave up. \\
+\code{maxRetries} & assistant service, both routes & 2: the SDK repeats a failed provider call twice (a spent budget is asked once). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The schema, and an answer that does not fit it}
+
+A step that needs structured output sends a JSON schema. The schemas are owned by the code
+that parses the answers --- each pipeline module defines its own --- and
+\file{prompts/schemas.py} lists them by prompt (\code{SCHEMAS}: 21 prompts, each with the
+module, the constant and the name the schema is sent under), so that a test run in the prompt
+editor uses the very schema the pipeline does. The smallest of them shows the shape:
+
+\begin{codefile}{\file{corpus/citations.py} --- \code{JUDGE_SCHEMA}, sent under the name \code{verdicts}}
+JUDGE_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["verdicts"],
+    "properties": {"verdicts": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["ref", "verdict", "note"],
+        "properties": {"ref": FILLED,
+                       "verdict": {"type": "string", "enum": ["match", "mismatch", "unclear"]},
+                       "note": FILLED}}}},
+}
+\end{codefile}
+
+Every schema is written for the gateway's \term{strict mode}: every property is listed as
+required, \code{additionalProperties} is \code{false}, and a value that may be absent is
+declared as a nullable type instead of an optional key. The schema is sent as a strict response
+format, which asks the provider to hold the model's output to it: no missing key, no key of
+the model's own, no status outside the listed ones.
+
+\paragraph{Required is not filled.}\label{par:models:filled} Strict mode makes every key
+required, and that promises the key only: \code{{"type": "string"}} is satisfied by an empty
+string and an array by an empty list. What an answer cannot do without is therefore marked in
+the schema itself (the header of \file{prompts/schemas.py} states the rule):
+
+\begin{itemize}
+  \item a text that must carry content is \code{FILLED}, a string with \code{minLength}~1 ---
+    the \code{ref} and the \code{note} above;
+  \item a list with a known size says so with \code{minItems} and \code{maxItems}: the eight
+    parts of a policy, the five levels of a criteria table, the one provision at least behind
+    an obligation.
+\end{itemize}
+
+A field the prompt allows to be empty stays a plain string: a condition, a deadline, a
+paragraph number. The line between the two is the prompt's own wording, because a mark the
+prompt does not back is worse than none --- the decoder forces \emph{something} into a
+filled field, and a model with nothing to say fills it with a dash. The gateway enforces
+these keywords while the model writes and the assistant service's validator checks them
+again; both were tried on all three models before the schemas were marked.
+
+\begin{lessonbox}{A mark that changed the answers, 17 November 2026}
+Some fields are needed in some answers only: a recommendation when a finding is open, the
+questions when an act is left uncertain, a note when an obligation is doubted. A schema can
+say that too, as two shapes of the item under \code{anyOf} --- a closed finding whose
+recommendation may be empty, an open one whose recommendation is filled --- and the gateway
+accepts it. It was built, and the measurement decided against it. With the two shapes the gap
+analysis agreed with 64 and 65 of the evaluation's 71 labelled cases; with the schema as it
+was, on the same day, with 67 and 68; with one shape and the plain marks of this section,
+with 69 and 69 (\cref{ch:control}). Two cases moved in both runs of the two-shape form and
+in none of the other four, each towards the open status: a finding the labels hold to be met
+was answered as partial, another as unknown; what else differed changed from run to run. Nothing in the two shapes forbids the right answer; the form of
+the schema is part of what the model reads, and it shifted a judgement. The three schemas
+that had the form have one shape again, and what they could have enforced is asked by the
+prompt alone. A mark is added to a schema only where the evaluation shows that the answers
+are no worse with it.
+\end{lessonbox}
+
+\begin{codebox}{The answer is checked twice}
+\code{schemaOutput} in \file{routes/internal.js} passes the schema to the provider as a strict
+response format \emph{and} builds a validator from the same schema, which the parsed answer
+must pass inside the assistant service before it is returned. The header gives the reason: a
+provider without strict mode may drift, and the API reads the object by key, so a renamed key
+would silently mean \enquote{no findings}. An answer that cannot be parsed as JSON or does not
+match the schema fails the call; it never reaches the API as a result. A schema the validator
+cannot read is sent unchecked, with a warning in the log, and then only the provider's strict
+mode stands behind it.
+\end{codebox}
+
+A failed check carries no HTTP status of a provider, so the route answers it as
+502~\code{GENERATION_FAILED}, which the API's client treats as transient and asks once more
+(\cref{sec:models:client}). A schema the gateway itself refuses --- one that is not
+strict-shaped --- comes back as the gateway's own 4xx and is not retried: asking again cannot
+help.
+
+\subsection{The path card}
+
+Every structured generation in the system takes this path. The cards of the later chapters say
+what is particular to each prompt; this one says what is common to all.
+
+\begin{pathcard}{A structured generation}{run_prompt}
+  \pcrow{Trigger}{A job step of the worker, or a route a person waits at, calls
+    \code{run_prompt} in the API (\file{assistant/llm.py}) with a prompt's slug and the data. The test run of the
+    prompt editor calls \code{gateway.generate} directly with the draft's text.}
+  \pcrow{Input}{Three texts: the instructions (the active prompt version, its
+    \code{{PLACEHOLDER}} variables filled); optionally a shared block that all calls of the
+    step carry; the data of this call. Plus the JSON schema and its name, the model id, the
+    temperature and the output cap of the prompt version. The body may be 16~MB; batch sizes
+    and size caps belong to each path.}
+  \pcrow{Prompt and model}{The prompt named by the slug; the model of its active version,
+    unless the caller passes another. A call made for a job step is \emph{patient}: it waits
+    out a rate limit. A reasoning model is sent no temperature.}
+  \pcrow{Output}{With a schema, \code{object}: the parsed JSON. Without one, \code{text}.
+    Always \code{model}, \code{finishReason}, \code{durationMs} and the five token counts of
+    \code{usage}.}
+  \pcrow{Checked by code}{The request, field by field. The schema is enforced by the
+    provider's strict mode and checked again in the assistant service. An error inside the
+    stream fails the call. Everything that concerns the \emph{content} of the answer is checked
+    by the calling path.}
+  \pcrow{Stored}{One row in \code{llm_calls}: kind \code{job_step} (\code{prompt_test} for a
+    test run), the purpose, the model,
+    the five token counts, the cost, the duration, the job step, the user charged and the
+    prompt version. The answer itself is stored by the caller. The system keeps no cache of
+    answers at this layer; the provider caches the instructions (\cref{sec:models:cache}).}
+  \pcrow{On failure}{The SDK repeats a failed provider call twice, a spent budget never. The
+    API's client repeats a transient failure once; a job step waits out a rate limit for up to
+    fifteen minutes; a lost connection is retried five times. Then \code{GatewayError} reaches
+    the caller (\cref{tab:models:errors}). A failed call leaves no usage row.}
+  \pcrow{Cost}{Priced part by part from the gateway's price list and charged to the user the
+    caller names, or to nobody (\cref{tab:models:charged}). Measured on 10--11 November 2026 on
+    the sample company: a gap-analysis call of 59\,000 input tokens cost \$0.18 when it filled
+    the provider's cache and about \$0.045 when it read from it.}
+  \pcrow{Human control}{None at this layer. An administrator chooses the text and the model of
+    every prompt (\cref{ch:prompts}) and the daily budget of every account; what a person
+    reviews in the answer is said in the card of each path.}
+  \pcrow{Measured by}{Tests, not evaluations: \file{tests/internal.test.mjs},
+    \file{tests/provider.test.mjs} and \file{tests/usage.test.mjs} in the assistant service
+    (the wire, the schema check, failures, usage); \file{tests/test_prompts.py} in the API
+    (pricing, retries, patience, the price list). Nothing at this layer measures a prompt.}
+\end{pathcard}
+
+
+\section{The embed route}\label{sec:models:embed}
+
+An \term{embedding} is a vector of numbers computed from a text, such that texts with similar
+meaning get vectors that lie close together. The system stores one for every chunk of the
+legal corpus, every obligation and every chunk of a company's documents, and computes one for
+every search query; \cref{ch:corpus,ch:company} say what is done with them. All of them come
+from \route{POST}{/internal/llm/embed}.
+
+\paragraph{The request.} A list \code{texts} of 1 to 256 strings (\code{MAX_EMBED_TEXTS};
+otherwise 400~\code{INVALID_TEXTS} or \code{TOO_MANY_TEXTS}) and optionally a \code{model};
+without one the route uses \code{AI_EMBED_MODEL}. An empty string would make some providers
+fail the whole batch, so it is replaced by a single space. The SDK's \code{embedMany} sends
+the batch with at most four parallel calls and two retries, under the ceiling
+\code{EMBED_TIMEOUT_MS}.
+
+\paragraph{The model and its width.} The embedding model is
+\model{text-embedding-3-large} of the gateway. Its vectors are asked for at
+\textbf{1536 dimensions}, not at the model's full width, because that is the width of every
+vector column in the database (\code{EMBED_DIMENSIONS} in \file{corpus/models.py} and
+\file{companies/models.py}, repeated in \file{routes/internal.js}). The route passes the
+\code{dimensions} option only to models of the \code{text-embedding-3} family, the ones that
+accept it. As a second line, \code{fitDimensions} cuts any longer vector to its first 1536
+values and renormalises it --- the same thing the option does --- so that a provider that
+ignored the option still fits. A shorter vector is passed on and the database column refuses
+it.
+
+Because every stored vector must come from the same model to be comparable, changing
+\code{AI_EMBED_MODEL} means embedding everything again (the job \code{corpus.reembed};
+\cref{ch:corpus}).
+
+\paragraph{The answer.} \code{embeddings} (one vector per text, in the order sent),
+\code{model}, \code{dimensions}, \code{usage.tokens} and \code{durationMs}.
+
+\paragraph{Batching.} The route's limit is 256 texts; the callers stay well below it
+(\cref{tab:models:embedcallers}). Each batch is one call and one usage row.
+
+\begin{table}[H]
+\caption{Who asks for embeddings, and in what batches}\label{tab:models:embedcallers}
+\begin{tabularx}{\textwidth}{@{}L{43mm}YL{40mm}@{}}
+\toprule
+\hd{Caller} & \hd{Text embedded} & \hd{Batch; purpose recorded} \\
+\midrule
+\file{corpus/ingest.py}, \code{embed_chunks} & A chunk of an act, opened by the act's short title, the provision's path and its heading & 64 (\code{EMBED_BATCH}); \code{corpus.embed} \\
+\file{corpus/obligations.py}, \code{embed_obligations} & An obligation's title and text, and its English title and text where it has them & 32 obligations, at most 64 texts; \code{obligations.embed} \\
+\file{corpus/obligations.py}, \code{embed_english} & The English title and text of obligations that lack that vector & 64; \code{obligations.embed_en} \\
+\file{companies/indexing.py}, \code{index_document} & A window of a company document, opened by the document's title and the section heading & 64; \code{documents.embed} \\
+\file{corpus/search.py}, \file{companies/search.py} & The query of a search & 1; not recorded \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{pathcard}{An embedding call}{gateway.embed}
+  \pcrow{Trigger}{Ingesting or re-embedding an act (jobs \code{corpus.ingest},
+    \code{corpus.reembed}); extracting obligations, or an administrator editing one; indexing
+    an uploaded document (job \code{documents.index}); a report that meets a document not yet
+    indexed or obligations without an English vector; every search of the corpus or of a
+    company's documents.}
+  \pcrow{Input}{A list of texts, at most 256 per call (\code{MAX_EMBED_TEXTS}); the callers
+    send at most 64, or one query (\cref{tab:models:embedcallers}). Each text is the passage together
+    with what places it: the act and provision, or the document and section.}
+  \pcrow{Prompt and model}{No prompt. \texttt{gateway:azure/text-embedding-3-large}
+    (\code{AI_EMBED_MODEL}), asked for 1536 dimensions.}
+  \pcrow{Output}{\code{embeddings}, one vector of 1536 numbers per text in the order sent;
+    \code{model}; \code{dimensions}; \code{usage.tokens}; \code{durationMs}.}
+  \pcrow{Checked by code}{The texts are validated and empty ones replaced by a space. A longer
+    vector is cut to 1536 values and renormalised. Corpus ingestion refuses an answer whose
+    number of vectors differs from the number of texts. The database column refuses a vector
+    of another width.}
+  \pcrow{Stored}{The vector columns \code{legal_chunks.embedding},
+    \code{obligations.embedding} and \code{obligations.embedding_en},
+    \code{company_document_chunks.embedding}. A query vector is used once and not kept. One
+    \code{llm_calls} row of kind \code{embed} per batch, except for a query.}
+  \pcrow{On failure}{Two retries in the SDK; a batch that outlives 60~s is aborted and
+    answered as a 502. The API's client retries a transient failure three times (after 2, 6
+    and 18~s). A search whose query cannot be embedded runs on keywords alone. An indexing job
+    is attempted three times.}
+  \pcrow{Cost}{\$0.13 per million tokens (the gateway's price list, 10 November 2026).
+    The embeddings of an upload are charged to the uploader; corpus work to nobody; a query is
+    not recorded. Measured: ingesting 24 new acts on a copy of the database cost \$0.08 on 12 November 2026;
+    re-embedding everything was put at some \$0.30 on 28 September 2026.}
+  \pcrow{Human control}{None.}
+  \pcrow{Measured by}{\file{tests/internal.test.mjs} and \file{tests/embed-timeout.test.mjs}
+    (the route, the 1536 dimensions, the ceiling); the comparison of the two embedding models
+    of 28 September 2026 (\cref{tab:models:embedcompare}).}
+\end{pathcard}
+
+
+\section{The API's client}\label{sec:models:client}
+
+On the API's side one module talks to the assistant service, \file{assistant/gateway.py}, and
+one function on top of it is what the pipelines call, \code{run_prompt} in
+\file{assistant/llm.py}. The module is called \enquote{gateway} because it is the API's
+gateway to the models; it should not be confused with the faculty's gateway, which it never
+contacts.
+
+\subsection{The two calls}
+
+\code{gateway.generate} builds the request of \cref{tab:models:request} from its arguments,
+leaves out those that are \code{None}, posts it with the shared secret and returns a
+\code{GenerateResult}: the text or the object, the model, the finish reason, the five token
+counts and the duration. \code{gateway.embed} does the same for a list of texts and returns an
+\code{EmbedResult}. A third function, \code{list_models}, reads the model list and answers an
+empty one when the assistant service is down, so that nothing that only wants prices can fail
+on it.
+
+Both calls go through \code{_post}, a loop that sends the request and decides what to do
+with a failure (\cref{sec:models:errors}). A failure that is final is raised as
+\code{GatewayError} with three things the caller can act on: the HTTP status (0 for a network
+failure), a machine code, and the message of the assistant service, which carries the
+provider's own words. The text of a network error names internal hosts and ports; it goes to
+the log, and the error a user may read in a report or a job says what happened in words
+(\enquote{The AI service did not answer within 930~s}).
+
+\subsection{run\_prompt: a stored prompt over data}
+
+\code{run_prompt} is, in the words of its header, \enquote{the one way a pipeline step talks
+to a model}. Its signature shows what a caller decides and what it does not:
+
+\begin{codeblock}
+run_prompt(slug, data, *, shared=None, schema=None, schema_name="result",
+           variables=None, job_step_id=None, user_id=None, purpose=None, model=None)
+\end{codeblock}
+
+It does four things in order.
+
+\begin{enumerate}
+  \item \textbf{It finds the prompt version.} \code{active_version(slug)}
+    (\file{prompts/store.py}) returns the version an administrator has made active for that
+    prompt. If there is none, it raises \code{PromptNotConfigured} and the step fails with
+    that message: a step never runs on instructions that nobody can see.
+  \item \textbf{It fills the variables.} \code{render} replaces each placeholder of the form
+    \code{{NAME}} (capital letters, digits, underscores) that the caller supplied a value for;
+    a report passes \code{LANGUAGE}, \code{TODAY} and \code{COMPANY_NAME}. A placeholder
+    without a value stays in the text as written, so a mistyped name in the editor shows up in
+    the instructions instead of vanishing.
+  \item \textbf{It calls the model.} The rendered text is the instructions; \code{data} is the
+    user message; \code{shared}, the schema and its name are passed through; the model, the
+    temperature and the output cap come from the prompt version (a caller may override the
+    model). The call is \emph{patient} exactly when \code{job_step_id} is given.
+  \item \textbf{It records the call} with \code{record_call} (\cref{sec:models:usage}),
+    including the id of the prompt version, \enquote{so a report can always be traced to the
+    exact instructions that produced it}.
+\end{enumerate}
+
+It returns a \code{PromptRun}: the object or the text, the raw result and the version used.
+The caller chooses the data, the schema, who is charged and under which job step the call is
+filed; the text of the instructions and the model are never in the caller's code. That is what
+lets an administrator change either without a deployment (\cref{ch:prompts}).
+
+\subsection{Shared data, and calls in parallel}
+
+Two helpers shape how a step issues many calls.
+
+\code{parallel_map(fn, items, workers=4)} in \file{common/parallel.py} runs the calls of a
+step a few at a time in threads and returns the results in the order of the items. A step
+spends nearly all its time waiting for the model, so four calls at once shorten a report from
+tens of minutes to a few. Each thread closes its own database connection when it is done. If a
+call fails, the others are still allowed to finish, and the first exception is raised after
+all have settled.
+
+\code{shared=} marks the part of the input that is the same in every call of a step: in a
+report's gap analysis, the company's profile and its documents. \code{run_prompt} passes it
+apart from the data, and the assistant service places it behind the instructions, where the
+provider caches it. To profit from that, the first call must have finished before the others
+start --- calls started together would each pay for writing the block. \code{shared_first}
+in \file{analysis/pipeline.py} does exactly that: it runs the first item alone and hands the
+rest to \code{parallel_map}. \Cref{sec:models:cache} gives the measurement behind this.
+
+\subsection{Retries, patience and the errors a caller sees}\label{sec:models:errors}
+
+A failure is handled at three levels, each with a different horizon. The SDK inside the
+assistant service repeats a failed provider call twice within seconds. The API's client then
+decides between a brief retry and a long wait. What is left reaches the calling code as
+\code{GatewayError}.
+
+The client distinguishes two kinds of caller. A call a person waits for --- a citation check
+from the corpus page, a test run --- must fail soon enough to tell that person. A call made for
+a job step is background work nobody watches: for it a rate limit is \enquote{no failure at
+all}, since the provider counts tokens per minute and the limit clears by itself.
+\Cref{tab:models:retries} gives the rules of \code{_post}.
+
+\begin{table}[H]
+\caption{What the API's client does with a failed call. $n$ counts the retries already made;
+\code{generate} is called with one retry by default, \code{embed} with three, the test run of
+the prompt editor with none.}\label{tab:models:retries}
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+\toprule
+\hd{Failure} & \hd{What the client does} \\
+\midrule
+A rate limit (429), patient call & Waits and asks again, without using up a retry: as long as the provider asked (\code{retryAfterS}), otherwise \code{RATE_LIMIT_WAIT_S} = 20~s, then 40, then 60 at most; each wait a quarter more or less at random, so that the calls of one step do not all return in the same second. After \code{RATE_LIMIT_PATIENCE_S} = 900~s of waiting in all, the limit is treated like the next row. \\
+A rate limit (429), other calls; 408, 409, 425, 500, 502, 503, 504 & Retried up to the caller's number of retries, after $\min(2\cdot 3^{n},\,30)$ seconds: 2, 6, 18. \\
+The connection failed (\code{GATEWAY_UNREACHABLE}) & Retried at least \code{CONNECTION_RETRIES} = 5 times when the caller allows any retry (after 2, 6, 18, 30 and 30~s): the assistant service was restarting, the call itself was sound. \\
+No answer in time (\code{GATEWAY_TIMEOUT}) & Retried up to the caller's number of retries. \\
+Any other 4xx, a spent budget (402) included & Raised at once. Asking again cannot help. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\Cref{tab:models:errors} lists everything a caller can receive. The assistant service builds
+these answers in \code{providerFailure} (\file{routes/internal.js}) from the classification in
+\file{middleware/errors.js}: a spent budget becomes a 402, a rate limit a 429 with the wait
+the provider named, and anything else keeps the provider's own status, or 502 when there was
+none --- so that the client can tell a failure worth repeating from one that is not.
+
+\begin{xltabular}{\textwidth}{@{}L{41mm}L{50mm}Y@{}}
+\caption{The errors of a model call as the API receives them}\label{tab:models:errors}\\
+\toprule
+\hd{Status and code} & \hd{What happened} & \hd{What follows} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Status and code} & \hd{What happened} & \hd{What follows} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+402 \code{AI_BUDGET_EXHAUSTED} & The gateway refused the call because the budget of its key is spent (\cref{sec:models:budgets}); also a provider's worded quota refusal. & Asked once by the SDK, never retried by the client. A report fails with a message that begins \code{AI_BUDGET_EXHAUSTED}, which the console shows in words, and keeps the work already paid for. \\
+429 \code{GENERATION_FAILED} or \code{EMBEDDING_FAILED} & The provider's rate limit outlasted the SDK's two retries, or arrived inside a stream. \code{retryAfterS} carries the wait when the provider named one. & A job step waits it out for up to fifteen minutes; a call a person waits for is retried briefly (\cref{tab:models:retries}). \\
+400 \code{UNKNOWN_MODEL} & The model id names no model, an unknown provider, or a provider without credentials. & Raised at once. The step fails with the message. \\
+400, a code that begins \code{INVALID_} & A field of the request failed validation (\cref{tab:models:request}). & Raised at once; a defect of the calling code. \\
+4xx \code{GENERATION_FAILED} & The provider refused the request itself: a schema that is not strict, a model the key may not use, an input longer than the model takes. & Raised at once, with the provider's words in the message. \\
+5xx \code{GENERATION_FAILED} & The provider's own error, after the SDK's retries. & A 500, 502, 503 or 504 is retried by the client, then raised. \\
+502 \code{GENERATION_FAILED} or \code{EMBEDDING_FAILED} & No provider status: the answer was not valid JSON or did not match the schema, the call ran into its time ceiling, or the network to the provider failed. & Retried by the client, then raised. \\
+0 \code{GATEWAY_TIMEOUT} & The assistant service did not answer within the client's timeout. & Retried, then raised. \\
+0 \code{GATEWAY_UNREACHABLE} & No connection to the assistant service. & Retried five times (not at all for a caller that allows no retry), then raised. \\
+403 \code{INTERNAL_ONLY} & The shared secret is missing or wrong. & Raised at once; a defect of the configuration. \\
+\code{PromptNotConfigured} & Not an error of the call: the prompt has no active version. & Raised by \code{run_prompt} before any call. \\
+\end{xltabular}
+
+What a caller does with a raised error depends on whether it can do without the model. The
+steps of a report cannot: the exception ends the job, and the report records the message
+(\code{failure_message} in \file{analysis/pipeline.py}; \cref{ch:report}). Several smaller
+readers can, and each has a stated fallback:
+
+\begin{itemize}
+  \item the citation check judges by word overlap instead of the model
+    (\file{corpus/citations.py}) --- except that inside a report a 402 is raised like any other
+    failure of a step, so that a report made without its budget is not mistaken for a
+    complete one;
+  \item the reading of the structure of a standard falls back to the structure rules alone
+    and, when they find nothing, to cutting the standard by pages (\code{read_standard} in
+    \file{corpus/outline.py});
+  \item the reading of an act's scope and of its sanction provisions logs the failure and
+    leaves the act unread, to be asked again by a later run (\file{corpus/scope.py},
+    \file{corpus/sanctions.py});
+  \item a search whose query cannot be embedded runs on keywords alone
+    (\file{corpus/search.py}, \file{companies/search.py});
+  \item the test run of the prompt editor answers 502~\code{MODEL_ERROR} with the cause.
+\end{itemize}
+
+The chapters on each path say what the fallback means for the result.
+
+
+\section{Usage: what is recorded for every call}\label{sec:models:usage}
+
+Every model call leaves one row in the table \code{llm_calls}. The row is written by
+\code{record_call} in \file{assistant/usage.py}, which four kinds of caller use:
+\code{run_prompt} for every structured generation, the test run of the prompt editor
+(\code{test_run} in \file{prompts/api/views.py}), the embedding callers for every batch, and
+the internal route \route{POST}{/internal/assistant/turn-log}, through which the assistant
+service logs each chat turn and each conversation title it wrote.
+
+\subsection{Five numbers}
+
+What a call costs depends on more than how many tokens went in, because the provider bills
+three kinds of input at three prices (\cref{sec:models:cache}). A call is therefore counted in
+five numbers, read from what the SDK reports by \code{usageOf} in \file{llm/usage.js}:
+
+\begin{enumerate}
+  \item \code{inputTokens} --- the whole input;
+  \item \code{cachedInputTokens} --- the part of the input the provider read from its prompt
+    cache;
+  \item \code{cacheWriteTokens} --- the part of the input the provider wrote to that cache;
+  \item \code{outputTokens} --- the whole output;
+  \item \code{reasoningTokens} --- the part of the output that was the model's reasoning.
+\end{enumerate}
+
+A provider that reports no cache leaves the second and third at zero. For a chat turn, which
+consists of several model steps, the five numbers are the sums over the steps
+(\code{addUsage}).
+
+\subsection{The cost of a call}
+
+\code{cost_of} turns the counts into US dollars. With $I$ the input tokens, $c$ of them read
+from the cache, $w$ written to it and $O$ the output tokens, and with the model's four prices
+per token --- $p$ for input, $p_r$ for input read from the cache, $p_w$ for input written to
+it, $p_o$ for output ---
+\[
+  \mathrm{cost} \;=\; p\,(I - c - w) \;+\; p_r\,c \;+\; p_w\,w \;+\; p_o\,O ,
+\]
+rounded to a millionth of a dollar. Three details keep the figure honest. The two parts are
+clamped so that they can never add up to more than the input ($c \le I$, $w \le I - c$). A
+model for which the price list names no cache price is charged the plain input price for that
+part. And a model with no price at all costs 0, which is logged once per model --- the usage
+row is still written, with its tokens.
+
+An example with the prices of \model{gpt-6.1-sol} (a test in \file{tests/test_prompts.py}
+pins the same arithmetic): a call with 60\,000 input tokens, of which 55\,000 were
+read from the cache and 4\,000 written to it, and 3\,000 output tokens costs
+$1\,000 \times 2 + 55\,000 \times 0.10 + 4\,000 \times 2.50 + 3\,000 \times 10$ millionths of
+a dollar, that is \$0.0475. Priced by its token counts alone it would have been recorded as
+\$0.15.
+
+\subsection{The price list}
+
+Prices are not written into the code as the truth; they are read from the gateway.
+\code{price_table} asks the assistant service for the model list, which carries for each model
+the price per input and per output token and, where the gateway names them, the two cache
+prices. The table is kept in memory for an hour (\code{PRICE_TTL_S} = 3600; the assistant
+service itself caches the gateway's list for ten minutes). Three layers stand behind it, so
+that a hiccup of the gateway neither loses a usage row nor zeroes a budget:
+
+\begin{enumerate}
+  \item every successful fetch is also stored in the table \code{model_prices} (one row per
+    model: the four prices and the time);
+  \item a failed fetch falls back to that stored table, which then serves for the hour like a
+    fresh one; only when nothing is stored either is the fetch tried again after five minutes
+    (\code{PRICE_RETRY_S} = 300);
+  \item under both lies \code{KNOWN_PRICES}, the prices known when the code was written
+    (\cref{tab:models:prices}), for an installation that has never reached the gateway and
+    for a model the fetched list does not name.
+\end{enumerate}
+
+\begin{table}[H]
+\caption{The prices the code ships as its last resort (\code{KNOWN_PRICES} in
+\file{assistant/usage.py}), in US dollars per million tokens. They are the gateway's prices of
+27 September 2026; those of the GPT-6 models and all cache prices are of 10 November 2026. A
+dash means the list names no such price and the input price applies.}\label{tab:models:prices}
+\begin{tabularx}{\textwidth}{@{}Yrrrr@{}}
+\toprule
+\hd{Model} & \hd{Input} & \hd{Output} & \hd{Read from cache} & \hd{Written to cache} \\
+\midrule
+\model{azure/gpt-6-astra} & 10 & 50 & 1.00 & 12.50 \\
+\model{azure/gpt-6.1-sol} & 2 & 10 & 0.10 & 2.50 \\
+\model{azure/gpt-6-sol} & 2 & 10 & 0.20 & 2.50 \\
+\model{azure/gpt-5.5} & 5 & 30 & 0.50 & --- \\
+\model{azure/gpt-5.6-sol} & 4 & 20 & --- & --- \\
+\model{azure/gpt-5.6-terra} & 2 & 12 & 0.20 & 2.50 \\
+\model{azure/gpt-5.6-luna} & 0.20 & 1.20 & 0.02 & 0.25 \\
+\model{azure/text-embedding-3-large} & 0.13 & 0 & --- & --- \\
+\model{azure/text-embedding-3-small} & 0.02 & 0 & --- & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The estimate shown before a report starts (\file{analysis/estimate.py}; \cref{ch:report}) uses
+the same \code{cost_of} and the same table, for the model of each step's active prompt
+version. It prices the input of a report's steps as written to the cache --- what the provider
+charges for input it sees for the first time --- and the gap analysis as one call that writes
+the shared block and the rest that read it; the one-time extraction of an act never read is
+priced at the plain input price. When a model of the run has no price, the estimate
+says so (\code{pricesKnown} is false) instead of presenting a total that is only a floor.
+
+\subsection{The row}
+
+\Cref{tab:models:llmcalls} lists every field of a row. Two of them need a word.
+
+\code{kind} is one of four values, enforced by a constraint of the database: \code{chat},
+\code{job_step}, \code{embed}, \code{prompt_test}. \code{run_prompt} always writes
+\code{job_step}, also for the few calls it makes outside a job (a citation check from the
+corpus page); such a row simply has no job step.
+
+\code{purpose} says what the call was for, in at most 80 characters. For a structured
+generation it is the slug of the prompt, unless the caller names another (the citation judge
+writes \code{citations.check}; the evaluation suites write \texttt{eval:} and the suite's name,
+except the citations suite, whose calls go through the citation judge and carry its purpose).
+For embeddings it is one of the four purposes of \cref{tab:models:embedcallers}; for the chat
+it is \code{chat} for a turn and \code{chat_title} for a title.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{The fields of a row of \code{llm_calls} (\file{assistant/models.py}, \code{LlmCall})}\label{tab:models:llmcalls}\\
+\toprule
+\hd{Field} & \hd{Holds} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Field} & \hd{Holds} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{id} & The row's own identifier. \\
+\code{kind} & \code{chat}, \code{job_step}, \code{embed} or \code{prompt_test}. \\
+\code{purpose} & What the call was for: a prompt's slug or one of the fixed purposes above. \\
+\code{user} & The user the call is charged to; empty for shared work (\cref{tab:models:charged}). The daily budget sums over this field. \\
+\code{thread_id} & For a chat turn, the conversation. \\
+\code{job_step_id} & For background work, the step of the job. When a step ends, the worker adds up the step's rows --- calls, tokens, cost, by model --- into the step's own record (\file{jobs/runner.py}), which is where a report's cost per step comes from. \\
+\code{prompt_version_id} & The prompt version whose instructions ran; empty for embeddings and for a test run of an unsaved draft. \\
+\code{model} & The model that ran, in the \texttt{provider:model} form; for a call through the generate or embed route, as the assistant service named it in its answer. \\
+\code{input_tokens}, \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens}, \code{reasoning_tokens} & The five numbers. \\
+\code{cost_usd} & The cost computed by \code{cost_of} when the row was written, to six decimals. A later change of prices does not alter it. \\
+\code{duration_ms} & How long the call took. \\
+\code{tool_calls} & For a chat turn, the list of tools the model called. \\
+\code{outcome} & \code{ok}, or for a chat turn how it ended otherwise (for example \code{timeout}, \code{budget}, \code{error}); for a title, \code{empty} when the model wrote none. \\
+\code{transcript} & For a chat turn: the user's message (at most 20\,000 characters) and the assistant's answer (at most 100\,000); for a title, the opening of the first message and the title written. Empty for every other call. \\
+\code{created_at} & When the row was written (UTC). \\
+\end{xltabular}
+
+\paragraph{The transcript.} The chat is the one feature whose calls keep their content in the
+usage row: for a turn, what the user asked and what the assistant answered; for a title, what
+the model read and wrote. The header of the model calls
+it \enquote{the audit of what the assistant told whom}. It is served only in the detail of a
+call (\route{GET}{/api/usage/calls/{id}}), which a user may read for their own calls and an
+administrator for any. The inputs and outputs of pipeline calls are not copied into
+\code{llm_calls}; their results live in the tables of each path.
+
+\paragraph{Telemetry never fails the caller.} \code{record_call} runs its insert in a
+savepoint of its own and catches every exception: a failure to write the row is logged and the
+model's answer is still used.
+
+\paragraph{What is not recorded.} Two things leave no row. The first is deliberate and stated
+in \file{docs/markdown/en/architecture.md}: the embedding of a search query, a few tokens per search, is
+made without a usage row. The second follows from the order of the code: \code{run_prompt} and
+the embedding callers record a call after its answer has arrived, so a call from the worker
+that fails --- including one whose answer the schema check rejected --- has no row, although the
+provider may have billed its tokens. A chat turn that fails is recorded, with its
+\code{outcome}.
+
+The usage page of the console reads these rows through \route{GET}{/api/usage} and
+\route{GET}{/api/usage/calls}: cost per day, by kind, by model and --- for an administrator ---
+by user (\cref{ch:console,ch:api}).
+
+
+\section{Budgets}\label{sec:models:budgets}
+
+Two budgets limit what the system can spend. One belongs to the gateway and covers the whole
+installation; the other is the system's own and covers one user for one day.
+
+\subsection{The team budget of the gateway key}
+
+The key the assistant service calls the gateway with carries a \term{team budget}, set and
+counted at the gateway. Nothing in this system can change it. When it is spent, the gateway
+answers every call with HTTP~402, and the system says so plainly instead of failing
+generically: the assistant service turns the refusal into 402~\code{AI_BUDGET_EXHAUSTED} on
+the internal door and into the same code in the chat; a report that fails this way records a
+message that begins with that code and keeps everything it had already paid for --- the
+inventories of documents and the extracted obligations are not bought again by the next run.
+
+Two details of the classification (\code{classifyProviderError} in
+\file{middleware/errors.js}) are worth knowing. A 402 is always a spent budget; a 400, a 403, a
+429 or an error without a status counts as one only when its text contains both a word for money (budget, quota, billing,
+credit balance) and a word for running out. And rate-limit wording never reads as a spent
+budget, even when it mentions a quota: the two demand opposite reactions --- wait, or stop.
+\code{finalBudgetRefusals} then marks a budget refusal as not retryable, because the SDK
+would otherwise repeat a 429 that no wait of seconds can cure.
+
+\file{docs/markdown/en/operations.md} records that the team budget was \$10 on 27 September 2026, the day
+it was reached.
+
+\subsection{The daily budget of a user}
+
+The system's own budget \enquote{only keeps one account from draining the shared key}, as
+\file{docs/markdown/en/operations.md} puts it. Each user may spend a fixed amount per UTC day:
+
+\begin{itemize}
+  \item the default is the setting \code{LLM_DAILY_BUDGET_USD}, \$10.00 since 20~November
+    2026. It was \$2.00, set in September, when a chat turn cost cents. On the conversation
+    model in use since November the turn that takes in a company's documents costs about
+    \$2.90 and a later turn of a conversation that has read them about \$1.00 (the median of
+    the live system's turns of 17~November was \$1.02), so the first hand-over of documents
+    spent an ordinary account's day and its next question was refused;
+  \item an administrator may give an account its own amount (\code{daily_budget_usd} on the
+    user; in the console, on the \ui{Naudotojai} (Users) page): empty means the default, 0
+    means unlimited, otherwise an amount up to \$10\,000;
+  \item an administrator's own account is unlimited unless an amount is set for it.
+\end{itemize}
+
+\code{budget_status(user_id)} in \file{assistant/usage.py} computes the state: the limit, the
+amount used --- the sum of \code{cost_usd} over the user's rows in \code{llm_calls} since
+00:00~UTC --- and what remains (nothing, when the limit is 0, which means unlimited). Because
+it sums over usage rows, the budget counts exactly what \cref{tab:models:charged} says is
+charged to a user, and nothing else.
+
+The budget is checked \emph{before} work starts, never in the middle of it
+(\cref{tab:models:budgetchecks}). A report or a work product must have \$0.25 left to start
+(\code{MIN_BUDGET_TO_START_USD}); once started, a run is never stopped halfway, even if it passes the limit. The estimate a user confirms before the
+start (\cref{ch:report}) is what tells them the size of the run.
+
+\begin{table}[H]
+\caption{Where the daily budget is checked, and what happens when it is spent}\label{tab:models:budgetchecks}
+\begin{tabularx}{\textwidth}{@{}L{31mm}L{50mm}Y@{}}
+\toprule
+\hd{Feature} & \hd{Checked in} & \hd{When the budget is spent} \\
+\midrule
+A chat turn & assistant service, \file{routes/chat.js}, \code{checkBudget}, before every turn (it asks the API on \code{/internal/assistant/budget}) & The turn is refused with 429~\code{BUDGET_EXCEEDED} when nothing remains. If the check itself fails, the turn goes through. \\
+Starting a report & \file{analysis/api/views.py}, \route{POST}{/api/reports} & Refused with 429~\code{BUDGET_EXCEEDED} when less than \$0.25 remains. \\
+Approving the scope of a report & \file{analysis/api/views.py}, \route{POST}{/api/reports/{id}/scope} & The same: the costly second part needs \$0.25 left. \\
+Starting a work product & \file{programme/api/views.py}, \route{POST}{/api/companies/{id}/programme} & The same. \\
+A test run in the prompt editor & \file{prompts/api/views.py}, \code{test_run} & Refused with 429~\code{BUDGET_EXCEEDED} when nothing remains. \\
+A citation check from the corpus page or the chat & \file{corpus/api/views.py}, \route{POST}{/api/corpus/check-citations} & Not refused: the check runs, judged by word overlap instead of the model. \\
+Indexing an uploaded document & \file{companies/indexing.py}, the job \code{documents.index} & Nothing is embedded. The job queues itself again for 00:05~UTC of the next day and reports that it is waiting for the budget. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The last row has a reason of its own, given in the code: without the wait, uploading and
+deleting a document in a loop would embed, and charge the gateway, without end.
+
+\subsection{Who is charged for what}
+
+Whether a call counts against a user is decided by one argument: the \code{user_id} its caller
+passes to \code{run_prompt} or \code{record_call}. The rule behind the choices is that work
+done \emph{for one user's company} is that user's, and work done \emph{on the shared legal
+corpus} --- which every later report of every company reuses --- is nobody's
+(\cref{tab:models:charged}). Shared work still spends the team budget of the gateway key; it
+is only not held against a person's day.
+
+\begin{table}[H]
+\caption{Who is charged for a model call}\label{tab:models:charged}
+\begin{tabularx}{\textwidth}{@{}L{62mm}Y@{}}
+\toprule
+\hd{Work} & \hd{Charged to} \\
+\midrule
+A chat turn, and the title written for a new conversation & The chatting user. \\
+A report: document inventories, the citation audit, applicability, gap analysis, action plan and summary; the indexing of documents the report finds unindexed & The user who started the report; after a scope review, the calls of the second part are charged to whoever approved the scope (the job of that part is theirs). \\
+A company's own requirements, read from its policies and assessed in a report & The user who started the report. \\
+A work product & The user who started it, except the citation judge's call of its references step, which is recorded under the job step with no user. \\
+Indexing an uploaded document (embeddings) & The uploader. \\
+A citation check from the corpus page or the chat & The user who asked. \\
+A test run in the prompt editor & The administrator who ran it. \\
+Extraction of obligations that a report triggers because an act was never read & Nobody: shared corpus work. \\
+Extraction of obligations, or the judge over an act's obligations, queued by an administrator & That administrator. \\
+Reading an act's scope and its sanction provisions; reading the structure of a standard & Nobody. \\
+Ingesting an act (embeddings of its chunks); the embeddings of obligations & Nobody. \\
+The embedding of a search query & Not recorded at all. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{humanbox}{What an administrator decides}
+No budget is set or lifted by the system itself. An administrator decides the daily amount
+of each account and may lift it; the operators of the gateway decide the team budget. An
+administrator also decides, per prompt, which model runs (\cref{sec:models:defaults}) --- the
+largest single lever on what a report costs. A user decides to start a run after seeing its
+estimated cost.
+\end{humanbox}
+
+
+\section{The prompt cache}\label{sec:models:cache}
+
+The provider behind the gateway keeps a \term{prompt cache}: when a request opens with text
+it has already processed, it reads that opening from the cache and bills it at a
+fraction of the input price. The system did not choose this, but its design had to follow it,
+because the largest calls of a report repeat most of their input.
+
+\subsection{What is cached and what is not}
+
+What exactly the provider caches was established by measurement, and the result is narrower
+than \enquote{whatever repeats}.
+
+\begin{lessonbox}{Measured, 10--11 November 2026, on gpt-6.1-sol}
+The same block of 8\,800 tokens was sent twice in a row in several positions. It was
+\textbf{read from the cache} the second time when it stood in the instructions of the
+request. It was \textbf{written anew} --- billed in full --- when it stood at the opening of a
+user message whose end differed; when it was a message of its own before a different one;
+when a cache key was sent with it; and when a retention hint was sent with it. A request that
+repeated or extended an earlier request word for word from its start read what it repeated
+from the cache.
+
+So the provider caches two things: the \emph{instructions} of a request, and a \emph{whole
+earlier request} that a later one repeats or extends. It caches nothing of a message that
+only begins like an earlier one.
+
+The prices on that day for \model{gpt-6.1-sol}: input read from the cache \$0.10 per million
+tokens, a twentieth of the input price; every other input token billed as written to the
+cache at \$2.50, a quarter above the input price of \$2.
+\end{lessonbox}
+
+\subsection{Three consequences for the design}
+
+\paragraph{1. What the calls of a step share goes behind the instructions.} The gap analysis
+of a report sends the company's documents with every call. Had they stayed in the user
+message, in front of the obligations that differ from call to call, each call would have paid
+for them in full. They are therefore sent apart, as \code{shared}, and the generate route
+appends them to the instructions --- the one place the provider caches
+(\cref{fig:models:anatomy}).
+
+\paragraph{2. The first call of such a step runs alone.} The cache holds the block only once
+a call that carried it has been processed. \code{shared_first} runs one call, waits for it,
+and only then starts the others four at a time. The applicability step and the gap analysis
+of a report use it, and so does the assessment of a company's own requirements.
+
+\paragraph{3. Usage is recorded and priced part by part.} This is the reason for the five
+numbers of \cref{sec:models:usage}. Until 11 November 2026 every input token was priced at
+the plain input price; \file{docs/markdown/en/architecture.md} records that a chat turn, which sends its
+instructions again at each of its steps, was then recorded at up to twice its real cost. The
+budgets and the report's cost per step rest on the corrected figures.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \tikzset{seg/.style={draw=ink, line width=.6pt, minimum height=9mm, align=center,
+                       inner sep=2pt, font=\sffamily\footnotesize, text=body}}
+  % the parts of the request
+  \node[seg, fill=paper, minimum width=24mm, anchor=west] (i0) at (26,0) {instructions};
+  \node[seg, fill=paper, minimum width=66mm, anchor=west] (s0) at (50,0) {shared block: the profile and the documents};
+  \node[seg, fill=paper, minimum width=30mm, anchor=west] (d0) at (116,0) {data of this call};
+  \node[note, anchor=east] at (24,0) {one request};
+  \draw[decorate, decoration={brace, amplitude=4pt}, draw=muted] (26,6.5) -- node[note, above=4pt, align=center] {sent as the instructions --- the part the provider caches} (116,6.5);
+  \draw[decorate, decoration={brace, amplitude=4pt}, draw=muted] (116,6.5) -- node[note, above=4pt, align=center] {the user message} (146,6.5);
+  % the first call
+  \node[seg, fill=warnbg, minimum width=120mm, anchor=west] (a) at (26,-17) {written to the cache: about 59\,000 tokens at \$2.50 per million};
+  \node[note, anchor=east, align=right] at (24,-17) {the first call,\\alone};
+  % later calls
+  \node[seg, fill=goodbg, minimum width=90mm, anchor=west] (b1) at (26,-31) {read from the cache: about 55\,000 tokens at \$0.10 per million};
+  \node[seg, fill=warnbg, minimum width=30mm, anchor=west] (b2) at (116,-31) {written};
+  \node[note, anchor=east, align=right] at (24,-31) {each later\\call};
+\end{tikzpicture}
+\caption{The anatomy of a request that carries a shared block, with the figures of the
+sample company's gap analysis (26 policies, 261\,000 characters; measured on 10--11 November
+2026). The instructions and the shared block are identical in every call of the step and are
+read from the provider's cache once the first call has written them; the data of each call is
+new input every time.}\label{fig:models:anatomy}
+\end{figure}
+
+\subsection{The measured effect}
+
+On the sample company every gap-analysis call carries about 59\,000 input tokens, nearly all
+of them the company's 26 policies. \Cref{fig:models:cachecost} shows what one call cost in
+the three situations, as \file{docs/markdown/en/architecture.md} records them for 10--11 November 2026 on
+\model{gpt-6.1-sol}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, width=92mm, height=50mm,
+  xmin=0, xmax=0.22, bar width=6.5mm,
+  enlarge y limits=0.28,
+  axis x line*=bottom, axis y line*=left,
+  axis line style={draw=muted}, tick style={draw=muted},
+  ytick=data, symbolic y coords={before,read,write},
+  yticklabels={{documents in the user message\\(before the change)},
+               {a later call: the block\\read from the cache},
+               {the first call: the block\\written to the cache}},
+  yticklabel style={align=right, text width=50mm, font=\sffamily\footnotesize, text=body},
+  xtick={0,0.05,0.10,0.15,0.20},
+  xticklabel style={font=\sffamily\footnotesize, text=muted, /pgf/number format/fixed,
+                    /pgf/number format/precision=2, /pgf/number format/fixed zerofill},
+  scaled x ticks=false,
+  xlabel={US dollars for one call}, xlabel style={font=\sffamily\footnotesize, text=muted},
+  nodes near coords={\$\pgfmathprintnumber[fixed, precision=3]{\pgfplotspointmeta}},
+  nodes near coords style={font=\sffamily\footnotesize, text=body, anchor=west},
+  point meta=x]
+  \addplot[fill=mid, draw=ink] coordinates {(0.17,before) (0.045,read) (0.18,write)};
+\end{axis}
+\end{tikzpicture}
+\caption{The cost of one gap-analysis call of the sample company (about 59\,000 input
+tokens, \model{gpt-6.1-sol}, measured on 10--11 November 2026). The first call of the step
+pays \$0.18 to write the shared block; each later call reads 55\,000 tokens of it from the
+cache and costs about \$0.045. Before the change, with the documents in the user message,
+every call cost \$0.17.}\label{fig:models:cachecost}
+\end{figure}
+
+\file{docs/markdown/en/architecture.md} extrapolates, from a run of 11 November 2026 on a copy of the
+database with every act's obligations cut to its first fifteen, that the full report then
+came to about 82 such calls and roughly \$5, against \$16.04 for the report made the day
+before; other changes to the pipeline between the two runs share in that difference
+(\cref{ch:report}). The first full report on the live system, on 13 November 2026 over a
+corpus grown to 68 enabled acts, made 154 gap-analysis calls: they sent 9.12 million input
+tokens, of which 8.44 million (92.5\,\%) were read from the provider's cache and 0.68 million
+written to it. The same mechanism serves the chat without any arrangement:
+each step of a turn extends the request of the step before, so a step reads its instructions
+and the earlier steps from the cache and pays in full only for what the last step added
+(\cref{ch:chat}).
+
+The cache is the provider's and nothing in the system depends on it for correctness. A call
+that finds the cache empty returns the same answer and costs more; the usage row shows which
+of the two happened.
+
+
+\section{Rate limits}\label{sec:models:ratelimits}
+
+Apart from money, the provider limits throughput: it counts the tokens a key sends per
+minute. A report's many large calls can reach that limit within minutes.
+
+\begin{lessonbox}{A failure, 10 November 2026}
+Four gap-analysis calls of 59\,000 tokens each, running at a time, met the provider's
+tokens-per-minute limit within two minutes. The client's brief retries --- after 2, 6 and
+18~seconds --- met the limit again, and the report failed. Since then a call made for a job
+step waits a rate limit out, as long as the provider asks and for up to fifteen minutes in all
+(\code{RATE_LIMIT_PATIENCE_S}), instead of failing its step.
+\end{lessonbox}
+
+\paragraph{How a rate limit arrives.} It comes in one of two shapes, and
+\code{providerPause} in \file{middleware/errors.js} reads both. The ordinary shape is an HTTP
+429 that is not a budget refusal, with or without a \code{Retry-After} header. The other was the
+one met on 10 November: the provider had already begun its stream and reported the limit as
+an error event inside it, with no HTTP status at all; the SDK hands that on as a failure to
+parse the stream. Such an error is recognised by its words (\enquote{rate limit},
+\enquote{call rate}, \enquote{retry after} and a number). The wait is taken from the header
+when there is one, else from the seconds the message names, else it is unknown.
+
+\paragraph{What is done with it.} The SDK inside the assistant service first repeats the call
+twice. A limit that outlasts that, or one that arrived inside a stream, is answered to the API
+as a 429, with the field \code{retryAfterS} when the provider named a wait. From there the rules of \cref{tab:models:retries}
+apply: a job step waits and asks again without counting it as a failure; a call a person
+waits for is retried briefly and then fails with a message. In the chat a rate limit is shown
+as a notice to try again (\cref{ch:chat}).
+
+A step of a report runs four calls at a time (\code{WORKERS} in
+\file{analysis/pipeline.py}); it is the patience of each call that absorbs the limit.
+
+\paragraph{The system's own limit on chat turns.} One rate limit is the system's own and
+concerns people, not tokens: a user may start at most 12 chat turns a minute
+(\code{RATE_LIMIT_TURNS}, a fixed window of \code{RATE_LIMIT_WINDOW_MS} = 60\,000~ms kept in
+memory by \file{services/ratelimit.js}). A turn over the limit is refused with
+429~\code{RATE_LIMITED} and the seconds left in the window (\cref{ch:chat}).
+
+
+\section{The default model of every step}\label{sec:models:defaults}
+
+Which model a prompt runs on is a field of its active version, and an administrator can
+change it in the prompt editor (\cref{ch:prompts}). The versions the system ships with name
+three language models and one embedding model. \Cref{tab:models:defaults} gives the default of
+every prompt and the recorded reason for it. Each reason is a dated observation on the sample
+company's material; none is a general ranking of models.
+
+\begin{xltabular}{\textwidth}{@{}L{36mm}L{40mm}Y@{}}
+\caption{The default model of every prompt, with the recorded reason. Prices are US dollars per million input and output tokens.}\label{tab:models:defaults}\\
+\toprule
+\hd{Prompts} & \hd{Default model} & \hd{Why} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Prompts} & \hd{Default model} & \hd{Why} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\prompt{chat.assistant} & \model{gpt-6-astra} (10 / 50) & The shipped default of the chat; the model before it was \model{gpt-5.5}. The repository's documents record no comparison for the chat. A user can pick another model for a conversation (\cref{ch:chat}). \\
+\prompt{chat.title} & \model{gpt-5.6-luna} (0.20 / 1.20) & A few words written from the opening of a conversation's first message: the small model. \\
+The report: \prompt{report.inventory}, \prompt{report.applicability}, \prompt{report.gap_analysis}, \prompt{report.action_plan}, \prompt{report.plan_merge}, \prompt{report.summary}; a company's own requirements: \prompt{company.internal_requirements}, \prompt{report.internal_gap} & \model{gpt-6.1-sol} (2 / 10) & Measured on 10 November 2026 on the sample company's real requests --- three gap-analysis batches of fifteen obligations and two applicability batches of four acts: \model{gpt-6.1-sol} and \model{gpt-6-astra} gave the same status for 43 of 45 obligations and the same verdict for all eight acts, at a fifth of the price; \model{gpt-5.6-terra} differed on five obligations, each time by overlooking a passage or by holding a policy to something the obligation does not ask. An action plan and a summary written by each from the same twenty open findings covered all twenty. \\
+\prompt{corpus.extract_obligations}, \prompt{corpus.extract_requirements} & \model{gpt-6.1-sol} & One-time corpus work that every report reuses, so the most thorough reader measured. On 10 November 2026, on two batches (MiCA Art.~68--75 and Art.~10--13 of PPTFPĮ, the Lithuanian law on the prevention of money laundering and terrorist financing): \model{gpt-5.6-terra} listed 44 and 25 obligations, \model{gpt-6.1-sol} 56 and 32, \model{gpt-6-astra} 55 and 31 at about five times the price. \\
+\prompt{corpus.standard_outline}, \prompt{corpus.scope}, \prompt{corpus.sanctions} & \model{gpt-6.1-sol} & One-time corpus work as well; \file{docs/markdown/en/architecture.md} groups the structure of a standard and the scope of an act with extraction. No comparison of their own is recorded for these three. \\
+\prompt{corpus.check_citations} & \model{gpt-6.1-sol} & Short comparisons, a few calls a report. The check was first measured on \model{gpt-5.6-luna}: it judged all 12 of the wrong MiCA references of the sample company correctly, where similarity of embeddings did no better than chance. \\
+\prompt{corpus.verify_obligations} (the judge) & \model{gpt-6.1-sol} & One-time corpus work: judging the whole register of 5\,960 obligations took 369 calls and \$9.80 on 13 November 2026. \\
+The six prompts of the work products, whose slugs begin \prompt{programme.} & \model{gpt-6.1-sol} & Two calls a product over the company's whole library; the second reads the library from the cache. A product costs about \$0.4--0.5 (\file{docs/markdown/en/architecture.md}). \\
+Embeddings (no prompt) & \model{text-embedding-3-large}, 1536 dimensions (0.13) & The comparison of 28 September 2026 (\cref{tab:models:embedcompare}). \\
+\end{xltabular}
+
+\paragraph{One model for the whole report.} \file{docs/markdown/en/architecture.md} draws the conclusion
+from the measurement of 10 November: \model{gpt-6-astra} costs five times
+\model{gpt-6.1-sol} for answers that agreed --- about \$57 against \$11 for the gap analysis
+of the sample company's 2\,200 obligations --- so every step of a report runs on
+\model{gpt-6.1-sol}. The same document notes the price of that choice in time: the GPT-6
+models wrote about 70 tokens a second on that day, half the speed of \model{gpt-5.6-terra},
+which is why a dense batch takes four to six minutes and why the ceilings of
+\cref{tab:models:timeouts} are what they are.
+
+\paragraph{The embedding model.} Two models of the gateway were compared on 28 September 2026
+on the system's own data (\cref{tab:models:embedcompare}). The larger one is clearly better
+exactly where the system needs it: at finding a Lithuanian provision from an English text.
+The chat often searches in English and companies' documents are often English, while the
+corpus is Lithuanian. \file{docs/markdown/en/architecture.md} puts the cost of the larger model at about
+\$0.13 per million tokens, some \$0.30 for embedding everything again.
+
+\begin{table}[H]
+\caption{The two embedding models compared, 28 September 2026 (from \file{docs/markdown/en/architecture.md}). The first three rows count how often an obligation's text found its own article among the Lithuanian chunks of the act, out of 40.}\label{tab:models:embedcompare}
+\begin{tabularx}{\textwidth}{@{}Yrr@{}}
+\toprule
+\hd{Test} & \hd{-large} & \hd{-small} \\
+\midrule
+English obligation text, MiCA & 38 & 23 \\
+English obligation text, DORA & 33 & 29 \\
+English obligation text, PPTFPĮ & 37 & 34 \\
+Lithuanian queries (MiCA / DORA / PPTFPĮ) & 39 / 35 / 37 & 36 / 37 / 36 \\
+Company evidence: the right document among an obligation's six nearest passages, of 41 & 38 & 35 \\
+The same, mean reciprocal rank & 0.83 & 0.79 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+What the models are told on each of these prompts, and how their answers are checked beyond
+their shape, is the subject of the chapters that follow; \cref{app:prompts} lists every
+prompt, and \cref{ch:control} gathers the costs measured for a whole report.

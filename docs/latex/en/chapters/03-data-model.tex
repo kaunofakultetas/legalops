@@ -1,0 +1,1096 @@
+% STATUS: verified
+\chapter{The data model}\label{ch:data}
+
+Everything the system knows lives in one PostgreSQL database with the \code{pgvector}
+extension: the legal corpus and its vectors, the register of obligations, the companies and
+their documents, the reports, the work products, the prompts, the queue of jobs, the record
+of every model call and the audit trail. Only the API (Django) connects to it; the assistant
+service reads and writes through the API (\cref{ch:arch}). This chapter describes the tables
+as the model files define them (\file{<app>/models.py} of each application of the API). It
+opens with the conventions every table follows and two figures of the relations, then goes
+through the tables application by application with the columns that matter and the shape of
+every JSON column, and closes with what a report copies so that it reads the same later, and
+with who --- a model, the code or a person --- writes which columns. What the pipelines do with
+the tables belongs to the chapters on each pipeline.
+
+\section{Conventions}\label{sec:data:conventions}
+
+Every application of the API follows the same rules for its tables; \file{users/models.py}
+states them in its banner and the others keep them.
+
+\paragraph{Keys.} A primary key is a \code{TextField} holding a version-4 UUID as text, made in
+Python at the moment of the write (\code{id=str(uuid.uuid4())}); the database has no sequence
+and assigns nothing. Because the id exists before the row is written, a step that creates
+hundreds of rows writes them with one \code{bulk_create} and still holds every id --- the
+gap analysis writes its findings this way, and the action plan then lists those ids in
+\code{finding_ids}. Two tables are keyed by a natural key instead: \code{rate_limit_windows}
+by the limiter's key and \code{model_prices} by the model's id. One table takes its ids from
+outside: a row of \code{chat_messages} keeps the id the chat client gave the message, which
+\file{chat/store.py} accepts only if it matches \code{MESSAGE_ID} (letters, digits and
+\code{_ . : -}, at most 128 characters) and does not already belong to another thread.
+
+\paragraph{Time.} A moment is a \code{DateTimeField} holding an aware UTC value
+(\file{settings.py}: \code{USE_TZ = True}, \code{TIME_ZONE = "UTC"}). No column fills itself
+in: there is no \code{auto_now}, and every write passes the value of \code{utc_now()}
+(\file{common/timestamps.py}), which its banner calls \enquote{the only clock the code reads}.
+On the wire a moment is an ISO~8601 string ending in \code{+00:00}. A day without a time ---
+the date a version takes effect, the date an act applies from, an action's due date, the
+validity of a credential --- is a \code{DateField}.
+
+\paragraph{Enumerations.} The allowed values of a status or a kind are a tuple of constants in
+the model file (\code{REPORT_STATUSES}, \code{FINDING_STATUSES}, \dots), and a
+\code{CheckConstraint} in the model's \code{Meta.constraints} makes the database refuse any
+other value. The constraints are named after the table and what they check (\code{reports_status_check}). The API's views check a value
+against the same tuple before they write it --- \code{DOCUMENT_KINDS} when a document is
+uploaded, for instance --- so the constraint guards against a value the code itself gets wrong.
+
+
+A few text columns carry no constraint on purpose, and the reader meets them below:
+\code{work_products.kind} (\enquote{a kind added later needs a module, not a migration}),
+\code{report_acts.doc_type} (it holds the catalogue's types and also \code{internal}, the row
+a company's own requirements hang on), the \code{category} of findings and actions (constrained
+only on \code{obligations}), \code{report_findings.source_kind} and
+\code{report_findings.override_status} (the view checks it against \code{FINDING_STATUSES}),
+\code{prompt_versions.source}, \code{chat_messages.role} and the \code{outcome} and
+\code{purpose} of \code{llm_calls}. Two columns of
+\code{report_citations} are either empty or one of a list: their constraints allow
+\code{NULL} explicitly.
+
+\paragraph{JSON columns.} Structured values that are read and written whole --- a reading of
+an act's sanctions, a finding's evidence, a report's statistics --- are \code{JSONField}
+columns, stored as \code{jsonb}. Their shape is set by the code that writes them, not by the
+database, and the keys inside them are mostly in camel case (\code{maxFineEur},
+\code{promptVersionId}) as the API serves them --- an enumeration value used as a key keeps its
+own spelling (\code{not_applicable} in \code{stats.findings}) --- while the columns themselves are
+in snake case. The readers are
+tolerant by design: \code{inventory_citations} in \file{companies/inventory.py}, for instance,
+reads a missing or malformed list as no citations, never as an error.
+\Cref{sec:data:corpus,sec:data:companies,sec:data:analysis,sec:data:programme,sec:data:ops}
+give the shape of each.
+
+\paragraph{Vectors and full text.} An embedding is a \code{VectorField} of 1,536 dimensions
+(\code{EMBED_DIMENSIONS}, declared in \file{corpus/models.py} and \file{companies/models.py}
+as \enquote{one model}). The model is set in \file{settings.py} (\code{AI_EMBED_MODEL}, default
+\code{gateway:azure/text-embedding-3-large}), and the assistant service asks it for that
+number of dimensions (\code{EMBED_DIMENSIONS} in its \file{routes/internal.js}); a change of
+model means a re-embedding job, not a change of the schema (\cref{ch:models}). Four columns
+hold vectors. The two that are searched --- \code{legal_chunks.embedding} and
+\code{company_document_chunks.embedding} --- each have an HNSW index for cosine distance
+(\code{m=16}, \code{ef_construction=64}, operator class \code{vector_cosine_ops}) and, beside
+it, a GIN index over \code{to_tsvector('simple', text)} for the keyword half of the hybrid
+search. The \code{simple} configuration is chosen because, in the words of
+\file{corpus/models.py}, \enquote{Lithuanian has no Postgres stemmer, the vector half carries
+the inflection}. The two vectors of an obligation (\code{embedding}, \code{embedding_en}) have
+no index: they are the query, compared with the indexed company passages, never what is
+searched.
+
+\paragraph{What happens on delete.} Each foreign key names what happens to the row when the row
+it points at is deleted, and the choices decide what survives a deletion
+(\cref{tab:data:ondelete}). A part that has no meaning without its whole goes with it
+(\code{CASCADE}); a reference kept for navigation is emptied and the row survives
+(\code{SET_NULL}); an owner cannot be deleted while it owns something (\code{PROTECT}); and a
+record that must outlive what it names holds the id as plain text, with no foreign key at all.
+
+\begin{xltabular}{\textwidth}{@{}L{22mm}YL{44mm}@{}}
+\caption{The four delete rules and where each is used}\label{tab:data:ondelete}\\
+\toprule
+\hd{Rule} & \hd{Where} & \hd{Consequence} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Rule} & \hd{Where} & \hd{Consequence} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{CASCADE} & An act's versions, units and chunks, and its obligations; a version's units and chunks; a unit's children; a company's credentials, adopted standards, roles, reports, action register, work products and own requirements (\code{obligations.company}); a document's chunks; a report's acts, findings, actions and citation rows; a job's steps; a prompt's versions; a thread's messages; a user's sessions and chat threads; an adoption when the standard's act is deleted. & Deleting an act from the corpus removes its whole register of obligations; deleting a company removes every report made of it. \\
+\code{SET_NULL} & Every column naming a user who acted (\code{created_by}, \code{reviewed_by}, \code{approved_by}, \dots, and \code{jobs.created_by}, \code{llm_calls.user}, \code{audit_log.user}); every link from a report's rows to the corpus and to the company's documents; an obligation's version, provision and source document; \code{legal_documents.current_version}, \code{prompts.active_version}; \code{company_documents.company}; \code{reports.job}, \code{work_products.job}; a finding's act row (\code{report_findings.act}); the company and role of a chat thread; the evidence document of a credential and the certificate of an adoption; the reports an action of the register names. & A report survives the deletion of an act, an obligation or a document it read: it holds its own copies (\cref{sec:data:snapshots}) and loses only the link. \\
+\code{PROTECT} & \code{companies.owner}, \code{company_documents.owner}. & A user who owns a company or a document cannot be deleted while it does. The plain delete of an account deactivates it (\code{users.active}), which keeps the audit rows and the ownership intact; only an administrator's purge (\route{DELETE}{/api/users/{id}?purge=true}, \code{purge_account} in \file{users/purge.py}) deletes an account for good, removing its documents first, then its companies, then the account. \\
+No foreign key & \code{job_steps.prompt_version_id}; \code{llm_calls.thread_id}, \code{.job_step_id}, \code{.prompt_version_id}; \code{obligations.prompt_version_id}; \code{chat_messages.parent_id}; \code{audit_log.target_id}; \code{company_actions.plan_action_id}; \code{report_actions.finding_ids} and every id inside a JSON column. & The record of who called which model, at what cost, under which prompt version, stays whole when the thread, the job step or the version it names is gone. \\
+\end{xltabular}
+
+Two deletions do more than the rules alone. Deleting a company first detaches its documents
+(\code{company_documents.company} set empty, in \file{companies/api/company_views.py}): the
+files belong to their owner, not to the company. Deleting a company document leaves the
+requirements read from it (\code{obligations} of source \code{internal}) with an empty
+\code{company_document}, and a report no longer reads them, since the internal step takes only
+the requirements of the documents it reads (\file{analysis/internal.py}). Old rows of a few
+tables --- expired sessions, finished jobs, usage records --- are purged by the daily
+maintenance job (\cref{ch:arch,ch:ops}).
+
+\section{The relations at a glance}\label{sec:data:figures}
+
+\Cref{fig:data:law} shows the tables of the law, of the company and of the reports, and how they
+hang together; \cref{fig:data:ops} the tables that run the system. A solid line is a part that
+is deleted with its whole, a dotted line a reference that is emptied when its target goes, and
+a dashed line an id held as text with no foreign key. The figures leave the columns out; the
+sections after them give those.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm, font=\sffamily\scriptsize,
+    tbl/.style={svc, minimum height=7mm, inner ysep=3pt, inner xsep=4pt},
+    own/.style={draw=ink, line width=.7pt},
+    ref/.style={draw=muted, line width=.6pt, densely dotted}]
+  \begin{scope}[on background layer]
+    \draw[lane] (0,8) rectangle (68,-54);
+    \draw[lane] (76,8) rectangle (150,-48);
+    \draw[lane] (0,-60) rectangle (150,-114);
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (1,-53) {the law};
+  \node[lanelabel, anchor=south west] at (77,-47) {the company};
+  \node[lanelabel, anchor=south west] at (1,-113) {reports and what follows them};
+
+  % the law
+  \node[tbl] (ld) at (22,-4) {\code{legal_documents}};
+  \node[tbl] (lv) at (22,-18) {\code{legal_document_versions}};
+  \node[tbl] (lu) at (22,-32) {\code{legal_units}};
+  \node[tbl] (lc) at (22,-46) {\code{legal_chunks}};
+  \node[tbl] (ob) at (54,-30) {\code{obligations}};
+
+  % the company
+  \node[tbl] (co) at (134,-22) {\code{companies}};
+  \node[tbl, align=center] (cx) at (132,-1) {\code{company_credentials}\\ \code{company_standards}\\ \code{company_roles}};
+  \node[tbl] (cd) at (98,-22) {\code{company_documents}};
+  \node[tbl] (cc) at (100,-38) {\code{company_document_chunks}};
+
+  % reports
+  \node[tbl] (re) at (80,-70) {\code{reports}};
+  \node[tbl] (ra) at (22,-80) {\code{report_acts}};
+  \node[tbl] (rf) at (52,-102) {\code{report_findings}};
+  \node[tbl] (rc) at (106,-86) {\code{report_citations}};
+  \node[tbl] (rx) at (100,-106) {\code{report_actions}};
+  \node[tbl] (ca) at (128,-70) {\code{company_actions}};
+  \node[tbl] (wp) at (128,-104) {\code{work_products}};
+
+  % the law
+  \draw[own] (ld) -- node[lbl, right] {versions} (lv);
+  \draw[ref] ([xshift=-6mm]ld.south) -- node[lbl, left] {current} ([xshift=-6mm]ld.south |- lv.north);
+  \draw[own] (lv) -- node[lbl] {units} (lu);
+  \draw[own] (lu) -- node[lbl] {chunks} (lc);
+  \draw[own] ([yshift=1.2mm]lu.west) -- ++(-3,0) |- node[lbl, pos=.25, left] {parent} ([yshift=-1.2mm]lu.west);
+  \draw[own] (ld.east) -| node[lbl, pos=.3] {act} (ob.north);
+  \draw[ref] (lu.east) -- node[lbl, pos=.5, below] {provision} (ob.west);
+
+  % the company
+  \draw[own] (co) -- node[lbl] {documents} (cd);
+  \draw[own] (cd) -- node[lbl] {chunks} (cc);
+  \draw[own] (co) -- (cx);
+  \draw[ref] (ob.east) -- node[lbl, pos=.45] {read from} (cd.west);
+  \draw[own] (cx.north) -- ++(0,4) -| node[lbl, pos=.25] {a standard the company adopted} (ld.north);
+
+  % reports
+  \draw[own] (co.south west) -- ++(0,-28) -| node[lbl, pos=.2] {reports} (re.north);
+  \draw[own] (co.south) -- node[lbl, pos=.55] {register} (co.south |- ca.north);
+  \draw[own] (co.east) -- ++(4,0) |- node[lbl, pos=.3] {products} (wp.east);
+  \draw[own] (re) -- node[lbl, pos=.4] {acts} (ra);
+  \draw[own] (re) -- node[lbl, pos=.45] {findings} (rf);
+  \draw[own] (re.south east) -- node[lbl, pos=.55, right] {citation audit} (rc.north west);
+  \draw[own] (re.south) -- node[lbl, pos=.6] {plan} (rx.north west);
+  \draw[ref] (ra) -- node[lbl] {act} (rf);
+  \draw[ref] (rf.north) -- node[lbl, pos=.62] {obligation} (ob.south);
+  \draw[ref] (ca.west) -- node[lbl, pos=.4] {report} (ca.west -| re.east);
+\end{tikzpicture}
+\caption{The law side and the company side. Solid: a part deleted with its whole; dotted: a
+  reference emptied when its target is deleted. \code{report_actions} name their findings by id
+  in a JSON list (\code{finding_ids}), not by a foreign key.}\label{fig:data:law}
+\end{figure}
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm, font=\sffamily\scriptsize,
+    tbl/.style={svc, minimum height=7mm, inner ysep=3pt, inner xsep=4pt},
+    own/.style={draw=ink, line width=.7pt},
+    ref/.style={draw=muted, line width=.6pt, densely dotted},
+    txt/.style={draw=mid, line width=.6pt, dashed}]
+  \node[tbl] (us) at (75,0) {\code{users}};
+  \node[tbl] (se) at (20,0) {\code{sessions}};
+  \node[tbl] (au) at (130,0) {\code{audit_log}};
+  \node[tbl] (ct) at (26,-20) {\code{chat_threads}};
+  \node[tbl] (cm) at (40,-40) {\code{chat_messages}};
+  \node[tbl] (jo) at (75,-20) {\code{jobs}};
+  \node[tbl] (js) at (75,-40) {\code{job_steps}};
+  \node[tbl] (pr) at (130,-20) {\code{prompts}};
+  \node[tbl] (pv) at (130,-40) {\code{prompt_versions}};
+  \node[tbl] (lc) at (75,-60) {\code{llm_calls}};
+  \node[tbl] (mp) at (130,-60) {\code{model_prices}};
+  \node[ext] (cx) at (20,-60) {companies, roles};
+  \node[ext] (rw) at (51,-20) {reports, work products};
+  \node[tbl, align=center] (st) at (124,-76) {\code{mcp_servers}\quad\code{rate_limit_windows}};
+
+  \draw[own] (us) -- node[lbl] {sessions} (se);
+  \draw[ref] (us) -- node[lbl] {user} (au);
+  \draw[own] (us.south west) -- node[lbl, pos=.45] {threads} (ct.north east);
+  \draw[ref] (us) -- node[lbl] {created\_by} (jo);
+  \draw[ref] (us.south east) -- node[lbl, pos=.55] {created\_by} (pv.north west);
+  \draw[own] (ct) -- node[lbl] {messages} (cm);
+  \draw[ref] (ct.south) -- node[lbl, pos=.5, left] {company, role} (cx.north);
+  \draw[own] (jo) -- node[lbl] {steps} (js);
+  \draw[own] (pr) -- node[lbl, left] {versions} (pv);
+  \draw[ref] ([xshift=6mm]pr.south) -- node[lbl, right] {active} ([xshift=6mm]pr.south |- pv.north);
+  \draw[txt] (js) -- node[lbl, pos=.62] {prompt\_version\_id} (pv);
+  \draw[txt] (lc) -- node[lbl] {job\_step\_id} (js);
+  \draw[txt] (lc.north east) -- node[lbl, pos=.45] {prompt\_version\_id} (pv.south west);
+  \draw[txt] (lc.west) -- node[lbl, pos=.4] {thread\_id} (ct.south east);
+  \draw[txt] (lc) -- node[lbl] {priced by model name} (mp);
+  \draw[ref] (rw.east) -- node[lbl, above] {job} (jo.west);
+  \draw[ref] ([xshift=3mm]us.south) .. controls (92,-12) and (92,-48) .. node[lbl, pos=.3] {user} (lc.north east);
+  \node[note, anchor=north, align=center] at (st.south) {no relations, but \code{mcp_servers.created_by}\\ points at \code{users} (emptied when the user goes)};
+\end{tikzpicture}
+\caption{The operational tables. Solid: a part deleted with its whole; dotted: a reference
+  emptied when its target is deleted; dashed: an id held as text, with no foreign key. The two
+  dashed boxes stand for tables of \cref{fig:data:law}.}\label{fig:data:ops}
+\end{figure}
+
+\section{The legal corpus and the register of obligations}\label{sec:data:corpus}
+
+The application \code{corpus} holds the acts, their versions and their text cut into units and
+chunks, and the obligations read out of them. An act is a row of \code{legal_documents}; each
+edition fetched or uploaded is a row of \code{legal_document_versions}; the structure of a
+version is a tree of \code{legal_units}; and the passages that retrieval searches are
+\code{legal_chunks}. How a text gets there --- the sources, the parsers, the chunking --- is the
+subject of \cref{ch:corpus}; how obligations are extracted and judged, of
+\cref{ch:obligations}. On 13 November 2026 the tables held 78 acts, 71 versions, 28,886 units,
+4,059 chunks and 5,960 obligations.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_documents}: one act or standard of the catalogue}\label{tab:data:ld}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{slug} & Unique; the key the catalogue (\file{corpus/catalog.yaml}) names the act by. \\
+\code{title}, \code{title_en}, \code{short_title} & The official title, its English gloss and the short title that citations print (\enquote{MiCA}; for a standard its designation, \enquote{ISO/IEC 27001:2022}). \\
+\code{jurisdiction} & \code{EU}, \code{LT} or \code{INTL} (an international standard). \\
+\code{doc_type} & \code{regulation}, \code{directive}, \code{law}, \code{resolution}, \code{order}, \code{guideline}, \code{licensing}, \code{standard}, \code{other}. \\
+\code{source_kind}, \code{external_id}, \code{source_url} & Where the text comes from: \code{cellar}, \code{etar}, \code{eseimas} (the legacy name of \code{etar}), \code{lb}, \code{url}, \code{upload}; the identifier at the source (a CELEX number, an e-TAR id) and the official link. \\
+\code{language} & The language of the text, default \code{lt}. \\
+\code{domains}, \code{applies_to} & JSON lists: the subject tags of the act and the institution types it typically governs (\code{casp}, \code{emi}, \dots{} or \code{all}) --- what the applicability screen filters on before a model reads the act. \\
+\code{applicability_notes} & A note for that screen, written in the catalogue. \\
+\code{status} & \code{in_force}, \code{not_yet_applicable}, \code{repealed}. \\
+\code{enabled} & False hides the act from retrieval and analysis without deleting its versions. \\
+\code{current_version} & The version in use; retrieval only ever reads chunks of the current version. \\
+\code{last_checked_at}, \code{last_error} & The last refresh and its error. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_document_versions}: one immutable edition of an act}\label{tab:data:lv}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{document}, \code{version_no} & The act and the edition's number; unique together. \\
+\code{content_hash}, \code{label} & The hash of the raw bytes and what the source calls the edition (a consolidated CELEX such as \code{02023R1114-20240109}, an e-TAR edition id). A refresh that finds the same hash or label creates nothing, unless it is forced (the job's \code{force}, \file{corpus/ingest.py}). \\
+\code{file_path}, \code{content_type}, \code{source_url} & The raw bytes on disk under the upload folder, so that a re-parse needs no re-fetch. \\
+\code{effective_date} & The date the edition takes effect, when known. \\
+\code{parser}, \code{text} & The structural parser that read it (empty for plain extraction) and the extracted plain text. \\
+\code{char_count}, \code{unit_count}, \code{article_count}, \code{chunk_count}, \code{embed_model} & Counts and the embedding model of its chunks. \\
+\code{status}, \code{error} & \code{pending}, \code{parsing}, \code{embedding}, \code{ready}, \code{failed}. \\
+\code{obligations_extracted_at} & When obligation extraction last completed; empty means never, and a report then extracts first. \\
+\code{scope}, \code{sanctions}, \code{changes} & JSON: a model's reading of the act's scope provisions and of its sanction provisions, and what the version changed against the one before (below). Empty means not read, or not recorded. \\
+\end{xltabular}
+
+The three JSON columns of a version have these shapes:
+
+\begin{codeblock}
+scope     = {types: [institution types, or "all"], reasoning,
+             promptVersionId, model, readAt}
+sanctions = {tiers: [{path, where, condition, documentId, infringedAct,
+                      articles: [[from, to]], all, addressee, persons,
+                      maxFineEur, maxFinePercent, benefitMultiple, measures}],
+             note, provisions: [paths read], promptVersionId, model, readAt}
+changes   = {from: previous version id, changed, added, removed: [paths]}
+\end{codeblock}
+
+\code{scope} is written by \file{corpus/scope.py} and lets the applicability screen keep an act
+the catalogue's \code{applies_to} would leave out. In \code{sanctions}
+(\file{corpus/sanctions.py}) each tier is a ceiling or a measure one provision lays down: its
+\code{documentId} is the act it concerns (this one, another of the corpus, or empty with
+\code{infringedAct} naming one the corpus does not hold), \code{articles} the article ranges
+it reaches, each from its first to its last article by the numbers the act gives them ---
+numbers alone in a reading made before 19~November 2026 --- (\code{all} when it reaches every
+article), \code{persons} the kinds of person a tier binds when its provision binds only some
+of those the act regulates --- kept on a tier without articles, and on one that names
+articles beside another tier of the same articles for other persons (empty otherwise, and
+absent from a reading made before that day) ---, \code{addressee} one of \code{legal},
+\code{natural}, \code{any}, and \code{measures} codes from \code{withdrawal},
+\code{restriction}, \code{cease}, \code{public_statement}, \code{management_ban},
+\code{disgorgement}, \code{periodic_penalty}, \code{criminal}, \code{other}; at most
+\code{MAX_TIERS = 24} are kept. \code{changes} is computed without a model when a new version
+is activated (\code{version_changes} in \file{corpus/ingest.py}), article by article --- or by
+top-level points in an act without articles --- comparing the texts with white space ignored.
+
+\paragraph{Units and chunks.} A version's text is stored twice more: as a tree of units, which
+is what a citation names, and as chunks, which is what retrieval searches
+(\cref{tab:data:lu}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{legal_units} and \code{legal_chunks}}\label{tab:data:lu}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{legal\_units}} \\
+\code{version}, \code{parent}, \code{ordinal}, \code{depth} & The node's place in the version's tree, in document order (indexed by version and ordinal). \\
+\code{unit_type} & \code{part}, \code{title}, \code{chapter}, \code{section}, \code{subsection}, \code{article}, \code{paragraph}, \code{point}, \code{subpoint}, \code{annex}, \code{recital}, \code{preamble}, \code{text}, \code{clause} (a standard's numbered clause, \enquote{6.1.2}). \\
+\code{number}, \code{heading} & Its own number and heading; version, type and number together are indexed for the lookup of a cited article. \\
+\code{path} & The citation it prints: \enquote{59 str. 1 d.}, \enquote{Art. 59(1)}. \\
+\code{text} & Its \emph{full} text including its children, so that an article row alone answers \enquote{quote article 59}. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{legal\_chunks}} \\
+\code{version}, \code{unit}, \code{ordinal} & The retrieval unit --- an article, or a run of paragraphs of a long one --- and its place (indexed by version and ordinal). \\
+\code{document} & A copy of the act, so that search can filter by act without a join (indexed). \\
+\code{path}, \code{heading}, \code{text}, \code{char_count} & What a search result shows; the GIN index covers \code{text}. \\
+\code{embedding} & Under the HNSW index; empty until the embedding step has run, and search skips such rows. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{obligations}: one duty, or one requirement}\label{tab:data:ob}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{source_kind} & \code{legal} (from an act), \code{internal} (a company's own requirement, read from its policy), \code{standard} (a standard's requirement, extracted or entered by an administrator). \\
+\code{document}, \code{version}, \code{unit} & The act, the version it was read from and the first provision it cites (for \code{legal} and \code{standard}). \\
+\code{company}, \code{company_document} & For \code{internal}: the company and the policy it was read from. \\
+\code{title}, \code{title_en}, \code{text}, \code{text_en} & The duty in Lithuanian and in English. \\
+\code{addressee}, \code{conditions}, \code{deadline}, \code{evidence} & Who is bound, under what conditions, by when, and what would prove compliance. \\
+\code{applies_to} & JSON list of institution types (or \code{all}) the duty binds; a report keeps the obligations that fit the company. \\
+\code{category} & One of twenty: \code{licensing}, \code{registration}, \code{governance}, \code{policy}, \code{procedure}, \code{risk_management}, \code{ict_security}, \code{outsourcing}, \code{incident_reporting}, \code{reporting}, \code{disclosure}, \code{record_keeping}, \code{customer_protection}, \code{aml_kyc}, \code{capital}, \code{safeguarding}, \code{training}, \code{data_protection}, \code{ai_governance}, \code{other}. \\
+\code{severity} & \code{critical}, \code{high}, \code{medium}, \code{low}. \\
+\code{citations} & JSON: the provisions it rests on (below). \\
+\code{status} & \code{proposed} (from the model), \code{approved}, \code{rejected}. A rejected row never reaches a report; an approved row survives re-extraction. \\
+\code{prompt_version_id}, \code{model} & The prompt version and model that extracted it, as text. \\
+\code{verification} & JSON: the judge's verdict (below); empty when never judged, or edited since. When none of the cited provisions is in the act's current version, code writes \code{unsupported} without a model call (\file{corpus/verify.py}). \\
+\code{embedding}, \code{embedding_en} & Vectors of the title and text in each language. \\
+\code{notes}, \code{reviewed_by}, \code{reviewed_at} & A reviewer's note, and who approved or rejected it. \\
+\end{xltabular}
+
+\begin{codeblock}
+citations (legal, standard) = [{unitId, path}]
+citations (internal)        = [{path: the section, documentId, documentTitle,
+                                quote, start}]
+verification = {verdict: supported | partly | unsupported,
+                issue: none | duty | addressee | condition | deadline | merged,
+                note, promptVersionId, model, checkedAt}
+\end{codeblock}
+
+For an own requirement, \code{start} is the character at which its quote stands in the
+policy's text, or empty when the text does not hold it word for word. The verification
+\enquote{orders a person's review and decides nothing} (\file{corpus/models.py}). Two indexes
+serve the register: by act and status, and by company and status.
+
+\section{Companies and their documents}\label{sec:data:companies}
+
+The application \code{companies} holds the profile a report runs on, what the company holds and
+has adopted, its roles, and its documents with their text, inventory and passages
+(\cref{ch:company}). A company belongs to its owner; a document has an owner of its own, because
+a file can be dropped into the chat before any company exists and attached later.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{companies}: the profile}\label{tab:data:co}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{owner} & The user it belongs to (\code{PROTECT}). \\
+\code{name}, \code{registration_code}, \code{country}, \code{legal_form} & Identity; country default \code{LT}. \\
+\code{nace_codes}, \code{sector}, \code{activities} & JSON list of NACE codes; free text. \\
+\code{size_category}, \code{employees}, \code{annual_turnover_eur} & Size: \code{micro}, \code{small}, \code{medium}, \code{large}, \code{unknown}. \\
+\code{institution_type} & What the applicability screen filters on first: \code{bank}, \code{credit_union}, \code{payment_institution}, \code{emi}, \code{casp}, \code{crowdfunding}, \code{consumer_credit}, \code{real_estate_credit}, \code{currency_exchange}, \code{investment_firm}, \code{insurance}, \code{other_financial}, \code{none}, \code{unknown}. \\
+\code{uses_ai}, \code{provides_ai}, \code{processes_personal_data}, \code{is_public_sector} & Tri-state flags: empty means nobody said, and the screen then keeps the acts the flag would gate rather than read silence as \enquote{no}. \code{ai_description} describes the AI use. \\
+\code{financial_market} & JSON: the financial-market classification (market, service categories, authorisation). \\
+\code{attributes} & JSON: an open bag of facts the conversation learns that have no column yet. \\
+\end{xltabular}
+
+\paragraph{What the company holds.} A row of \code{company_credentials} is a certificate,
+licence, permit or registration (\code{kind}: \code{certificate}, \code{license},
+\code{permit}, \code{registration}) with its issuer, identifier, validity and scope. Its
+\code{status} is \code{claimed} until a person checks it against the issuer's register and sets
+\code{verified} (with \code{verified_by}, \code{verified_at}); a claimed credential counts as
+evidence only with that caveat, and an \code{evidence_document} may point at the document that
+proves it. A row of \code{company_standards} is a standard of the corpus the company has adopted,
+one per company and standard (unique), with a \code{status} of \code{certified},
+\code{implementing} or \code{planned}, the scope it covers and the credential that certifies
+it; a report that names no acts of its own assesses every adopted standard, and one that names
+its acts assesses the standards among them, adopted or not (\code{adopted_standards} in
+\file{analysis/pipeline.py}). A row of
+\code{company_roles} is a role profile --- the compliance officer, for instance --- distilled
+into \code{context}, the text a chat thread can adopt, with \code{sources} listing the document
+sections it was built from (\code{[{documentId, title, section}]}); the name is unique within
+the company.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{company_documents}: one uploaded file}\label{tab:data:cd}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{owner}, \code{company} & The user who uploaded it (\code{PROTECT}) and the company it is attached to (empty until attached). \\
+\code{title}, \code{kind} & \code{kind}: \code{policy}, \code{procedure}, \code{contract}, \code{register}, \code{other}. \\
+\code{file_path}, \code{mime}, \code{size}, \code{sha256} & The file under the upload folder and its hash. \\
+\code{text}, \code{char_count} & The extracted text --- what the model reads and what is chunked. \\
+\code{extraction_status}, \code{extraction_error} & \code{pending}, \code{done}, \code{empty}, \code{failed}. \\
+\code{inventory}, \code{inventory_key} & JSON: the evidence inventory, and the key it was computed for, \code{<sha256 of the text>:<prompt version id>:s<SCHEMA_VERSION>}; a new text, prompt version or inventory shape makes it stale (\file{companies/inventory.py}, \code{SCHEMA_VERSION = 2}). \\
+\code{requirements_key} & \code{<sha256 of the file>:<prompt version id>} of the last reading of its own requirements; empty means never read. \\
+\code{indexed_at} & When its chunks were last made. \\
+\code{outline} & JSON: the headings found in the text, \code{[{title, level, offset}]}, so a reader can jump to \enquote{§7.2}. \\
+\code{uploaded_at} & The moment of upload; with \code{owner}, the order of the owner's list (indexed). \\
+\end{xltabular}
+
+The inventory is the stored answer of the prompt \prompt{report.inventory}, whose JSON schema
+fixes its keys:
+
+\begin{codeblock}
+inventory = {documentType: policy | procedure | register | contract | plan
+                           | report | profile | other,
+             summary, scope, controls: [{name, description, quote}],
+             roles, registers, approval, reviewCycle, lawsReferenced,
+             citations: [{act, article, paragraph, point, claim, quote}],
+             weaknesses}
+\end{codeblock}
+
+\code{roles}, \code{registers}, \code{lawsReferenced} and \code{weaknesses} are lists of
+short texts; \code{citations} are the references the citation audit checks
+(\cref{ch:company}). A row of
+\code{company_document_chunks} is a window of the text with its \code{ordinal},
+\code{char_start}, the nearest \code{heading} above it (the section a citation of the chunk
+names), \code{text} and \code{embedding}, under the HNSW and GIN indexes described above and
+one by document and ordinal.
+
+\section{Reports and the action register}\label{sec:data:analysis}
+
+The application \code{analysis} holds the reports and everything a report is made of, and the
+action register that outlives them. One report is one row of \code{reports} with its acts
+(\code{report_acts}), findings (\code{report_findings}), actions (\code{report_actions}) and
+citation-audit rows (\code{report_citations}); \code{company_actions} belongs to the company,
+not to a report. How a report is made is the subject of \cref{ch:report}, how the register
+lives on of \cref{ch:register}.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{reports}: one gap analysis of one company}\label{tab:data:re}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company}, \code{created_by}, \code{job} & The company, the user who started it, and the job of its latest run (\cref{ch:arch}); the job is replaced when the second part of a run is queued. \\
+\code{status} & \code{queued}, \code{running}, \code{scope_review} (waiting for a person to approve the list of acts), \code{done}, \code{failed}, \code{cancelled}. \\
+\code{language} & \code{lt} or \code{en}: the language the report is written in. \\
+\code{scope} & JSON: what the run was asked to do (below). \\
+\code{profile_snapshot} & JSON: the company as the run read it (below). \\
+\code{title}, \code{summary} & The title and the executive summary (Markdown) the summary prompt wrote. \\
+\code{stats} & JSON: counts, cost and provenance (below). \\
+\code{error} & Why a run failed; \code{AI_BUDGET_EXHAUSTED: …} when the gateway refused for its budget. \\
+\code{scope_approved_by}, \code{scope_approved_at} & Who approved the list of acts, and when. A run started without the review is stamped by the pipeline itself: a time and nobody. \\
+\code{approved_by}, \code{approved_at}, \code{approval_note} & The sign-off; cleared again by any later review of a finding (a change of its override, note or cause). \\
+\code{created_at}, \code{started_at}, \code{finished_at} & Its three moments; indexed by company and creation time. \\
+\end{xltabular}
+
+\begin{codeblock}
+scope = {documentIds: [ids of legal_documents named by the user],
+         review: true,     only when the scope review was asked for
+         internal: true}   only when own requirements are to be assessed
+
+stats = {acts: {applies, uncertain, not_applies,
+                assessed, upcoming, unconfirmed, indirect},
+         findings: {met, partial, missing, unknown, not_applicable},
+         openBySeverity: {critical, high, medium, low},
+         upcoming: {findings, openBySeverity},  only if an upcoming act has findings
+         internal: {findings, openBySeverity},  only if own requirements have findings
+         changes: {since, sinceDate, closed: {count, titles}, new, back},
+                                                 only if an earlier report exists
+         actions, reviewedObligations, tokens, costUsd,
+         citations: {checked, match, mismatch, notFound, notInCorpus, unknown},
+         provenance: {prompts: [{slug, version, model}], models,
+                      corpus: [{act, versionNo, versionDate}]}}
+\end{codeblock}
+
+The \code{documentIds} of the scope are acts of the corpus, not company documents: an act
+named there is assessed even when its verdict is \code{uncertain} or it binds the company only
+indirectly (\code{assessment_of} in \file{analysis/pipeline.py}); one the catalogue screen
+leaves out or the model judges not to apply is
+not. \code{stats} is computed by \code{report_stats}
+in \file{analysis/pipeline.py} when the run ends, and once before, when a run stops for the
+scope review. The finding counts are by \emph{effective} status --- a reviewer's override
+wins --- over the acts in force for the company; findings of acts assessed as preparation and
+of the company's own requirements are counted apart, under \code{upcoming} and
+\code{internal}. The counts are recomputed when a reviewer overrides a finding
+(\code{finding_counts}); the rest is not. \code{tokens} and \code{costUsd} add up the model
+calls of every job step filed under the report (\code{subject = report:<id>}), so both parts
+of a run with a scope review are counted. \code{provenance} names each prompt version and
+model that ran and, for every act the report judged rather than screened out, the version
+number and date it read. \code{changes} (\code{changes} in \file{analysis/register.py})
+compares each obligation with the last earlier finished report that assessed it: gaps
+\code{closed}, gaps \code{new}, and obligations that went \code{back} from met to a gap, each
+with a count and at most five titles.
+
+\code{profile_snapshot} is the company as the API serves it with everything attached
+(\code{serialize_company(…, with_related=True)} in \file{companies/serializers.py}): the
+profile's columns under their wire names (\code{institutionType}, \code{usesAi},
+\code{financialMarket}, \code{attributes}, \dots), and the lists \code{credentials},
+\code{standards}, \code{roles} and \code{documents} --- the last with each document's
+metadata, its inventory's \code{documentType} and one-line \code{inventorySummary}, never its
+text. It is written by \code{freeze_profile} in \file{analysis/pipeline.py}: in the
+\code{profile} step of the run's first part, and again when the second part starts. The second
+part reads the company anew, so a report made with the scope review shows the company its
+findings were judged on, with a credential verified or a document added while the report
+waited. A report that runs without the review writes it once.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_acts}: one act, as the report treated it}\label{tab:data:ra}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{document}, \code{version} & Links to the act and the version read (kept for navigation only). \\
+\code{document_title}, \code{short_title}, \code{jurisdiction}, \code{doc_type}, \code{source_url} & Copies from the catalogue when the report ran. \code{doc_type} \code{standard} marks an adopted standard (applies by adoption, no model call); \code{internal} the row the company's own requirements hang on. \\
+\code{applicability}, \code{confidence}, \code{reasoning}, \code{conditions_to_verify} & The model's verdict: \code{applies}, \code{not_applies} or \code{uncertain}; a confidence clamped to 0–1; its reason; the facts to confirm. \\
+\code{applies_from} & The date the act binds the company from, when that is later than the day of the run. \\
+\code{assessment} & What the report did with the act: \code{assessed}, \code{upcoming}, \code{unconfirmed}, \code{indirect}, \code{none}. Computed by code from the verdict; the scope review may change it, never the verdict. \\
+\code{citations} & JSON: the scope provisions the verdict cites, \code{[{unitId, path, documentTitle}]}. \\
+\code{screened_out}, \code{order} & True for an act the catalogue's screen left out without a model call; the order of listing. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_findings}: the verdict on one obligation}\label{tab:data:rf}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{act}, \code{obligation}, \code{source_kind} & Links to the report's act row and to the obligation; \code{legal}, \code{standard} or \code{internal}. \\
+\code{document_title}, \code{short_title}, \code{obligation_title}, \code{obligation_text}, \code{category}, \code{deadline} & Copies of the act's titles and of the obligation (in the report's language when the obligation has an English text). \\
+\code{obligation_reviewed} & Whether a person had approved the obligation when the report ran. \\
+\code{status} & The model's verdict: \code{met}, \code{partial}, \code{missing}, \code{unknown} (not evidenced), \code{not_applicable}. \\
+\code{severity} & The obligation's severity, copied. \\
+\code{analysis}, \code{recommendation} & The model's assessment and recommendation. \\
+\code{evidence}, \code{citations}, \code{consequence} & JSON (below). \\
+\code{override_status}, \code{reviewer_note}, \code{reviewed_by}, \code{reviewed_at} & A reviewer's status and note; they win in every view and export. \\
+\code{cause} & Why the gap exists, in the reviewer's words; only a person writes it. \\
+\code{order} & Missing first, then partial, not evidenced, met, not applicable; graver first within each; the company's own requirements after the rest (indexed with \code{report}). \\
+\end{xltabular}
+
+\begin{codeblock}
+evidence    = [{kind: "passage",    id: document id,   title, quote, start}
+               {kind: "credential", id: credential id, title, quote}
+               {kind: "profile",    id: company id,    title, quote}]
+citations   = the obligation's citations, with documentTitle and url added
+              (legal, standard); copied as they are (internal)
+consequence = [{act, path, where, condition, maxFineEur, maxFinePercent,
+                benefitMultiple, persons, measures, measuresFrom: [paths],
+                via: {act, path}}]      (via: under a level 2 act only)
+\end{codeblock}
+
+A quote in \code{evidence} is cut to 600 characters, and \code{start} is the character at
+which it stands in the document's text, or empty when the document does not hold it word for
+word: the reader then sees what the model claimed and that it could not be placed. A report
+made when passages were indexed chunks stored the chunk's ordinal (\code{chunk}) instead, and
+the API resolves it when it serves the report (\file{analysis/serializers.py}).
+\code{consequence} holds the sanction tiers that cover the provision as the corpus held them
+when the report ran (\code{Consequences.of} in \file{corpus/sanctions.py}): the act's own, then
+one other act's. It is empty for an act not yet binding the company, for a requirement of a
+standard or of the company's own, for an act whose sanctions were never read, and for a
+provision no tier reaches. Under a level~2 act the entries are those of the article of the
+parent act it was adopted under, each with \code{via}, that act and article
+(\cref{ch:obligations}); a report made before 16~November 2026 holds none for such an act.
+
+\paragraph{Actions and citation-audit rows.} A row of \code{report_actions} is one step of the
+plan (\cref{tab:data:rx}); a row of \code{report_citations} (\cref{tab:data:rc}) is one
+reference a company document makes to a provision, with the audit's verdict. A reference
+several documents make was judged once, and each document still has its own row.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_actions}: one step of the action plan}\label{tab:data:rx}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{title}, \code{description}, \code{owner_role}, \code{category} & What to do, and the role that owns it. \\
+\code{priority} & Its place in the plan, computed by code --- from what it closes (today's gaps before preparation for upcoming acts, then by severity and status), then its timeframe --- never asked of the model. \\
+\code{effort}, \code{timeframe} & \code{low}, \code{medium}, \code{high}; \code{immediate}, \code{30_days}, \code{90_days}, \code{12_months}. \\
+\code{finding_ids} & JSON list of the ids of the findings it closes; an action that closes no finding (correcting references, confirming facts) has an empty list. \\
+\code{order} & The order of listing. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{report_citations}: one reference of a document, and the audit's verdict}\label{tab:data:rc}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company_document}, \code{document_title} & The document that makes the reference (link and copy). \\
+\code{act}, \code{article}, \code{paragraph}, \code{point}, \code{claim}, \code{quote} & The reference exactly as the document wrote it, and what it says the provision covers. \\
+\code{status} & \code{found}, \code{not_found}, \code{act_not_in_corpus}. \\
+\code{heading_match} & For a found provision: \code{match}, \code{mismatch}, \code{unknown}; empty otherwise. \\
+\code{judged_by} & \code{model}, or \code{overlap} when the judge was unavailable and word overlap decided; empty when nothing was compared. \\
+\code{legal_document}, \code{unit} & Links to the act and the provision found. \\
+\code{short_title}, \code{unit_path}, \code{heading}, \code{note}, \code{excerpt}, \code{citation_url} & Copies of the provision found, the judge's note, an excerpt of the provision and its official link. \\
+\code{order} & Problems first (mismatch, not found, unknown, act not in the corpus, match), then the documents' order. \\
+\end{xltabular}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{company_actions}: one action of the company's register}\label{tab:data:ca}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{company}, \code{report}, \code{plan_action_id} & The company; the signed-off report whose plan brought it in; the id of that plan's action. Unique by company and \code{plan_action_id}, so bringing a plan in twice adds nothing. \\
+\code{title}, \code{description}, \code{category}, \code{priority}, \code{effort} & Copied from the plan's action. \\
+\code{owner}, \code{due_date} & Who carries it out (first the plan's owner role) and by when (the sign-off date plus 14, 30, 90 or 365 days for the four timeframes); a person may change both. \\
+\code{status} & \code{open}, \code{in_progress}, \code{done} (its owner's word), \code{closed}. \enquote{Late} is not stored: it is an open or in-progress action past its due date. \\
+\code{items} & JSON: the open findings it is to close (below). \\
+\code{note}, \code{closed_at}, \code{closed_by}, \code{closed_from}, \code{confirmed_report} & How it was closed: by a person with a reason in \code{note}, or by a later signed-off report (\code{confirmed_report}); \code{closed_from} is the state it was closed from, so a withdrawn sign-off can put it back. \\
+\code{done_at} & When its owner last called it done: only a report made after that can send it back to work. \\
+\end{xltabular}
+
+\begin{codeblock}
+items = [{obligationId, findingId, title, act, path, sourceKind, status,
+          confirmed: null | {reportId, at}}]
+\end{codeblock}
+
+\section{Work products}\label{sec:data:programme}
+
+The application \code{programme} has one table. A row of \code{work_products} is one version of
+one product of a company --- a compliance policy, a structure with its process and RACI, or a
+risk register (\cref{ch:programme}). Its \code{kind} is \code{policy}, \code{governance} or
+\code{risks}, without a constraint; \code{version} counts up per company and kind (unique
+together); \code{language} is \code{lt} or \code{en}; \code{status} is \code{queued},
+\code{running}, \code{draft} (generated or being edited, waiting for a person), \code{approved}
+(frozen: a change is a new version), \code{failed} or \code{cancelled}. Beside the
+\code{job}, \code{title} and \code{error} it carries four JSON columns and three stamps of who
+did what: \code{created_by}, \code{edited_by} with \code{edited_at}, and \code{approved_by}
+with \code{approved_at} and \code{approval_note}.
+
+\begin{codeblock}
+content (policy)     = {title,
+                        parts: [{key, heading, text, decisions, sources,
+                                 legalBasis}],
+                        hierarchy: [{documentId, document, level, topic, note}],
+                        missing: [{level, title, purpose, supports, priority,
+                                   legalBasis, partlyCoveredBy}]}
+content (governance) = {title, positions, gaps, structure, process, raci}
+content (risks)      = {title, criteria: {likelihood, impact, calibration},
+                        appetite, scenarios}
+checks = [{rule, ok, blocking, detail}]
+basis  = {reportId, products: {<kind>: {id, version, status}},
+          documents: [{id, title, sha256}]}
+stats  = {tokens, costUsd, provenance: {prompts: [{slug, version, model}],
+                                        models}}
+\end{codeblock}
+
+\code{content} is the product in the stored shape its kind's \code{validate} gives it
+(\file{programme/policy.py}, \file{governance.py}, \file{risks.py}); \code{checks} are the
+rules of the kind as the content last met or broke them, and a broken \code{blocking} rule
+keeps the product from being approved; \code{basis} names what the run read --- the report,
+the earlier products, the documents with their hashes --- so that a reader can tell what the
+product rests on.
+
+\section{The tables that run the system}\label{sec:data:ops}
+
+The remaining tables, drawn in \cref{fig:data:ops}, are accounts and sessions, prompts, the
+queue, the record of model calls, the chat and the audit trail.
+
+
+\paragraph{Users and sessions.} A row of \code{users} is an account, and every other table that
+names a person points here.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{users} and \code{sessions}}\label{tab:data:us}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{users}} \\
+\code{email}, \code{display_name} & The e-mail is unique, and unique ignoring case as well (a functional index on its lower case). \\
+\code{password_hash} & The hash of the password; never the password. \\
+\code{role} & \code{admin} or \code{user}. \\
+\code{active} & The kill switch every authenticated request checks again; the plain delete of an account deactivates it, and only an administrator's purge deletes it with its data (\cref{tab:data:ondelete}). \\
+\code{daily_budget_usd} & What the account may spend on model calls per UTC day: empty means the installation's default (\code{LLM_DAILY_BUDGET_USD}), 0 means unlimited (\cref{ch:models}). \\
+\code{created_at}, \code{updated_at}, \code{last_login_at} & \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{sessions}} \\
+\code{user}, \code{token_hash} & The account, and the SHA-256 of the bearer token the client holds (unique); the token itself is never stored. \\
+\code{expires_at}, \code{created_at}, \code{user_agent}, \code{ip} & Expiry and where the session came from; indexed by user and expiry. At sign-in only the newest \code{SESSIONS_PER_USER = 10} of an account are kept (\file{users/auth.py}). \\
+\end{xltabular}
+
+\paragraph{Prompts.} The instructions a model is given are stored as prompts with immutable
+versions (\cref{tab:data:pr}); editing a prompt adds a version, and activating one moves
+\code{active_version}. How shipped defaults become versions is the subject of
+\cref{ch:prompts}. On 13 November 2026 the tables held 23 prompts and 85 versions, and every
+active version was a shipped default; a new default of the chat's prompt was seeded on 16 and
+again on 17 November 2026, new defaults of the sanctions prompt (twice) and of the
+inventory prompt on 19 November and one more of the sanctions prompt on 20 November, so
+they hold 91 versions, and every active version is still
+a shipped default.
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{prompts} and \code{prompt_versions}}\label{tab:data:pr}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{prompts}} \\
+\code{slug}, \code{name}, \code{description} & The unique name the code calls it by (\prompt{report.gap_analysis}). \\
+\code{kind} & \code{chat}, \code{pipeline} or \code{corpus}. \\
+\code{variables}, \code{output_schema} & JSON: the placeholders it may use, and the JSON schema its answer must match. \\
+\code{active_version} & The version in use. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{prompt\_versions}} \\
+\code{prompt}, \code{version_no} & Unique together. \\
+\code{text}, \code{model}, \code{temperature}, \code{max_tokens} & The text and the model settings; \code{model} is a string of the form \code{provider:model}. \\
+\code{source}, \code{default_hash} & \code{default} for a text shipped in \file{prompts/defaults/*.yaml}, whose hash names the exact shipped text; \code{user} for one written in the editor. \\
+\code{note}, \code{created_by}, \code{created_at} & \\
+\end{xltabular}
+
+\paragraph{Jobs and steps.} The queue is two tables, and \cref{ch:arch} describes how they
+behave as one: claiming, locking, heartbeats, retries and cancelling. \Cref{tab:data:jobs} lists
+their columns; the JSON among them have these shapes:
+
+\begin{codeblock}
+jobs.progress   = {step, percent, message}
+jobs.result     = what the handler returned; report.analyze:
+                  {reportId, findings, actions} or {reportId, waiting: "scope"};
+                  programme.generate: {productId, checks: how many broken}
+job_steps.input_ref, job_steps.output
+                = what the step was given and what it counted; the
+                  gap_analysis output, for instance: {met, partial, missing,
+                  unknown, not_applicable, documents: "all" | "nearest",
+                  quotesPlaced, quotesUnplaced}
+job_steps.usage = {calls, inputTokens, outputTokens, costUsd,
+                   models: [{model, calls, inputTokens, outputTokens, costUsd}]}
+\end{codeblock}
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{jobs} and \code{job_steps}}\label{tab:data:jobs}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{jobs}} \\
+\code{kind}, \code{payload}, \code{subject} & The handler, its JSON input and what the job is about (\code{report:<id>}; indexed). \\
+\code{status} & \code{queued}, \code{running}, \code{done}, \code{failed}, \code{cancelled}. \\
+\code{priority}, \code{run_after} & The order of claiming and the earliest moment; one index serves the claim (status, \code{run_after}, priority, creation). \\
+\code{attempts}, \code{max_attempts}, \code{cancel_requested}, \code{locked_by}, \code{heartbeat_at} & Retries, cancelling and the lock of the worker that holds it. \\
+\code{progress}, \code{result}, \code{error} & JSON progress and result; the error text. \\
+\code{created_by}, \code{created_at}, \code{started_at}, \code{finished_at} & Who caused it (empty for the scheduler's) and its moments. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{job\_steps}} \\
+\code{job}, \code{ordinal}, \code{name} & The step's place in its job (indexed): \code{profile}, \code{documents}, \code{citations}, \code{applicability}, … for a report. \\
+\code{status} & \code{running}, \code{done}, \code{failed}, \code{skipped}. \\
+\code{prompt_version_id}, \code{model} & The prompt version and model of its calls, as text: the step's record outlives the version row. \\
+\code{input_ref}, \code{output}, \code{usage} & JSON, as above; \code{usage} is read back from the step's rows of \code{llm_calls} when the step ends. \\
+\code{duration_ms}, \code{error}, \code{started_at}, \code{finished_at} & \\
+\end{xltabular}
+
+\paragraph{The record of model calls.} A row of \code{llm_calls} is one call of a model, and the
+table is what the usage page, the daily budget and every cost figure of this book are computed
+from (\cref{ch:models,ch:control}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{llm_calls}: one model call}\label{tab:data:lc}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{kind}, \code{purpose} & \code{chat}, \code{job_step}, \code{embed}, \code{prompt_test}; a short free label (at most 80 characters). \\
+\code{user} & The account charged; empty for work charged to nobody, such as corpus extraction inside a report. \\
+\code{thread_id}, \code{job_step_id}, \code{prompt_version_id} & What the call was for, as text ids with no foreign key; \code{job_step_id} is indexed, since a step's usage and a report's cost are read through it. \\
+\code{model} & The model as the gateway names it. \\
+\code{input_tokens}, \code{cached_input_tokens}, \code{cache_write_tokens}, \code{output_tokens}, \code{reasoning_tokens} & Token counts; of the input, those read from the provider's prompt cache and those written to it, which are billed at other prices. \\
+\code{cost_usd} & The cost in US dollars, six decimals, computed from the gateway's price list when the row is written. \\
+\code{duration_ms}, \code{tool_calls}, \code{outcome} & Duration, the JSON list of tools a chat turn called, and the outcome (\code{ok} by default; free text up to 40 characters). \\
+\code{transcript} & JSON for a chat turn: \code{{user, assistant}}, the text of the question and of the answer --- the audit of what the assistant told whom. Erased when the account is purged (\file{users/purge.py}); the row itself stays, unlinked. \\
+\code{created_at} & Indexed alone and with \code{user}. \\
+\end{xltabular}
+
+Two small tables of the same application stand beside it. \code{model_prices}, keyed by the
+model's id, keeps the last known US dollars per token of each model --- input, output, and,
+when the gateway names them, input read from and written to the cache --- refreshed from the
+gateway's list and used when the list cannot be reached. \code{mcp_servers} holds an external
+MCP server whose tools the chat assistant may call: a unique \code{name} (the prefix of its
+tools), \code{url}, \code{transport} (\code{http} or \code{sse}), \code{headers} with its
+credentials, \code{allowed_tools} (empty means every tool), \code{enabled}, and the last
+successful listing of its tools (\code{tools}, \code{[{name, description}]}).
+
+\paragraph{The chat.} A conversation is a thread of one user with its messages
+(\cref{tab:data:ct}). The console appends the user's messages and the assistant service its
+replies, both through \file{chat/store.py}, which refuses a message whose content does not
+carry exactly one role and a stored message that would change its role (\cref{ch:chat}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{chat_threads} and \code{chat_messages}}\label{tab:data:ct}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}l}{\textit{chat\_threads}} \\
+\code{user} & The one user the conversation belongs to. \\
+\code{company}, \code{role} & Optionally the company it is about and the role (\code{company_roles}) whose context it adopts. \\
+\code{title} & Named by the first message, by a model, or by the user. \\
+\code{model} & The gateway model the user picked (\code{gateway:azure/…}); empty means the chat prompt's own. \\
+\code{message_count}, \code{archived}, \code{created_at}, \code{updated_at} & Indexed by user, archived and last update. \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{chat\_messages}} \\
+\code{id} & The id the chat client gave the message (see \cref{sec:data:conventions}). \\
+\code{thread}, \code{parent_id} & The thread, and the message it follows, as text. \\
+\code{format} & The format name the writer gives; the console and the assistant service write \code{ai-sdk/v6}. \\
+\code{role} & The message's one role, read out of its content when stored. \\
+\code{content} & JSON: the message as the chat client holds it, at most \code{MAX_CONTENT_CHARS = 400000} characters. \\
+\code{created_at} & Kept when a message is sent again, so history never reorders (indexed with the thread). \\
+\end{xltabular}
+
+\paragraph{The audit trail and the rate limiter.} A row of \code{audit_log} records one
+mutation an administrator may need to see --- a sign-in, a change of a user, a prompt
+activation, a change of the corpus, a report's sign-off (\cref{tab:data:au}). It is written
+only through \code{audit()} in \file{audit/log.py}. A row of \code{rate_limit_windows} is one
+fixed window of a limiter: its \code{key}, the \code{count} of requests in it and
+\code{reset_at}, shared by every web worker of the API (\file{common/ratelimit.py},
+\cref{ch:security}).
+
+\begin{xltabular}{\textwidth}{@{}L{38mm}Y@{}}
+\caption{\code{audit_log}: one recorded action}\label{tab:data:au}\\
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Column} & \hd{Meaning} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{user} & Who did it; empty for an action without a signed-in user. \\
+\code{action} & A dotted name: \code{reports.approve}, \code{reports.approve_scope}, \code{corpus.delete}, \dots \\
+\code{target_type}, \code{target_id} & What it was done to, as text (indexed together). \\
+\code{details} & JSON: what changed, as the action records it --- for a scope approval, each act whose treatment the person changed. \\
+\code{ip}, \code{created_at} & Where from, and when (indexed newest first). \\
+\end{xltabular}
+
+\section{What a report copies, and what it does not}\label{sec:data:snapshots}
+
+A compliance report is evidence of what was found on a given day, and it must read the same
+later, when the corpus has a new version of an act, an obligation has been reworded, a
+document has been replaced or the company's profile has changed. The model files state the
+rule: a report \enquote{snapshots every title and text it shows (act titles, obligation texts,
+citation paths, provision headings), so it reads the same after the corpus, the obligations,
+the documents or the profile change; the foreign keys are kept only for navigation}
+(\file{analysis/models.py}).
+
+\begin{codebox}{What is copied into a report when it runs}
+\begin{itemize}
+  \item The company: \code{reports.profile_snapshot}, the whole profile with its credentials,
+    adopted standards, roles and the list of documents with their inventory summaries. A
+    report that stopped for the scope review copies it again when its second part starts.
+  \item Every act: its title, short title, jurisdiction, type and link
+    (\code{report_acts}), and the version read (a link, and its number and date in
+    \code{stats.provenance.corpus}).
+  \item Every obligation judged: its title and text in the report's language, its category,
+    severity and deadline, whether a person had approved it, and the provisions it cites with
+    their paths and official links (\code{report_findings}).
+  \item What a breach can cost: the sanction tiers that covered the provision on the day
+    (\code{report_findings.consequence}).
+  \item The evidence: each quote the model gave, with the place it stands in its document on
+    the day (\code{start}).
+  \item The citation audit: each reference as written, the provision found, its heading, an
+    excerpt and its link (\code{report_citations}).
+  \item Which prompt version and model made each step, and what the run cost
+    (\code{stats.provenance}, \code{tokens}, \code{costUsd}).
+\end{itemize}
+\end{codebox}
+
+What is not copied is as deliberate. The full text of an act and of a company document stays
+in its own table: a report holds quotes, excerpts and offsets into them, not the texts. A quote's
+\code{start} is an offset into the document's text as it was; if the document is deleted the
+link is emptied, and the quote remains. The prompts are named, not copied: provenance gives the
+slug, the version number and the model, and the version itself stays, since prompt versions
+are immutable and no route deletes one. The job's steps, which hold the per-step record, are not purged while the report
+points at the job (\cref{ch:arch}). Two things in a served report are computed afresh on
+purpose: \code{outdatedActs}, the acts that have received a newer version since the report read
+them (so that a reader knows to run it again), and each finding's \code{history}, how its
+obligation stood in the company's earlier reports (\file{analysis/serializers.py}).
+
+The action register copies in the same way: an item of \code{company_actions.items} holds the
+finding's title, act and provision path as they were at the sign-off, and names the obligation
+by id. An obligation that was never approved is replaced when its act is read again, so its id
+may disappear; the API then serves the item without its obligation, as one that no later
+report can confirm (\code{standing} in \file{analysis/register.py}).
+
+\section{Who writes which columns}\label{sec:data:writers}
+
+The tables mix three kinds of content, and the line between them is the line this book draws
+everywhere: what a model wrote, what the code computed, and what a person decided. Code stores
+a pipeline prompt's answer only after it has been held to the prompt's strict JSON schema, its
+values checked against the allowed ones, and every reference the model gave mapped (a provision \code{P3}, an obligation \code{O7}, a document \code{D4}) back to a real
+row; a reference that maps to nothing is dropped.
+
+\begin{aibox}{Columns that hold what a model answered}
+\code{legal_document_versions.scope} and \code{.sanctions}; the text fields of an extracted
+\code{obligations} row (title, text, addressee, conditions, deadline, evidence, category,
+severity, \code{applies_to}) and its \code{verification}; \code{company_documents.inventory};
+in a report, \code{report_acts.applicability}, \code{confidence}, \code{reasoning},
+\code{conditions_to_verify} and \code{applies_from}, \code{report_findings.status},
+\code{analysis}, \code{recommendation} and the quotes of \code{evidence},
+\code{report_citations.heading_match} and \code{note} when \code{judged_by} is \code{model},
+the text of \code{report_actions} and which drafted actions merge into one
+(\prompt{report.plan_merge}), and \code{reports.title} and \code{summary};
+\code{work_products.content} before a person edits it; \code{chat_threads.title} when a model
+named the thread, and the assistant's messages.
+\end{aibox}
+
+\begin{codebox}{Columns the code computes}
+\code{report_acts.assessment} (from the verdict, the act's type and the report's scope);
+\code{report_findings.consequence}, \code{order} and the \code{start} of each quote;
+\code{report_actions.priority} and \code{finding_ids} (a merged action closes what its drafts
+closed, and a finding its planning call left without an action joins the nearest one,
+\code{_nearest_action} in \file{analysis/pipeline.py}); \code{reports.stats};
+\code{legal_document_versions.changes}; \code{work_products.checks}; \code{company_actions}
+items, due dates and their confirmation by a later report; every count, key, hash and cost.
+\end{codebox}
+
+\begin{humanbox}{Columns that record a person's decision}
+\code{obligations.status} (approving or rejecting), \code{reviewed_by} and \code{notes};
+\code{company_credentials.status} set to \code{verified}; the scope review
+(\code{reports.scope_approved_by}, and the \code{assessment} of the acts it changes); a
+finding's \code{override_status}, \code{reviewer_note} and \code{cause}; the sign-off
+(\code{reports.approved_by}, \code{approval_note}); the owner, due date, state and closing note
+of an action in the register; the edit and approval of a work product (\code{edited_by},
+\code{approved_by}); a prompt version of source \code{user}. No pipeline sets any of them.
+Three can also be set through the chat, where the model calls a tool in the user's name and
+with the user's rights (\cref{ch:chat}): approving a report's scope (\code{approveReportScope},
+after the user has accepted the list and its price), overriding a finding
+(\code{overrideFinding}, with the user's reason) and marking a credential verified
+(\code{updateCredential}, or \code{addCredential} with that status, on the user's word that the
+credential was checked). The row then names the user, as if the console had been used. No
+tool writes a finding's \code{cause}.
+\end{humanbox}
+
+\section{How the schema came to be}\label{sec:data:history}
+
+The tables are made and changed by Django migrations,
+one folder per application. Their names are the short history of the model
+(\cref{tab:data:migrations}). On 13 November 2026 the live database stood at the last migration
+listed here for \code{analysis}, \code{assistant}, \code{corpus}, \code{companies}, \code{programme},
+\code{prompts}, \code{users}, \code{chat}, \code{audit}, \code{jobs} and \code{ops}.
+
+\begin{xltabular}{\textwidth}{@{}L{20mm}Y@{}}
+\caption{The migrations of each application, by file name}\label{tab:data:migrations}\\
+\toprule
+\hd{Application} & \hd{Migrations after \code{0001_initial}} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Application} & \hd{Migrations after \code{0001_initial}} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{corpus} & 0002 \code{obligations_extracted_at} · 0003 source kinds changed · 0004 \code{obligation_embedding_en} · 0005 \code{standards} · 0006 version \code{scope} · 0007 obligation \code{verification} · 0008 version \code{sanctions} · 0009 version \code{changes} \\
+\code{companies} & 0002 document \code{indexed_at}, \code{inventory} and more · 0003 \code{companyrole}, credential evidence document and more · 0004 \code{companystandard} · 0005 document \code{requirements_key} \\
+\code{analysis} & 0002 \code{initial} · 0003 \code{finding_obligation_reviewed} · 0004 report approval note and time · 0005 \code{recount_effective_findings} · 0006 \code{reportcitation} · 0007 act \code{doc_type} · 0008 act \code{assessment} · 0009 report \code{scope_review} · 0010 finding \code{consequence}, \code{cause} · 0011 \code{companyaction} \\
+\code{assistant} & 0002 call cost and purpose · 0003 call kinds changed · 0004 \code{mcpserver} · 0005 \code{modelprice} · 0006 call job-step index · 0007 \code{prompt_cache_accounting} \\
+\code{users} & 0002 user token budget · 0003 token budget replaced by \code{daily_budget_usd} \\
+\code{chat} & 0002 \code{initial} · 0003 thread \code{role} · 0004 thread \code{model} \\
+\code{prompts} & 0002 version \code{default_hash}, \code{source} \\
+\code{programme}, \code{jobs}, \code{audit}, \code{ops} & none \\
+\end{xltabular}

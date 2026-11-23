@@ -1,0 +1,1034 @@
+% STATUS: reviewed
+\chapter{Architektūra}\label{ch:arch}
+
+Šiame skyriuje sistema aprašoma kaip veikiančių dalių visuma: aštuoni konteineriai ir už ką
+kiekvienas atsakingas, du tinklai su vieninteliu įėjimu ir vieninteliu išėjimu, keturios
+taisyklės, kurios lemia, ką kuri dalis gali daryti, ir dvejos vidinės durys tarp API ir
+asistento paslaugos. Toliau per šias dalis sekamos keturios užklausos --- pokalbio ėjimas,
+ataskaita, programos dokumentas ir teisės aktų bazės atnaujinimas --- tiek, kiek reikia
+suprasti, kas ką kviečia. Foninės užduotys čia aprašomos išsamiai, nes kiekviena ilga
+sistemos operacija yra užduotis: eilė, užduočių vykdytojas, planuoklis ir kasdienė priežiūra.
+Skyrius baigiamas technologijų rinkiniu, dviem compose failo režimais ir
+architektūriniais sprendimais su jų priežastimis.
+
+\section{Sistema ir jos konteineriai}\label{sec:arch:containers}
+
+\product{} padeda atitikties pareigūnui nustatyti, kurie Lietuvos ir ES teisės aktai taikomi
+finansų sektoriaus įmonei, išskiria tų aktų nustatomas pareigas, palygina jas su pačios
+įmonės dokumentais ir parengia spragų ataskaitą. Iš tų pačių dokumentų jis rengia atitikties
+programos dokumentų projektus, kuriuos žmogus redaguoja ir patvirtina. Naudotojas dirba
+pokalbyje; struktūrizuoti puslapiai skirti peržiūrai ir administravimui. Visa tai veikia
+viename serveryje kaip vienas Docker Compose projektas, aprašytas \file{docker-compose.yml}
+faile: aštuoni konteineriai (\cref{tab:arch:containers}), iš kurių trys sukuriami iš pačios
+saugyklos kodo --- API, asistento paslauga ir konsolė, --- o vienas, duomenų bazė, iš
+standartinio atvaizdo su į jį sukompiliuotu plėtiniu.
+
+\begin{table}[H]
+\caption{Aštuoni \file{docker-compose.yml} konteineriai ir už ką kiekvienas atsakingas}\label{tab:arch:containers}
+\begin{tabularx}{\textwidth}{@{}L{36mm}L{33mm}Y@{}}
+\toprule
+\hd{Konteineris} & \hd{Atvaizdas} & \hd{Už ką atsakingas} \\
+\midrule
+\code{legalops-endpoint} & \code{caddy:2.11-alpine} & Vienintelis įėjimas. Jis atveria serverio 80 prievadą ir kiekvieną užklausą pagal kelią nukreipia į konsolę, API, asistento paslaugą arba duomenų bazės įrankį; nustato saugumo antraštes ir rašo prieigos žurnalą JSON formatu. \\
+\code{legalops-exit} & \code{vuknf/caddy-l4:2.11} & Vienintelis išėjimas: 443 prievado tarpinis serveris, kuris TLS ryšį persiunčia tik tada, kai šis nurodo vieną iš keturių leidžiamų adresų. \\
+\code{legalops-vite} & sukuriamas iš \file{vite/} & Konsolė adresu \code{/console} ir viešoji svetainė šakniniu adresu: vienas Vite projektas su dviem programomis. Jame nėra nei duomenų, nei paslapčių. \\
+\code{legalops-django} & sukuriamas iš \file{django/} & API (Django): paskyros ir sesijos, įmonės ir jų dokumentai, teisės aktų bazė, pareigų registras, ataskaitos, programos dokumentai, instrukcijos, pokalbių istorija, DI sąnaudos ir veiksmų žurnalas; įkelti failai diske; vidinės durys \code{/internal/assistant/*}. Šiame konteineryje veikia ir užduočių vykdytojo ciklas. \\
+\code{legalops-worker} & \code{docker:27-cli} & Nieko savo. Tai Docker komandinės eilutės klientas, kuris paleidžia užduočių ciklą \code{legalops-django} konteineryje ir veikia tol, kol veikia tas ciklas. \\
+\code{legalops-assistant} & sukuriamas iš \file{assistant/} & Asistento paslauga: kiekvienas modelio iškvietimas --- srautinis pokalbis su įrankiais, API užsakyti generavimai ir vektorizavimai, išorinių MCP serverių klientas. Jai priklauso fakulteto DI tinklų sąsajos (angl. \en{gateway}) raktas, bet ne duomenys. \\
+\code{legalops-postgres} & sukuriamas iš \file{postgres/} & PostgreSQL su \code{pgvector} plėtiniu: visi duomenys, vektoriniai ir viso teksto indeksai. Jei duomenų katalogas tuščias, pirmą kartą paleidžiant įkeliamas \file{postgres/bootstrap.sql.gz}. \\
+\code{legalops-dbgate} & \code{dbgate/dbgate:7.3.3-alpine} & Administravimo įrankis: duomenų bazės naršyklė adresu \code{/dbgate/}, pasiekiama tik administratoriams. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Kiekvieno konteinerio šakninė failų sistema yra tik skaitoma; tai, ką reikia rašyti, patenka
+į \code{tmpfs} prijungimą arba į vieną iš dviejų serverio katalogų po \file{_DATA/} (duomenų
+bazės failai ir įkelti failai). Įėjimas, išėjimas, API ir duomenų bazė veikia kaip uid~1000.
+Užduočių vykdytojas ir duomenų bazės įrankis veikia kaip root, o konsolės ir asistento
+paslaugos konteinerių \code{user} eilutė compose faile užkomentuota, todėl jie veikia kaip
+numatytasis jų atvaizdo naudotojas. Compose failas nenustato nei išteklių ribų, nei būklės
+patikrų, nei paleidimo tvarkos: paslaugos startuoja kartu, o įėjimas atsako 502, kol
+paslauga, kuriai priklauso kelias, dar neveikia. Šių sprendimų saugumo pasekmės aptariamos
+\cref{ch:security}; diegimas ir atnaujinimai --- \cref{ch:ops}.
+
+\paragraph{API viduje.} Django projektas nenaudoja nė vienos Django kartu teikiamos
+programos: nėra nei administravimo svetainės, nei \code{django.contrib.auth}, nei sesijų
+karkaso, nei savų šablonų (\file{settings.py}). Jį sudaro vienuolika paties projekto programų
+(\cref{tab:arch:apps}), dvi tarpinės programinės įrangos dalys --- \code{RequestGuardMiddleware}
+(\file{common/middleware.py}), kuri atmeta NUL simbolį kelyje ar užklausos parametruose ir
+reikšmę, kurios duomenų bazė negali priimti (išeinančią už leistinų ribų ar netaisyklingą),
+paverčia atsakymu 400, ir Django \code{CommonMiddleware}, ---
+bei viena visos paslaugos maršrutų lentelė \file{urls.py}. Kiekvienas atsakymas, taip pat ir
+klaidos, yra JSON. Laiko reikšmės visur yra UTC su nurodyta laiko juosta. Patys maršrutai
+išvardyti \cref{ch:api}, o lentelės --- \cref{ch:data}.
+
+\begin{table}[H]
+\caption{API programos, kaip jas įdiegia \file{settings.py}}\label{tab:arch:apps}
+\begin{tabularx}{\textwidth}{@{}L{23mm}Y@{\hspace{5mm}}L{23mm}Y@{}}
+\toprule
+\hd{Programa} & \hd{Turinys} & \hd{Programa} & \hd{Turinys} \\
+\midrule
+\code{users} & Paskyros, sesijos, prisijungimas & \code{programme} & Programos dokumentai \\
+\code{audit} & Veiksmų žurnalas & \code{chat} & Pokalbiai ir žinutės \\
+\code{jobs} & Eilė ir užduočių vykdytojas & \code{prompts} & Instrukcijos ir jų versijos \\
+\code{companies} & Įmonės ir jų dokumentai & \code{ops} & Būklės patikra, priežiūra, užklausų ribojimo langai \\
+\code{corpus} & Teisės aktai, redakcijos, struktūros vienetai, pareigos & \code{assistant} & Asistento paslaugos klientas, DI sąnaudos, kainos, MCP serveriai \\
+\code{analysis} & Ataskaitos ir veiksmų registras & & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Asistento paslaugos viduje.} Paslauga yra vienas Node procesas: Express programa
+(\file{app.js}), kurią aptarnauja \file{server.js}. Jos katalogai atitinka tris jos darbus:
+\file{routes/} laiko viešąjį pokalbio maršrutą ir dvi vidinių maršrutų grupes, \file{llm/} ---
+tiekėjų registrą, pokalbio įrankius, srautą ir MCP klientą, o \file{services/} --- API
+klientus ir nedidelius atmintyje laikomus registrus (kas prisijungęs, ėjimų limitas, vykstantys
+ėjimai). Diske ji nieko nesaugo.
+
+\section{Tinklai, įėjimas ir išėjimas}\label{sec:arch:network}
+
+Konteineriai prijungti prie dviejų Docker tinklų, ir skirtumas tarp jų yra pagrindinė
+diegimo saugumo savybė (\cref{fig:arch:containers}).
+
+\begin{description}
+  \item[Izoliuotas tinklas] \code{isolated} yra tiltinis tinklas, deklaruotas
+    \texttt{internal: true}, su potinkliu 172.28.10.0/24. Tokiam tinklui Docker nesuteikia
+    maršruto į išorę. Prie jo prijungtos visos paslaugos, išskyrus užduočių vykdytoją, ir
+    gamybos režimu tai vienintelis tinklas, prie kurio prijungti API, asistento paslauga,
+    duomenų bazė ir duomenų bazės įrankis.
+  \item[Išorinis tinklas] \code{external} yra įprastas Docker tinklas, kurio compose failas
+    pats nesukuria (jis deklaruotas \texttt{external: true}; jį sukuria
+    \file{runUpdateThisStack.sh}, kai serveryje tinklo tokiu pavadinimu nėra). Gamybos režimu
+    prie jo jungiasi tik įėjimas ir išėjimas.
+    Įėjimas yra vienintelis konteineris su atvertu prievadu.
+  \item[Be tinklo] Užduočių vykdytojas turi \texttt{network\_mode: none}. Jis bendrauja tik su
+    į jį prijungtu Docker lizdu.
+\end{description}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \begin{scope}[on background layer]
+    \draw[lane] (0,-14) rectangle (150,-86);
+  \end{scope}
+  \node[lanelabel, anchor=north west] at (1.5,-15.5) {izoliuotas tinklas --- vidinis, be maršruto į išorę};
+
+  \node[ext] (browser) at (75,6) {naršyklė, per prieglobos TLS tarpinį serverį};
+  \node[svc, text width=24mm] (endpoint) at (75,-14) {\textbf{endpoint}\\ Caddy, 80 prievadas};
+  \node[svc, text width=22mm] (vite) at (16,-40) {\textbf{vite}\\ viešoji svetainė, konsolė};
+  \node[svc, text width=22mm] (dbgate) at (134,-40) {\textbf{dbgate}\\ duomenų bazės įrankis};
+  \node[svc, text width=24mm] (assistant) at (40,-63) {\textbf{assistant}\\ visi modelio iškvietimai};
+  \node[svc, text width=24mm] (django) at (98,-63) {\textbf{django}\\ API ir užduočių vykdytojo ciklas};
+  \node[store] (postgres) at (136,-63) {\textbf{postgres}};
+  \node[svc, text width=22mm] (exit) at (62,-86) {\textbf{exit}\\ SNI leidžiamų adresų sąrašas};
+  \node[svc, text width=22mm] (worker) at (136,-101) {\textbf{worker}\\ Docker CLI, be tinklo};
+
+  \node[ext] (gw) at (13,-109) {ai.knf.vu.lt};
+  \node[ext] (cellar) at (48,-109) {publications.europa.eu};
+  \node[ext] (etar) at (83,-109) {www.e-tar.lt};
+  \node[ext] (lb) at (106,-109) {www.lb.lt};
+
+  \draw[flow] (browser) -- (endpoint);
+  \draw[flow] (endpoint) -- node[lbl, pos=.55] {visa kita} (vite);
+  \draw[flow] (endpoint) -- node[lbl, pos=.5] {\code{/api/assistant/*}} (assistant);
+  \draw[flow] (endpoint) -- node[lbl, pos=.5] {\code{/api/*}} (django);
+  \draw[flow] (endpoint) -- node[lbl, pos=.55] {\code{/dbgate/*}} (dbgate);
+
+  \draw[flow] ([yshift=2.2mm]django.west) -- node[lbl, above] {\code{/internal/llm/*}} ([yshift=2.2mm]assistant.east);
+  \draw[flow] ([yshift=-2.2mm]assistant.east) -- node[lbl, below, align=center] {\code{/api/*} naudotojo vardu,\\ \code{/internal/assistant/*}} ([yshift=-2.2mm]django.west);
+  \draw[flow] (django) -- (postgres);
+  \draw[flow] (dbgate) -- (postgres);
+
+  \draw[flow] (assistant.south) -- (exit.north west);
+  \draw[flow] (django.south west) -- (exit.north east);
+  \draw[flow] (exit.south west) -- (gw.north);
+  \draw[flow] (exit.south) -- (cellar.north);
+  \draw[flow] (exit.south east) -- (etar.north);
+  \draw[flow] (exit.east) -- (lb.north);
+
+  \draw[opt] (worker.north west) -- node[lbl, pos=.5] {\texttt{docker exec}} (django.south east);
+
+  \node[note, anchor=west] at ([xshift=1mm]endpoint.east) {abiejuose tinkluose;\\ vienintelis atvertas prievadas};
+  \node[note, anchor=east] at ([xshift=-1mm]exit.west) {abiejuose tinkluose,\\ adresu 172.28.10.30};
+\end{tikzpicture}
+\caption{Konteineriai (jų pavadinimai be priešdėlio \code{legalops-}), izoliuotas tinklas ir
+  kuri paslauga kurią gali pasiekti. Rodyklė eina nuo kviečiančiosios paslaugos į kviečiamąją.
+  Užklausos patenka tik per įėjimą ir išeina tik per išėjimą, kuris persiunčia į keturis
+  įvardytus adresus. Taškinė rodyklė nėra tinklo kelias: užduočių vykdytojas per Docker lizdą
+  paleidžia užduočių ciklą API konteineryje.}\label{fig:arch:containers}
+\end{figure}
+
+\subsection{Vienintelis įėjimas}
+
+Įėjimas yra Caddy atvirkštinis tarpinis serveris, sukonfigūruotas \file{endpoint/Caddyfile}.
+Jis klausosi 80 prievado paprastu HTTP; TLS baigiasi prieglobos tarpiniame serveryje, esančiame
+prieš serverį. Pirmiausia jis pliku 403 atsakymu atmeta užklausą, kurios antraštė \code{Origin}
+nurodo kitą svetainę,
+ir prie kiekvieno kito atsakymo prideda turinio saugumo politikos bei perdavimo saugumo antraštes
+(\cref{ch:security}),
+o tada nukreipia pagal kelią; laimi pirmas atitikmuo (\cref{tab:arch:ingress}).
+
+\begin{table}[H]
+\caption{Kaip įėjimas nukreipia užklausą, \file{endpoint/Caddyfile} tvarka}\label{tab:arch:ingress}
+\begin{tabularx}{\textwidth}{@{}L{34mm}L{45mm}Y@{}}
+\toprule
+\hd{Kelias} & \hd{Kur nukreipiama} & \hd{Pastaba} \\
+\midrule
+\code{/dbgate/*} & \code{legalops-dbgate:3000} & Tik tada, kai API maršrutu \route{GET}{/api/auth/checkauth/admin} patvirtina, kad kviečiantysis yra prisijungęs administratorius (Caddy \code{forward_auth}). \\
+\code{/api/assistant/*} & \code{legalops-assistant:3000} & Pokalbio srautas ir jo sustabdymo bei būsenos maršrutai. \\
+\code{/api/*} & \code{legalops-django:8000} & Visa viešoji API. \\
+visa kita & \code{legalops-vite:80} & Viešoji svetainė ir konsolė. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Iš šios lentelės išplaukia du dalykai. Asistento paslauga turi lygiai vieną viešą maršrutų
+grupę --- pokalbį; visa kita, ką ji aptarnauja, yra vidiniai maršrutai. Be to, nė vienas
+kelias, prasidedantis \code{/internal/}, nepersiunčiamas nei į API, nei į asistento paslaugą:
+tokia užklausa nukrenta iki paskutinės eilutės, ir į ją atsako konsolės konteineris, kuris
+aptarnauja tik viešąją svetainę ir konsolę.
+
+\subsection{Vienintelis išėjimas}
+
+Izoliuotame tinkle esantis konteineris negali atidaryti ryšio į internetą. Išėjimas yra
+vienintelė leidžiama išimtis, ir ji siaura. Tai ketvirtojo lygmens tarpinis serveris
+(\file{exit/Caddyfile}), kuris klausosi tik 443 prievado, perskaito serverio vardą, kurį TLS
+klientas praneša atidarydamas ryšį (SNI lauką), ir, jei tas vardas yra jo sąraše, persiunčia
+ryšį tuo pačiu vardu į 443 prievadą. Jis nieko neiššifruoja. Ryšys, nurodantis bet kurį kitą
+adresą, neatitinka jokio maršruto ir nepersiunčiamas.
+
+Paslauga leidžiamą adresą pasiekia per du įrašus, kurie abu turi egzistuoti: maršrutą
+\file{exit/Caddyfile} faile ir \code{extra_hosts} eilutę naudojančios paslaugos aprašyme
+\file{docker-compose.yml} faile, kuri adreso vardą susieja su fiksuotu išėjimo adresu
+172.28.10.30. Tada paslauga jungiasi prie, jos manymu, paties adreso, o pasiekia išėjimą.
+\Cref{tab:arch:egress} išvardija keturis adresus.
+
+\begin{table}[H]
+\caption{Išeinančio srauto leidžiamų adresų sąrašas: \file{exit/Caddyfile} adresai ir
+  paslaugos, kurioms jie susieti}\label{tab:arch:egress}
+\begin{tabularx}{\textwidth}{@{}L{38mm}L{30mm}Y@{}}
+\toprule
+\hd{Adresas} & \hd{Susietas paslaugai} & \hd{Kam naudojamas} \\
+\midrule
+\code{ai.knf.vu.lt} & asistento paslauga, API & DI tinklų sąsaja: kiekvienas modelio iškvietimas, kurį atlieka asistento paslauga. Compose failas šį vardą susieja ir API konteineriui, bet joks API kodas jo nekviečia. \\
+\code{publications.europa.eu} & API & CELLAR, Leidinių biuro mašininė sąsaja: ES teisės aktai. \\
+\code{www.e-tar.lt} & API & Teisės aktų registras (e-TAR). \\
+\code{www.lb.lt} & API & Lietuvos banko puslapiai ir PDF failai. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Trys teisės aktų bazės adresai susieti API konteineriui, nes ten veikia užduočių vykdytojo
+ciklas, kuris atsisiunčia teisės aktus. Atsisiuntimo modulis virš tinklo taisyklės prideda
+savo taisyklę (\file{corpus/fetchers.py}): tik HTTPS per 443 prievadą, iš naujo tikrinama
+kiekvieno peradresavimo metu, kad šaltinis negalėtų nukreipti užduočių vykdytojo į vieną iš
+pačios sistemos paslaugų; kurie adresai iš viso pasiekiami, lemia leidžiamų adresų sąrašas.
+
+Tokios tvarkos priežastis ta, kad dvi paslaugos, kuriose yra sistemos duomenys ir DI tinklų
+sąsajos raktas, taip pat apdoroja ne jų parašytą tekstą --- įkeltus dokumentus, atsisiųstus
+puslapius, modelio atsakymus, išorinių MCP serverių įrankius. Jei vieną iš jų priverstų
+atidaryti užpuoliko pasirinktą ryšį, izoliuotas tinklas tam ryšiui neleidžia nueiti niekur,
+išskyrus keturis adresus. Kaina sumokama eksploatacijoje: naujas teisės aktų šaltinis ar
+išorinis MCP serveris veikia tik tada, kai jo adresas pridėtas abiejose vietose
+(\cref{ch:ops}). EUR-Lex ir e-seimas sąmoningai nenaudojami, nes jie atmeta automatinius
+klientus (\cref{ch:corpus}).
+
+\section{Keturios projektavimo taisyklės}\label{sec:arch:rules}
+
+Keturios taisyklės nustato darbo pasidalijimą tarp API ir asistento paslaugos. Kiekviena turi
+priežastį ir kiekviena turi pasekmę, kurią galima patikrinti kode.
+
+\begin{description}
+  \item[Asistento paslaugai nepriklauso jokie duomenys.]
+    Instrukcijos, pokalbiai, DI sąnaudų įrašai ir MCP serverių konfigūracijos saugomi API
+    duomenų bazėje. Asistento paslauga neturi ryšio su duomenų baze --- jos konteineriui
+    neperduodamas duomenų bazės adresas --- ir tai, ko reikia, skaito per API.
+    \emph{Priežastis:} viena kiekvieno fakto kopija, saugoma pagal vieną prieigos taisyklių
+    rinkinį, vienoje vietoje. \emph{Pasekmė:} paslaugą
+    galima paleisti iš naujo ar pakeisti nieko neprarandant, išskyrus tuo metu vykstančius pokalbio
+    ėjimus. Tai, ką ji laiko atmintyje --- ėjimų ribotuvo langai, prisijungusių kviečiančiųjų
+    podėlis, vykstančių ėjimų registras, --- kuriama iš naujo nuo nulio, ir kode pažymėta, kad todėl
+    paslauga sąmoningai veikia kaip vienas egzempliorius (\file{services/runs.js},
+    \file{services/ratelimit.js}).
+
+  \item[API niekada nekviečia modelio tiekėjo.]
+    Užduočių vykdytojas ir žiniatinklio procesas prašo asistento paslaugos generavimo
+    (\route{POST}{/internal/llm/generate}) arba vektorių
+    (\route{POST}{/internal/llm/embed}); vienintelis klientas yra API modulis
+    \file{assistant/gateway.py}. API išeinančias HTTP užklausas siunčia lygiai iš dviejų
+    modulių: šio kliento ir teisės aktų atsisiuntimo modulio. \emph{Priežastis:} tiekėjai ir
+    jų prisijungimo duomenys konfigūruojami vieną kartą, viename konteineryje.
+    \emph{Pasekmė:} DI tinklų sąsajos raktas yra tik asistento paslaugos aplinkoje, modelis
+    visur įvardijamas viena \code{provider:model} formos eilute, saugoma instrukcijos
+    versijoje, o kiekvienas sistemos modelio iškvietimas eina per vieną kodo dalį, kuri gali
+    matuoti jo trukmę, jį kartoti ir skaičiuoti jo žetonus (\cref{ch:models}).
+
+  \item[Pokalbio įrankiai veikia per viešąją API su paties naudotojo prieigos raktu.]
+    Kai pokalbio modelis iškviečia įrankį --- užpildyti įmonės profilį, perskaityti ataskaitą,
+    pradėti analizę, --- asistento paslauga siunčia įprastą užklausą į \code{/api/*} su
+    besikalbančio naudotojo prieigos raktu (\code{userClient} faile
+    \file{services/django.js}). \emph{Priežastis:} taisyklė, kas ką gali matyti, --- naudotojas
+    mato savo įrašus, administratorius visus įrašus, išskyrus kitų naudotojų pokalbius, ---
+    vykdoma vieną kartą, API rodiniuose, ir įrankis negali jos apeiti. \emph{Pasekmė:}
+    pokalbis negali padaryti nieko, ko jo naudotojas negalėtų padaryti konsolėje, kiekvienas
+    jo atliktas pakeitimas užrašomas veiksmų žurnale to naudotojo vardu, o įrankis neturi
+    maršruto nei į paskyras, nei į instrukcijas ar MCP nustatymus, nei jokio maršruto, kuris
+    keistų teisės aktų bazę: pokalbis gali ieškoti ir skaityti teisės aktus bei pareigų
+    registrą, bet niekada negali jų redaguoti (\cref{ch:chat}). Yra dvi sąmoningos išimtys, abi
+    per toliau aprašytas vidines duris: paties asistento atsakymai ir pavadinimas, kurį
+    pokalbiui suteikia modelis.
+
+  \item[Kiekvienas modelio iškvietimas registruojamas.]
+    Iškvietimas palieka eilutę lentelėje \code{llm_calls} su modeliu, žetonų skaičiais, kaina
+    JAV doleriais pagal DI tinklų sąsajos kainoraštį, instrukcijos versija ir rezultatu. API
+    eilutę įrašo pati po kiekvieno savo užsakyto generavimo ir kiekvieno vektorizavimo paketo
+    (\code{record_call} faile \file{assistant/usage.py}); asistento paslauga kiekvieną
+    pokalbio ėjimą kartu su jo stenograma praneša per vidines duris. \emph{Priežastis:} kaina
+    ir atskaitomybė --- biudžeto laikymąsi galima užtikrinti, o atsakymą atsekti tik turint išsamų
+    įrašą. \emph{Pasekmė:} naudotojo dienos biudžetas, DI sąnaudų puslapis ir kiekvieno
+    užduoties etapo kaina skaičiuojami iš šios vienos lentelės. Reikia įvardyti dvi taisyklės
+    ribas: paieškos užklausos vektorizavimas (keli žetonai) neregistruojamas, o nepavykęs
+    generavimas iškelia klaidą prieš įrašant eilutę, todėl užduočių etapų eilutės yra tik tų
+    iškvietimų, kurie sulaukė atsakymo.
+\end{description}
+
+\section{Dvejos vidinės durys}\label{sec:arch:doors}
+
+API ir asistento paslauga kviečia viena kitą, ir nė vienas iš šių kvietimų neatviras niekam
+kitam. Kiekviena pusė turi \term{vidines duris}: maršrutų grupę po \code{/internal/}, kuri
+egzistuoja tik kitai paslaugai (\cref{tab:arch:doors}).
+
+\begin{xltabular}{\textwidth}{@{}L{62mm}Y@{}}
+\caption{Kas eina pro kiekvienas vidines duris}\label{tab:arch:doors}\\
+\toprule
+\hd{Maršrutas} & \hd{Kas eina pro duris} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Maršrutas} & \hd{Kas eina pro duris} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\multicolumn{2}{@{}L{\textwidth}@{}}{\hd{API durys} --- kviečia asistento paslauga (\code{internalFetch} faile \file{services/django.js}), aptarnauja \file{assistant/api/internal_views.py}} \\
+\route{GET}{/internal/assistant/prompt} & Aktyvi vienos instrukcijos versija su tekstu ir modeliu. Jei instrukcija aktyvios versijos neturi, atsakoma 404, o pokalbis atsako 503, užuot veikęs pagal tekstą, kurio niekas negali matyti. \\
+\route{GET}{/internal/assistant/budget} & Kiek naudotojas šiandien dar gali išleisti; klausiama prieš kiekvieną pokalbio ėjimą. \\
+\route{POST}{/internal/assistant/turn-log} & Viena \code{llm_calls} eilutė pokalbio ėjimui: žetonai, iškviesti įrankiai, rezultatas ir stenograma. \\
+\route{POST}{/internal/assistant/threads/{id}/messages} & Asistento atsakymas --- tekstas, įrankių iškvietimai ir įrankių rezultatai, --- įrašomas ėjimui pasibaigus. Tik pro šias duris galima įrašyti \code{assistant} rolės žinutę. \\
+\route{POST}{/internal/assistant/threads/{id}/title} & Trumpas pavadinimas, kurį modelis parašė naujam pokalbiui; pritaikomas tik tol, kol pokalbis dar turi automatinį pavadinimą. \\
+\route{GET}{/internal/assistant/mcp-servers} & Įjungti MCP serveriai su antraščių reikšmėmis, kuriomis prie jų tapatinamasi, --- vienintelė vieta, kur tos reikšmės palieka API. \\
+\midrule
+\multicolumn{2}{@{}L{\textwidth}@{}}{\hd{Asistento paslaugos durys} --- kviečia API (\file{assistant/gateway.py}), aptarnauja \file{routes/internal.js} ir \file{routes/internalMcp.js}} \\
+\route{POST}{/internal/llm/generate} & Vienas generavimas: instrukcija, pasirinktiniai nurodymai ir bendri duomenys, modelis ir, jei reikia, JSON schema, kurią atsakymas turi atitikti. Grąžina tekstą arba objektą kartu su sąnaudomis. \\
+\route{POST}{/internal/llm/embed} & Ne daugiau kaip 256 tekstų paketas (\code{MAX_EMBED_TEXTS}) vektorizuoti. \\
+\route{GET}{/internal/llm/models} & Sukonfigūruoti tiekėjai ir DI tinklų sąsajos modeliai su kainomis. \\
+\route{POST}{/internal/mcp/list-tools} & Prisijungti prie vieno MCP serverio ir išvardyti jo įrankius: administratoriaus ryšio patikra. \\
+\end{xltabular}
+
+Pirmoji trečiosios projektavimo taisyklės išimtis matyti lentelėje. Viešoji API leidžia
+naršyklei įrašyti tik \code{user} rolės žinutes (\code{GUI_WRITABLE_ROLES} faile
+\file{chat/api/views.py}); asistento žinutę, kurios įrankių rezultatus modelis vėl mato kitame
+ėjime, galima įrašyti tik pro vidines duris. Todėl naršyklė niekada negali į pokalbį įterpti
+suklastoto įrankio rezultato.
+
+Duris saugo trys dalykai. Jos pasiekiamos tik izoliuotame tinkle. Įėjimas nepersiunčia nė
+vieno \code{/internal/} kelio (\cref{sec:arch:network}). Ir kiekviena užklausa turi pateikti
+bendrą paslaptį.
+
+\begin{codebox}{Kaip tikrinama bendra paslaptis}
+Paslaptis yra viena reikšmė, \code{ASSISTANT_INTERNAL_SECRET}, kurią atnaujinimo scenarijus
+sugeneruoja kaip atsitiktinę šešioliktainę eilutę, o compose failas perduoda abiem
+konteineriams. Kviečiantysis ją siunčia antraštėje \code{X-Internal-Secret}.
+
+\begin{itemize}
+  \item \textbf{API pusėje} dekoratorius \code{require_internal}
+    (\file{assistant/api/internal_views.py}) apgaubia kiekvieną durų rodinį. Jis pateiktą ir
+    laukiamą reikšmes palygina kaip baitus funkcija \code{hmac.compare_digest}, kuri užtrunka
+    vienodai, kad ir kur reikšmės skirtųsi, todėl atsakymo trukmė spėliotojui nieko nepasako
+    apie tai, kokia spėjimo dalis buvo teisinga.
+  \item \textbf{Asistento paslaugoje} tarpinė programinė įranga \code{requireInternal}
+    (\file{middleware/internal.js}) stovi prieš kiekvieną \code{/internal} kelią, dar prieš
+    išnagrinėjant užklausos turinį. Ji lygina funkcija \code{timingSafeEqual}; kito ilgio
+    reikšmė atmetama prieš palyginimą, o tai atskleidžia ilgį ir nieko daugiau.
+  \item \textbf{Abi pusės klaidos atveju uždaro prieigą.} Kai sukonfigūruota paslaptis tuščia,
+    atmetamas kiekvienas vidinis kvietimas; nė viena pusė nelaiko, kad \enquote{paslaptis
+    nenustatyta} reiškia \enquote{paslapties nereikia}. Asistento paslauga tai dar ir
+    praneša savo žurnale paleidžiama.
+\end{itemize}
+Į atmestą kvietimą atsakoma 403 su kodu \code{INTERNAL_ONLY}.
+\end{codebox}
+
+\section{Keturios užklausos, sekamos per sistemą}\label{sec:arch:flows}
+
+Toliau aprašyti keturi srautai yra tie, kuriais remiasi visi kiti skyriai. Jie nubraižyti kaip
+sekos: laikas eina žemyn, ištisinė rodyklė yra pagrindinio kelio žingsnis, punktyrinė rodyklė
+--- užklausa kartu su atsakymu. Kas vyksta kiekvieno žingsnio viduje --- ką modelis gauna ir
+kas daroma su jo atsakymu, --- aptariama kiekviename poskyryje nurodytuose skyriuose.
+
+\subsection{Pokalbio ėjimas}
+
+Pokalbio ėjimas yra vienintelis srautas, kuriame naršyklė bendrauja su asistento paslauga
+(\cref{fig:arch:chat}). Konsolė siunčia \route{POST}{/api/assistant/chat} su naudotojo
+prieigos raktu ir tik nauja žinute: patį pokalbį saugo API, todėl istorija, kurią mato
+modelis, visada yra išsaugotoji, o ne tokia, kokią ją pateikia naršyklė.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \begin{scope}[on background layer]
+    \draw[lane] (53,-76) rectangle (150,-106);
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (60,-106) {kartojama, kol modelis kviečia įrankius};
+
+  \node[svc] (hc) at (10,0) {konsolė};
+  \node[svc] (ha) at (58,0) {asistento paslauga};
+  \node[svc] (hd) at (108,0) {API (Django)};
+  \node[ext] (hg) at (140,0) {DI tinklų sąsaja};
+  \foreach \x in {10,58,108} \draw[draw=rule, line width=.6pt] (\x,-4) -- (\x,-131);
+  \draw[draw=rule, line width=.6pt] (140,-4) -- (140,-78);
+
+  \draw[flow] (10,-13) -- node[lbl, above, align=center] {\code{POST}~\code{/api/assistant/chat}\\ raktas, nauja žinutė} (58,-13);
+  \draw[call] (58,-21) -- node[lbl, above] {\code{/api/auth/me}: kas klausia} (108,-21);
+  \node[chk, minimum height=5mm, inner ysep=2pt] at (58,-28.5) {ėjimų limitas, atmintyje};
+  \draw[call] (58,-37) -- node[lbl, above] {\code{/internal/assistant/budget}} (108,-37);
+  \draw[call] (58,-44) -- node[lbl, above] {\code{/internal/assistant/prompt}} (108,-44);
+  \draw[call] (58,-54) -- node[lbl, above, align=center] {\code{/api/chat/threads/…}: pokalbis, jo\\ istorija; įrašoma nauja žinutė} (108,-54);
+  \draw[call] (58,-64) -- node[lbl, above, align=center] {\code{/api/companies/…}, \code{/api/reports}:\\ įmonė ir jos ataskaitos} (108,-64);
+  \draw[call] (58,-71) -- node[lbl, above] {\code{/internal/assistant/mcp-servers}} (108,-71);
+
+  \node[ai, text width=15mm, minimum height=24mm] (m) at (140,-91) {modelis atsako per ne daugiau kaip 24 žingsnius};
+  \draw[flow] (58,-82) -- node[lbl, above, pos=.3] {nurodymai, istorija, įrankiai} (m.west |- 0,-82);
+  \draw[flow] (m.west |- 0,-89) -- node[lbl, above, pos=.72] {įrankio iškvietimas} (58,-89);
+  \draw[call] (58,-94) -- node[lbl, above] {\code{/api/*} su naudotojo raktu} (108,-94);
+  \draw[flow] (58,-99) -- node[lbl, above, pos=.3] {įrankio rezultatas} (m.west |- 0,-99);
+
+  \draw[flow] (58,-112) -- node[lbl, above] {atsakymas įvykių srautu} (10,-112);
+  \draw[call] (58,-120) -- node[lbl, above] {\code{…/threads/{id}/messages}: atsakymas} (108,-120);
+  \draw[call] (58,-127) -- node[lbl, above] {\code{/internal/assistant/turn-log}} (108,-127);
+\end{tikzpicture}
+\actorlegend
+\caption{Pokalbio ėjimas. Asistento paslauga nustato kviečiantįjį ir naudotojo vardu per viešąją
+  API įkelia kontekstą, pro vidines duris perskaito instrukciją, biudžetą ir MCP serverius ir
+  paleidžia modelį su įrankiais. Kiekvienas įrankis yra užklausa viešajai API su naudotojo
+  prieigos raktu. Atsakymas ir sąnaudų įrašas grįžta pro vidines duris.}\label{fig:arch:chat}
+\end{figure}
+
+Maršrutas (\file{routes/chat.js}) prieš iškviesdamas bet kurį modelį praleidžia ėjimą per
+savo patikras. Kviečiančiojo prieigos raktas tikrinamas per \route{GET}{/api/auth/me}, o
+atsakymas 15~sekundžių laikomas podėlyje (\code{IDENTITY_CACHE_MS}); kviečiantysis be
+galiojančio rakto atmetamas. Ėjimų ribotuvas leidžia 12 ėjimų vienam naudotojui per minutę
+(\code{RATE_LIMIT_TURNS}). Naudotojo dienos biudžeto klausiama API, ir išnaudotas biudžetas
+ėjimą atmeta; jei nepavyksta pati užklausa, ėjimas praleidžiamas, kad nebūtų užblokuoti visi
+pokalbiai. Aktyvi instrukcijos \prompt{chat.assistant} versija skaitoma iš API, o jos nesant
+pokalbis atsako 503: tada asistentas išjungtas sąmoningai.
+
+Tada paslauga naudotojo vardu įkelia pokalbį, jo istorijos šaką, įmonę, apie kurią pokalbis,
+ir tos įmonės ataskaitas, įrašo naudotojo žinutę ir atveria įjungtų MCP serverių įrankius. Ji
+sudaro nurodymus ir iškviečia modelį DI tinklų sąsajoje su pridėtais įrankiais. Modelis gali
+atsakyti arba iškviesti įrankį; įrankio iškvietimas virsta užklausa viešajai API naudotojo
+prieigos raktu, jo rezultatas grąžinamas modeliui, ir tai kartojama ne daugiau kaip 24 modelio
+žingsnius (\code{MAX_STEPS}), iš kurių paskutinis vykdomas be įrankių, kad ėjimas baigtųsi
+tekstu. Atsakymas naršyklei siunčiamas srautu, kol yra rašomas.
+
+Ėjimui pasibaigus paslauga įrašo atsakymą ir užregistruoja ėjimą. Ėjimas gyvuoja ilgiau nei
+jį pradėjusi užklausa: jei naršyklė perkraunama ar skirtukas uždaromas, modelis tęsia darbą ir
+atsakymas įrašomas; be paties ėjimo laiko ribų, anksčiau laiko jį užbaigti gali tik
+sustabdymo mygtukas, naujesnis ėjimas tame pačiame pokalbyje arba išjungimas. Pirmajame
+pokalbio ėjime, kol pokalbis dar turi automatinį pavadinimą, antras, nedidelis modelio
+iškvietimas suteikia pokalbiui pavadinimą. Įrankiai, instrukcija ir abu modelio iškvietimai
+aptariami \cref{ch:chat}.
+
+\subsection{Ataskaita}
+
+Ataskaita gerokai per ilga vienai užklausai: tai užduotis (\cref{fig:arch:report}).
+\route{POST}{/api/reports} patikrina, ar kviečiantysis gali matyti įmonę, ar teisės aktų bazė
+netuščia, ar nevyksta kita tos įmonės ataskaita ir ar naudotojui liko biudžeto; tada sukuria
+ataskaitos eilutę būsenoje \code{queued}, į eilę įtraukia \code{report.analyze} rūšies užduotį
+su ataskaitos id kaip turiniu ir iškart atsako.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=18mm}]
+  \node[svc, text width=17mm] (hc) at (10,0) {konsolė ar pokalbio įrankis};
+  \node[svc] (hd) at (44,0) {API (Django)};
+  \node[store] (hj) at (70,0) {\code{jobs}};
+  \node[svc] (hw) at (100,0) {vykdytojo ciklas};
+  \node[svc, text width=17mm] (ha) at (140,0) {asistento paslauga};
+  \foreach \x in {44,70,100} \draw[draw=rule, line width=.6pt] (\x,-5) -- (\x,-128);
+  \draw[draw=rule, line width=.6pt] (10,-6) -- (10,-128);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-128);
+
+  \draw[flow] (10,-14) -- node[lbl, above] {\code{POST}~\code{/api/reports}} (44,-14);
+  \draw[flow] (44,-21) -- node[lbl, above] {užduotis eilėje} (70,-21);
+  \draw[call] (100,-28) -- node[lbl, above] {paima užduotį} (70,-28);
+
+  \node[svc, cell] at (89.5,-36) {profile};
+  \node[ai, cell] at (110.5,-36) {documents};
+  \node[ai, cell] at (89.5,-43) {citations};
+  \node[ai, cell] (p1) at (110.5,-43) {applicability};
+  \draw[call] (121.2,-39.5) -- node[lbl, above] {\code{/internal/llm/*}} (140,-39.5);
+
+  \draw[flow] (100,-53) -- node[lbl, above, align=center] {užduotis atlikta; ataskaita\\ laukia būsenoje \code{scope_review}} (70,-53);
+  \draw[call] (10,-61) -- node[lbl, above] {tikrina \code{GET}~\code{/api/reports/{id}}} (44,-61);
+
+  \node[man, text width=17mm] (person) at (10,-73) {žmogus patvirtina apimtį};
+  \draw[flow] (person.east) -- node[lbl, above] {\code{POST}~\code{…/scope}} (44,-73);
+  \draw[flow] (44,-80) -- node[lbl, above] {vėl eilėje} (70,-80);
+  \draw[call] (100,-87) -- node[lbl, above] {paima užduotį} (70,-87);
+
+  \node[ai, cell] at (89.5,-95) {documents};
+  \node[ai, cell] at (110.5,-95) {obligations};
+  \node[ai, cell] at (89.5,-102) {gap\_analysis};
+  \node[ai, cell] at (110.5,-102) {internal};
+  \node[ai, cell] at (89.5,-109) {action\_plan};
+  \node[ai, cell] at (110.5,-109) {summary};
+  \draw[call] (121.2,-102) -- node[lbl, above] {\code{/internal/llm/*}} (140,-102);
+
+  \draw[flow] (100,-118) -- node[lbl, above] {užduotis atlikta; ataskaita baigta} (70,-118);
+  \draw[call] (10,-125) -- node[lbl, above] {skaito, eksportuoja} (44,-125);
+\end{tikzpicture}
+\actorlegend
+\caption{Ataskaita, pradėta su apimties peržiūra. Užduotis vykdoma du kartus: pirmasis
+  vykdymas baigiasi, kai teisės aktai gauna sprendimus, ir palieka ataskaitą laukti; žmogaus
+  patvirtinimas vėl įtraukia į eilę tos pačios rūšies užduotį, o antrasis vykdymas vertina
+  pareigas. Langeliai užduočių vykdytojo linijoje yra užduoties etapai; geltonas etapas kviečia
+  modelius per asistento paslaugą. Antrasis vykdymas iš naujo perskaito įmonę, antrą kartą
+  užfiksuoja profilį ir vėl atlieka dokumentų etapą, kuris
+  inventorius randa podėlyje; etapas \code{internal} vykdomas tik ataskaitai, pradėtai su
+  įmonės vidaus reikalavimais. Be peržiūros abi dalys atliekamos per vieną
+  vykdymą.}\label{fig:arch:report}
+\end{figure}
+
+Užduočių vykdytojas paima užduotį ir paleidžia jos doroklę (angl. \en{handler}) ---
+\code{analyze} faile \file{analysis/pipeline.py}. Ataskaita rengiama dviem dalimis. Pirmoji
+nusprendžia, kurie teisės aktai taikomi, ir yra pigi: etapai \code{profile},
+\code{documents}, \code{citations} ir \code{applicability}. Antroji vertina kiekvieną tų aktų
+pareigą, ir čia išleidžiama daugiausia pinigų: \code{obligations}, \code{gap_analysis},
+\code{action_plan} ir \code{summary}, o tarp spragų analizės ir plano --- etapas
+\code{internal}, jei ataskaita pradėta su įmonės vidaus reikalavimais. Kiekvienas etapo
+modelio iškvietimas keliauja iš užduočių vykdytojo pro asistento paslaugos duris, o iš ten ---
+į DI tinklų sąsają.
+
+\begin{humanbox}{Sustojimas tarp dviejų dalių}
+Ataskaita, pradėta su peržiūros parinktimi, savaime netęsiama. Kai pirmoji dalis baigiasi,
+doroklė nustato ataskaitai būseną \code{scope_review} ir grįžta; užduotis baigiasi kaip
+atlikta, ir niekas nebevykdoma. Konsolė, kuri, kol ataskaita aktyvi, kas tris sekundes
+tikrina \route{GET}{/api/reports/{id}}, rodo teisės aktus ir ką ataskaita su kiekvienu
+darytų. Žmogus gali pakeisti atranką ir pamatyti jos kainą (\route{POST}{/api/reports/{id}/scope}
+be \code{approved}), o tada ją patvirtina (tas pats maršrutas su \code{approved}).
+Patvirtinimas pažymimas ataskaitoje su asmeniu ir laiku, įrašomas į veiksmų žurnalą su
+kiekvienu padarytu pakeitimu, ir į eilę įtraukiama antra \code{report.analyze} užduotis.
+Doroklė antrąjį vykdymą nuo pirmojo atskiria pagal šią žymą. Be peržiūros parinkties doroklė
+laiką pažymi pati, be asmens, ir iškart tęsia.
+\end{humanbox}
+
+Antrasis vykdymas perskaito tai, ką pirmasis paliko duomenų bazėje --- teisės aktus su jų
+sprendimais ir teisės aktų nuorodų patikrą. Įmonę jis perskaito iš naujo, tokią, kokia ji yra
+antrojo vykdymo pradžioje, ir antrą kartą užfiksuoja profilį (\code{freeze_profile}), kad
+ataskaita rodytų tą įmonę, pagal kurią vertintos jos išvados: leidimas, patikrintas ataskaitai
+laukiant, ar tuo metu pridėtas dokumentas įskaitomas. Jo \code{documents} etapas vykdomas dar
+kartą ir dokumentų inventorius randa podėlyje.
+Kai baigiasi paskutinis etapas, ataskaita yra \code{done}; nesėkmė nustato jai būseną
+\code{failed} su naudotojui suprantamu pranešimu, atšaukimas --- \code{cancelled}. Baigta
+ataskaita skaitoma per \route{GET}{/api/reports/{id}} ir eksportuojama per
+\route{GET}{/api/reports/{id}/export}. Šis procesas aptariamas \cref{ch:report}.
+
+\subsection{Programos dokumentas}
+
+Programos dokumentas rengiamas taip pat, \code{programme.generate} rūšies užduotimi
+(\cref{fig:arch:product}). \route{POST}{/api/companies/{id}/programme} su rūšimi ---
+\code{policy}, \code{governance} arba \code{risks} --- patikrina, ar įmonė turi perskaitomų
+dokumentų, ar tos rūšies dokumentas šiuo metu negeneruojamas ir ar liko biudžeto, sukuria
+kitą dokumento versiją būsenoje \code{queued} ir įtraukia užduotį į eilę. Pokalbio įrankis
+\code{startWorkProduct} kviečia tą patį maršrutą.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=30mm}]
+  \node[svc, text width=17mm] (hc) at (10,0) {konsolė ar pokalbio įrankis};
+  \node[svc] (hd) at (48,0) {API (Django)};
+  \node[svc] (hw) at (92,0) {vykdytojo ciklas};
+  \node[svc, text width=17mm] (ha) at (140,0) {asistento paslauga};
+  \draw[draw=rule, line width=.6pt] (10,-6) -- (10,-72);
+  \draw[draw=rule, line width=.6pt] (48,-5) -- (48,-72);
+  \draw[draw=rule, line width=.6pt] (92,-5) -- (92,-72);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-72);
+
+  \draw[flow] (10,-14) -- node[lbl, above] {\code{POST}~\code{…/programme}} (48,-14);
+  \draw[flow] (48,-21) -- node[lbl, above] {užduotis eilėje, tada paimta} (92,-21);
+  \node[ai, cell] at (92,-28) {documents};
+  \node[ai, cell] (calls) at (92,-35) {du modelio iškvietimai};
+  \node[chk, cell] (refs) at (92,-42) {references};
+  \draw[call] (calls.east) -- node[lbl, above] {\code{/internal/llm/generate}} (140,-35);
+  \draw[opt] (refs.east) -- node[lbl, below] {nuorodų vertintojas} (140,-42);
+  \draw[flow] (92,-51) -- node[lbl, above] {dokumentas yra projektas} (48,-51);
+  \draw[call] (10,-58) -- node[lbl, above] {tikrina \code{GET}~\code{/api/programme/{id}}} (48,-58);
+  \node[man, text width=17mm] (person) at (10,-68) {žmogus redaguoja, patvirtina};
+  \draw[flow] (person.east) -- node[lbl, above] {\code{PUT}~\code{…/content}, \code{PATCH}} (48,-68);
+\end{tikzpicture}
+\actorlegend
+\caption{Programos dokumentas. Užduotis perskaito įmonės dokumentus, du kartus klausia modelio
+  ir atsakymą patikrina pagal dokumento rūšies taisykles; rezultatas yra projektas. Patvirtinti
+  jį gali tik žmogaus užklausa.}\label{fig:arch:product}
+\end{figure}
+
+Doroklė (\code{generate} faile \file{programme/run.py}) turi tris pakopas. Etapas
+\code{documents} surenka įmonės profilį, dokumentus ir kiekvieno dokumento inventorių --- iš
+podėlio arba, jei jo dar nėra, modelio iškvietimu (\code{ensure_inventory}). Du pačios rūšies
+etapai atlieka du modelio iškvietimus, antrajam perduodama tai, ką parašė pirmasis. Etapas
+\code{references} suteikia atsakymui rūšies formą ir jos taisykles patikrina kodu; tekste
+įvardytos nuostatos ieškomos teisės aktų bazėje, o ar kiekviena iš jų reglamentuoja tai, ką
+apie ją sako tekstas, vieną kartą įvertina modelis. Tada dokumentas įrašomas kaip
+\code{draft} su turiniu ir kiekvienos taisyklės rezultatu. Iš šios būsenos jis niekada
+neišeina savaime: žmogus jį redaguoja ir patvirtina per API (\cref{ch:programme}).
+
+\subsection{Teisės aktų bazės atnaujinimas}
+
+Teisės aktų bazė atnaujinama \code{corpus.ingest} rūšies užduotimis, po vieną kiekvienam
+teisės aktui (\cref{fig:arch:refresh}). Administratorius tokią užduotį įtraukia į eilę maršrutu
+\route{POST}{/api/corpus/documents/{id}/refresh}; kartą per savaitę planuoklis į eilę įtraukia
+\code{corpus.refresh_all}, kuri tik įtraukia po vieną \code{corpus.ingest} kiekvienam įjungtam
+teisės aktui, kurio tekstas atsisiunčiamas, o ne įkeliamas.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={minimum height=5.6mm, inner ysep=1.5pt, inner xsep=2pt, text width=34mm}]
+  \node[svc, text width=22mm] (hc) at (13,0) {administratorius arba savaitinis tvarkaraštis};
+  \node[svc] (hw) at (64,0) {vykdytojo ciklas};
+  \node[ext, text width=20mm] (hs) at (108,0) {šaltinis, per išėjimą};
+  \node[svc, text width=17mm] (ha) at (140,0) {asistento paslauga};
+  \draw[draw=rule, line width=.6pt] (13,-6) -- (13,-64);
+  \draw[draw=rule, line width=.6pt] (64,-5) -- (64,-64);
+  \draw[draw=rule, line width=.6pt] (108,-6) -- (108,-64);
+  \draw[draw=rule, line width=.6pt] (140,-6) -- (140,-64);
+
+  \draw[flow] (13,-14) -- node[lbl, above] {\code{corpus.ingest} eilėje} (64,-14);
+  \draw[call] (64,-21) -- node[lbl, above] {atsisiųsti} (108,-21);
+  \node[chk, cell] at (64,-28) {nepakito? tada sustoti čia};
+  \node[svc, cell] at (64,-35) {išgauti, atpažinti, skaidyti};
+  \node[ai, cell] (emb) at (64,-42) {vektorizuoti};
+  \node[chk, cell] at (64,-49) {aktyvuoti redakciją};
+  \draw[call] (emb.east) -- node[lbl, above, pos=.72] {\code{/internal/llm/embed}} (140,-42);
+  \draw[flow] (64,-59) -- node[lbl, above] {teisės aktas turi naują galiojančią redakciją} (13,-59);
+\end{tikzpicture}
+\actorlegend
+\caption{Vieno teisės akto atnaujinimas. Užduočių vykdytojas per išėjimą atsisiunčia šaltinį
+  ir sustoja, jei niekas nepasikeitė. Kitu atveju jis šalia galiojančios redakcijos sukuria
+  naują ir viena transakcija persijungia į ją.}\label{fig:arch:refresh}
+\end{figure}
+
+Doroklė (\code{ingest} faile \file{corpus/ingest.py}) registruoja penkis etapus. \code{fetch}
+gauna baitus iš teisės akto šaltinio ir palygina juos su galiojančia redakcija: ta pati turinio
+maiša arba ta pati leidimo žyma iškart užbaigia užduotį atsakymu \enquote{nepakito}, todėl
+savaitinė nepakitusios teisės aktų bazės patikra nieko nekainuoja. Kitu atveju sukuriama
+nauja redakcijos eilutė, o \code{extract} vaikiniame procese su atminties ir laiko ribomis
+perskaito leidinio struktūrą, \code{parse} įrašo nuostatas kaip struktūros vienetus,
+\code{chunk} suskaido juos paieškai į fragmentus, o \code{embed} fragmentus vektorizuoja. Tik
+tada redakcija paverčiama galiojančia kartu su įrašu apie tai, ką ji pakeitė, palyginti su ankstesne,
+vienoje transakcijoje; iki tos akimirkos kiekvienas skaitytojas mato visą senąją redakciją.
+Nepavykęs vykdymas palieka savo redakciją pažymėtą kaip nepavykusią, o pakartojimas pradeda
+naują. Įkelto standarto atveju \code{extract} etapas taip pat gali paprašyti modelio pažymėti
+antraštes. Visa tai aptariama \cref{ch:corpus}.
+
+\section{Foninės užduotys}\label{sec:arch:jobs}
+
+Viskas, kas trunka ilgiau nei užklausa, yra \term{užduotis}: viena lentelės eilutė, kurią
+paima ir vykdo \term{užduočių vykdytojas}. Nėra nei pranešimų tarpininko, nei atskiro
+planuoklio. Eilė yra dvi lentelės toje pačioje duomenų bazėje, kurioje laikoma visa kita, o
+kodas yra API programa \code{jobs}: \file{jobs/models.py} (lentelės), \file{jobs/queue.py}
+(įtraukimas į eilę), \file{jobs/registry.py} (rūšys), \file{jobs/runner.py} (paėmimas ir
+vykdymas), \file{jobs/schedule.py} (periodinės rūšys) ir
+\file{jobs/management/commands/run_worker.py} (ciklas).
+
+\subsection{Eilė: dvi lentelės}
+
+Užduotis yra \code{jobs} lentelės eilutė (\cref{tab:arch:jobrow}). Jos \term{rūšis} įvardija
+doroklę, kuri ją vykdys, turinys yra doroklės įvestis, o \term{objektas} nurodo, apie ką ji,
+--- \code{report:<id>}, \code{corpus:<id>}, \code{document:<id>}, --- kad puslapiai galėtų
+išvardyti vieno dalyko užduotis, o maršrutas matytų, kad tokia užduotis jau vykdoma.
+\code{enqueue} (\file{jobs/queue.py}) įrašo eilutę; ji atmeta rūšį, kuri neturi doroklės,
+kad klaidingai parašyta rūšis sukeltų klaidą ten, kur ji parašyta, ir niekada amžinai
+nelauktų lentelėje.
+
+\begin{table}[H]
+\caption{\code{jobs} lentelės stulpeliai, paverčiantys ją eile}\label{tab:arch:jobrow}
+\begin{tabularx}{\textwidth}{@{}L{37mm}Y@{}}
+\toprule
+\hd{Stulpelis} & \hd{Reikšmė} \\
+\midrule
+\code{kind}, \code{payload}, \code{subject} & Kuri doroklė, su kokia įvestimi, apie ką. \\
+\code{status} & \code{queued}, \code{running}, \code{done}, \code{failed} arba \code{cancelled}; tikrinimo apribojimas kitokios reikšmės neleidžia. \\
+\code{priority}, \code{run_after} & Paėmimo tvarka ir ankstyviausia akimirka, kada užduotį galima paimti. \\
+\code{attempts}, \code{max_attempts} & Kiek kartų užduotis buvo paimta ir kiek kartų leidžia jos rūšis. \\
+\code{locked_by}, \code{heartbeat_at} & Kuris užduočių vykdytojas laiko užduotį ir kada jis paskutinį kartą pranešė, kad gyvas. \\
+\code{cancel_requested} & Nustato API; skaito doroklė. \\
+\code{progress} & \texttt{\{step, percent, message\}}: ką puslapiai rodo, kol užduotis vykdoma. \\
+\code{result}, \code{error} & Ką grąžino doroklė arba kodėl ji nepavyko. \\
+\code{created_by} & Naudotojas, dėl kurio atsirado užduotis; planuoklio užduotims tuščia. Užduoties modelio iškvietimai priskiriami šiam naudotojui, jei apskritai kam nors priskiriami. \\
+\code{created_at}, \code{started_at}, \code{finished_at} & Trys jos gyvavimo akimirkos. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Doroklė savo darbą dalija į \term{etapus}, ir kiekvienas etapas yra \code{job_steps} eilutė:
+jo eilės numeris ir pavadinimas, būsena (\code{running}, \code{done} arba \code{failed}, kaip
+jas įrašo vykdymo modulis), nuoroda į įvestį, išvestis, trukmė ir klaida --- bei jame atliktų
+modelio iškvietimų modelis, instrukcijos versija ir sąnaudos. Etapas yra vienetas, kuriuo
+skaitoma ataskaitos kaina ir kilmė: \enquote{spragų analizė vykdyta su šia šios instrukcijos
+versija, atliko tiek iškvietimų ir kainavo tiek}.
+
+\begin{codebox}{Ką etapas įrašo apie savo modelio iškvietimus}
+Doroklė niekada pati neskaičiuoja savo žetonų. Kiekvienas modelio iškvietimas
+registruojamas su etapo, kuriam jis atliktas, id, o etapui pasibaigus --- sėkmingai ar ne,
+--- vykdymo modulis viena grupuojančia užklausa perskaito etapo eilutes iš \code{llm_calls}
+(\code{_usage_from_calls} faile \file{jobs/runner.py}) ir įrašo į etapą: iškvietimų skaičių,
+įvesties ir išvesties žetonus ir kainą, iš viso ir pagal modelį; modelį, atlikusį daugiausia
+iškvietimų; ir instrukcijos versiją, jei visi iškvietimai vykdyti su viena. Todėl ir pusiaukelėje
+nepavykęs etapas rodo, kiek jau buvo išleidęs. Instrukcijos versija laikoma paprastu tekstu, o
+ne išoriniu raktu, todėl įrašas išlieka ir ištrynus versiją, kurią jis įvardija.
+\end{codebox}
+
+\subsection{Užduoties gyvavimas}
+
+\Cref{fig:arch:jobstates} rodo užduoties būsenas ir kiekvieną perėjimą iš vienos į kitą. Likusi
+šio poskyrio dalis juos aptaria.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \node[svc, minimum width=22mm] (q) at (14,0) {eilėje};
+  \node[svc, minimum width=22mm] (r) at (74,0) {vykdoma};
+  \node[svc, minimum width=22mm] (d) at (136,15) {atlikta};
+  \node[svc, minimum width=22mm] (f) at (136,0) {nepavyko};
+  \node[svc, minimum width=22mm] (c) at (136,-15) {atšaukta};
+
+  \draw[flow] (q) -- node[lbl, above] {paimta: \code{attempts} + 1} (r);
+  \draw[flow] (r.north east) -- node[lbl, pos=.55] {doroklė grąžina rezultatą} (d.west);
+  \draw[flow] (r.east) -- node[lbl, pos=.5, align=center] {klaida ar žuvęs vykdytojas,\\ bandymų neliko} (f.west);
+  \draw[flow] (r.south east) -- node[lbl, pos=.55] {atšaukimas pastebėtas patikroje} (c.west);
+  \draw[flow] (r.north) to[out=150, in=30] (q.north);
+  \node[note, anchor=south, align=left] at (44,15) {atgal į eilę:\\ klaida, kai liko bandymų (po 30 s)\\ vykdytojas stabdomas (bandymas grąžinamas)\\ gyvybės signalas senesnis nei 120 s, liko bandymų};
+  \draw[flow] (q.south) |- node[lbl, pos=.75] {atšaukta dar eilėje} ([yshift=-2mm]c.west);
+\end{tikzpicture}
+\caption{Užduoties būsenos. Užduotis paimama iš eilės ir baigiasi kaip atlikta, nepavykusi
+  arba atšaukta; trys įvykiai vykdomą užduotį vietoj to grąžina į eilę.}\label{fig:arch:jobstates}
+\end{figure}
+
+\paragraph{Paėmimas ir užrakinimas.} Užduočių vykdytojas paima po vieną užduotį (\code{claim}
+faile \file{jobs/runner.py}): iš eilučių, kurios yra \code{queued} ir kurių \code{run_after}
+jau praėjo, tą, kurios \code{priority} didžiausias, o tarp lygių --- seniausią. Eilutė
+parenkama PostgreSQL konstrukcija \texttt{FOR UPDATE SKIP LOCKED}, kuri ją užrakina
+transakcijos trukmei, o bet kuris kitas tą pačią akimirką klausiantis vykdytojas ją praleidžia
+ir paima kitą. Toje pačioje transakcijoje eilutei nustatoma būsena \code{running},
+\code{locked_by} nustatomas vykdytojo id (konteinerio serverio vardas ir aštuoni atsitiktiniai
+simboliai), \code{heartbeat_at} --- dabarties laikas, o \code{attempts} padidinamas vienetu.
+Todėl du vykdytojai niekada negali vykdyti tos pačios užduoties, ir keli greta veikiantys
+ciklai yra saugūs. Užklausą aptarnauja indeksas pagal būseną, \code{run_after}, prioritetą ir
+sukūrimo laiką.
+
+\paragraph{Prioritetas ir atidėjimas.} Prioritetas yra paprastas sveikasis skaičius,
+numatytasis 0, didesnis vykdomas pirmiau. Kode naudojamos keturios reikšmės: 5 --- įkelto
+dokumento indeksavimui, kad dokumentas, kurį naudotojas ką tik įmetė į pokalbį, būtų
+pasiekiamas paieškai, dar prieš ateinant eilei ilgai teisės aktų bazės užduočiai; 0 --- viskam, ką
+naudotojas ar administratorius pradeda per API (ir komandos \code{seed_corpus} įkėlimo
+užduotims); $-1$ --- užduotims, kurias masinės komandos \code{extract_obligations},
+\code{verify_obligations} ir \code{read_sanctions} įtraukia visai teisės aktų bazei
+(\code{PRIORITY} kiekvienoje), kad naudotojo pradėtas darbas eitų pirmas; ir $-5$ ---
+planuoklio užduotims. \code{run_after} atideda užduotį: pakartojimas nukeliamas 30~sekundžių
+į priekį (\code{BACKOFF_S}), o indeksavimo užduotis, radusi savo naudotojo dienos biudžetą
+išnaudotą, vėl įtraukia save į eilę su vykdymo laiku penkios minutės po UTC vidurnakčio, kai biudžetas
+atsinaujina.
+
+\paragraph{Bandymai.} Kiekviena rūšis užregistruojama su leidžiamu bandymų skaičiumi
+(\cref{tab:arch:kinds}). Kai doroklė iškelia klaidą, o užduočiai liko bandymų, užduotis su
+klaidos tekstu ir atidėjimu grįžta į eilę; kitu atveju ji baigiasi kaip \code{failed}.
+Dauguma rūšių leidžia vieną bandymą; teisės akto atsisiuntimas (\code{corpus.ingest}) leidžia
+du, o dokumento indeksavimas (\code{documents.index}) --- tris. Klaida, iškelta, kai užduoties
+atšaukimo žymė nustatyta, užduotį vietoj to užbaigia kaip \code{cancelled}, kad ir kiek
+bandymų liktų.
+
+\paragraph{Gyvybės signalas ir žuvęs užduočių vykdytojas.} Kol doroklė vykdoma, antra gija
+kas 15~sekundžių pažymi \code{heartbeat_at} (\code{HEARTBEAT_S}). Kiekvieno savo ciklo
+apsisukimo pradžioje vykdytojas ieško vykdomų užduočių, kurių gyvybės signalas senesnis nei
+120~sekundžių (\code{STALE_S}): jų vykdytojas laikomas žuvusiu (\code{recover_stale}). Tokia
+užduotis grįžta į eilę, jei jai liko bandymų. Jei neliko, jai nustatoma būsena \code{failed} su
+pranešimu, kad jos vykdytojas netikėtai sustojo, kartu nepavykusiais pažymimi ir jos dar
+atviri etapai --- kiekvienas su tuo, ką buvo sunaudoję jo modelio iškvietimai, --- ir
+paleidžiamas rūšies kablys (angl. \en{hook}) \code{on_abandon}. Kablys skirtas dviem rūšims,
+kurių užduotį atspindi atskira jos pačios eilutė: jis ataskaitai arba programos dokumentui taip
+pat nustato nepavykusią būseną, kad nė vienas neliktų amžinai \enquote{vykdomas} be jokios
+užduoties už jo.
+
+\begin{codebox}{Aptvėrimas: jokio įrašo be užrakto}
+Užduočių vykdytojas, kuris tik lėtai veikė --- buvo sustojęs kelioms minutėms, bet nežuvo, ---
+gali pabusti, kai kitas vykdytojas jau atkūrė jo užduotį. Todėl kiekvienas įrašas, kuris
+užbaigia užduotį --- atlikta, nepavyko, atšaukta, atgal į eilę, --- vykdomas tik su sąlyga,
+kad eilutė vis dar \code{running} ir vis dar turi to vykdytojo \code{locked_by}
+(\code{_fenced} faile \file{jobs/runner.py}), o eigos įrašas --- su sąlyga, kad eilutė vis dar
+turi tą \code{locked_by}; atnaujinimas, neatitinkantis jokios eilutės, nieko nekeičia. Gyvybės
+signalo gija tai pastebi pirmoji: kai jos atnaujinimas neatitinka jokios eilutės, ji nustato žymę,
+doroklė per kitą patikrą sustoja su \code{JobLost}, ir šiam bandymui daugiau niekas
+neįrašoma.
+\end{codebox}
+
+\paragraph{Atšaukimas.} \route{POST}{/api/jobs/{id}/cancel} (\file{jobs/api/views.py}) daro
+vieną iš dviejų dalykų. Dar eilėje esančiai užduočiai iškart nustatoma būsena
+\code{cancelled}, o jos rūšies kablys \code{on_abandon} sutvarko už jos esančią ataskaitą ar
+programos dokumentą. Vykdomai užduočiai tik nustatoma žymė \code{cancel_requested}; doroklė
+ją pamato kito \code{ctx.check_cancelled()} kvietimo metu (doroklės jį atlieka tarp brangių
+savo fazių), iškelia \code{JobCancelled}, ir užduotis baigiasi kaip \code{cancelled} --- ne
+kaip nesėkmė ir be pakartojimo. Abu įrašai yra sąlyginiai ir atliekami šia tvarka, todėl
+užduotis, kurią vykdytojas paima tarp jų, vis tiek gauna žymę. Jau pasibaigusi užduotis atsako
+409. Ataskaitos ir programos dokumentai turi savus atšaukimo maršrutus, kurie su savo užduotimi
+daro tą patį. Naudotojas gali atšaukti savo sukurtas užduotis, administratorius --- bet kurią;
+ta pati taisyklė lemia, kurias užduotis išvardija \route{GET}{/api/jobs}.
+
+\paragraph{Eiga.} Doroklė praneša, kur yra, kvietimu \texttt{ctx.progress(step, percent,
+message)}, kuris įrašo tris reikšmes į užduoties eilutę. Užduočių puslapis bei ataskaitos ir
+programos dokumento eigos skydeliai periodiškai tikrina užduotį ir jas rodo.
+
+\subsection{Užduočių rūšys}
+
+Doroklė yra įprasta funkcija, užregistruota savo rūšies vardu dekoratoriumi
+\code{@register} (\file{jobs/registry.py}); \file{jobs/handlers.py} importuoja kiekvieną
+modulį, kuris ją registruoja, ir žiniatinklio procese, ir užduočių vykdytojuje, nes
+žiniatinklio procesas turi žinoti rūšis, kad galėtų jas įtraukti į eilę. \Cref{tab:arch:kinds}
+išvardija visas.
+
+\begin{xltabular}{\textwidth}{@{}L{37mm}YL{43mm}@{}}
+\caption{Užregistruotos užduočių rūšys}\label{tab:arch:kinds}\\
+\toprule
+\hd{Rūšis, doroklė, bandymai} & \hd{Ką daro} & \hd{Kas gali pradėti} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Rūšis, doroklė, bandymai} & \hd{Ką daro} & \hd{Kas gali pradėti} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\code{report.analyze}\newline \file{analysis/pipeline.py}\newline 1 bandymas, atsisakymo kablys & Vienas ataskaitos vykdymas: pirmoji jos dalis, antroji arba abi (\cref{fig:arch:report}). & Bet kuris naudotojas, įmonei, kurią gali matyti: \route{POST}{/api/reports} ir apimties patvirtinimas; tą patį daro pokalbio įrankiai. \\
+\code{programme.generate}\newline \file{programme/run.py}\newline 1 bandymas, atsisakymo kablys & Nauja vieno programos dokumento versija. & Bet kuris naudotojas, įmonei, kurią gali matyti: \route{POST}{/api/companies/{id}/programme}; pokalbio įrankis. \\
+\code{documents.index}\newline \file{companies/indexing.py}\newline 3 bandymai & Suskaido vieną įkeltą dokumentą į ištraukas ir jas vektorizuoja. Jei įkėlusiojo biudžetas išnaudotas, laukia kitos dienos. & Bet kuris naudotojas, įkeldamas dokumentą (\route{POST}{/api/documents}); pati užduotis, kai laukia. \\
+\code{corpus.ingest}\newline \file{corpus/ingest.py}\newline 2 bandymai & Atsisiunčia vieną teisės aktą arba perskaito įkeltą failą ir paverčia jį galiojančia akto redakcija (\cref{fig:arch:refresh}). & Administratorius: pridėdamas teisės aktą su šaltiniu, jį atnaujindamas, įkeldamas failą. Žemiau esanti rūšis. Komanda \code{seed_corpus}. \\
+\code{corpus.refresh_all}\newline \file{corpus/ingest.py}\newline 1 bandymas & Įtraukia po vieną \code{corpus.ingest} kiekvienam įjungtam atsisiunčiamam teisės aktui. & Planuoklis, kas savaitę. Administratorius: \route{POST}{/api/corpus/refresh-all}. \\
+\code{corpus.reembed}\newline \file{corpus/ingest.py}\newline 1 bandymas & Iš naujo vektorizuoja kiekvieną galiojančių redakcijų fragmentą ir, jei nenurodytas vienas teisės aktas, kiekvieną pareigą abiem kalbomis ir kiekvieną įmonės dokumentą. Reikalinga pasikeitus vektorizavimo modeliui. & Administratorius: \route{POST}{/api/corpus/reembed}. \\
+\code{corpus.extract_obligations}\newline \file{corpus/obligations.py}\newline 1 bandymas & Išskiria pareigas iš vieno teisės akto galiojančios redakcijos. & Administratorius, kiekvienam aktui atskirai. Komanda \code{extract_obligations} --- kiekvienam atsilikusiam aktui. \\
+\code{corpus.verify_obligations}\newline \file{corpus/verify.py}\newline 1 bandymas & Paveda vertintojui palyginti vieno teisės akto pareigas su nuostatomis, kurias jos cituoja. & Administratorius, kiekvienam aktui atskirai. Komanda \code{verify_obligations}. \\
+\code{corpus.read_sanctions}\newline \file{corpus/sanctions.py}\newline 1 bandymas & Perskaito dar neperskaitytų teisės aktų sankcijų nuostatas, vieną aktą po kito. & Tik komanda \code{read_sanctions}. \\
+\code{ops.maintenance}\newline \file{ops/maintenance.py}\newline 1 bandymas & Kasdieniai valymai (\cref{tab:arch:purges}). & Planuoklis, kasdien. \\
+\code{ops.noop}\newline \file{jobs/handlers.py}\newline 1 bandymas & Dūmų testas: keli tušti etapai su pasirinktine pauze ir priverstine nesėkme. & Testų rinkinys; žmogus komandinėje eilutėje. \\
+\end{xltabular}
+
+Joks API maršrutas neįtraukia į eilę bet kokios rūšies užduoties. Užduotis atsiranda tik kaip
+šalutinis maršruto, patikrinusio kviečiantįjį ir objektą, poveikis, kaip serveryje paleistos
+valdymo komandos rezultatas arba kaip planuoklio veiksmas. Maršrutai, kurie atnaujina teisės aktą,
+išskiria jo pareigas ar paveda vertintojui jas perskaityti, užuot pridėję antrą užduotį,
+grąžina tam aktui jau eilėje esančią ar vykdomą užduotį.
+
+Ne kiekviena ilga operacija lentelėje turi savo rūšį: tai, ko reikia ataskaitai, atliekama
+pačios ataskaitos užduotyje. Ataskaita, kurios teisės aktuose pareigos dar niekada nebuvo
+išskirtos, jas išskiria savo \code{obligations} etape ir ten pat perskaito jų sankcijų
+nuostatas; ji nelaukia kitos užduoties.
+
+\subsection{Užduočių vykdytojas ir jo ciklas}
+
+Ciklas yra API valdymo komanda \code{run_worker}. Kiekvieno apsisukimo metu jis pažymi gyvybės
+signalo failą, kartą per minutę leidžia pažiūrėti planuokliui, atkuria užduotis, kurių
+vykdytojas žuvo, paima vieną užduotį ir vykdo ją iki galo; jei nėra ko paimti, laukia dvi
+sekundes (\code{--poll}) ir žiūri vėl. Vienas ciklas vienu metu vykdo vieną užduotį.
+
+\paragraph{Kodėl užduočių vykdytojas yra Docker klientas.} Ciklui reikia lygiai to, ką turi
+API: to paties kodo, tų pačių parametrų ir paslapčių, to paties įkeltų failų katalogo, to
+paties ryšio su duomenų baze, tų pačių susietų adresų teisės aktams atsisiųsti. Compose failas
+visa tai suteikia, paleisdamas ciklą API konteinerio \emph{viduje}. Konteineris
+\code{legalops-worker} yra tik standartinis Docker komandinės eilutės atvaizdas su viena
+fiksuota komanda \texttt{docker exec legalops-django python3 manage.py run\_worker} ir į jį
+prijungtu serverio Docker lizdu. Jis visai neturi tinklo, o jo žurnalas yra ciklo žurnalas.
+Niekas nekuriama ir nekonfigūruojama dukart, ir API kodo ar aplinkos pakeitimas negali
+palikti užduočių vykdytojo atsilikusio. Kaina --- lizdas: prieiga prie jo prilygsta root
+teisėms serveryje, todėl tas konteineris neturi tinklo ir nieko kito nevykdo
+(\cref{ch:security}).
+
+\paragraph{Veikiančio ciklo perėmimas.} Ši tvarka turi vieną nepatogią savybę, kurią kodas
+tvarko aiškiai. Ciklas, paleistas \texttt{docker exec}, priklauso API konteineriui, o ne
+užduočių vykdytojo konteineriui. Kai API konteineris paleidžiamas iš naujo, ciklas žūva kartu
+su juo, \texttt{docker exec} grįžta, vykdytojo konteineris baigia darbą, o jo paleidimo iš
+naujo politika jį --- ir kartu naują ciklą --- vėl paleidžia. Tačiau kai iš naujo paleidžiamas
+tik vykdytojo konteineris, senasis ciklas API konteineryje toliau veikia, o šalia jo tuoj bus
+paleistas antras. Todėl naujas ciklas pirmiausia perima darbą (\code{take_over} faile
+\file{jobs/management/commands/run_worker.py}): jis
+perskaito proceso id, kurį ankstesnis ciklas paliko faile (\file{/tmp/worker.pid}),
+\file{/proc} patikrina, ar šis procesas tikrai yra \code{run_worker} ciklas, o ne nesusijęs
+procesas, atsitiktinai turintis tą patį numerį, siunčia jam sustabdymo signalą ir įrašo į
+failą savo id. Jis nelaukia: senasis ciklas iškart nustoja imti užduotis ir užbaigia tik tą
+etapą, kuriame yra.
+
+\paragraph{Tvarkingas sustabdymas.} Sustabdymo signalas tik nustato žymę. Ciklas nustoja imti
+užduotis, o vykdoma doroklė žymę pamato per kitą patikrą ir iškelia \code{WorkerStopping}.
+Tada vykdymo modulis grąžina užduotį į eilę ir grąžina jos bandymą (\code{attempts}
+sumažinamas vienetu), kad pertraukimas nebūtų laikomas nesėkme; kitas ciklas užduotį vykdo
+iš naujo. Ataskaitai tai reiškia, kad pertraukta dalis pradedama iš naujo: doroklė pradeda
+nuo eilučių, kurias paliko ankstesnis tos pačios dalies bandymas, ištrynimo, todėl niekas
+nepasidvigubina.
+
+\begin{notebox}{Ką sistemos atnaujinimas daro vykdomai užduočiai}
+Du būdai, kuriais ciklas gali baigtis, turi skirtingas pasekmes, ir skirtumas svarbus
+rūšims, kurios leidžia vienintelį bandymą. Ciklas, kurio \emph{paprašoma} sustoti --- nes
+darbą perima naujas ciklas, --- grąžina savo užduotį nepanaudojęs bandymo, ir užduotis
+vykdoma vėl. Ciklas, kuris \emph{priverstinai nutraukiamas} kartu su API konteineriu, kaip nutinka, kai visa
+sistema sustabdoma atnaujinimui, nieko grąžinti negali: jo užduotis lieka \code{running}, kol
+jos gyvybės signalui sukanka dvi minutės, ir tada ją atkuria kitas ciklas.
+\code{corpus.ingest} ir \code{documents.index} turi likusių bandymų ir vėl įtraukiamos į
+eilę. \code{report.analyze} ar \code{programme.generate} užduotis savo vienintelį bandymą
+išnaudojo, todėl baigiasi kaip \code{failed} su pranešimu, kad jos vykdytojas netikėtai
+sustojo, o jos ataskaitai ar programos dokumentui kartu nustatoma nepavykusi būsena, užuot
+palikus juos kaboti. Tai, už ką pertrauktas vykdymas jau sumokėjo, išlieka jo etapuose ir
+\code{llm_calls}; pačią ataskaitą reikia pradėti iš naujo.
+\end{notebox}
+
+\subsection{Planuoklis}
+
+Dvi rūšys yra periodinės, ir \file{jobs/schedule.py} visą tvarkaraštį laiko kaip dviejų
+įrašų lentelę: \code{ops.maintenance} kasdien ir \code{corpus.refresh_all} kas septynias
+dienas. Kartą per minutę (\code{SCHEDULE_EVERY_S}) ciklas kviečia \code{tick}, kuri suranda
+naujausią kiekvienos rūšies užduotį ir įtraukia į eilę naują, su prioritetu $-5$ ir objektu
+\code{schedule:<kind>}, nebent ta naujausia užduotis dar eilėje ar vykdoma arba buvo sukurta
+per intervalą. Taigi tvarkaraštis saugomas pačioje eilėje, kurią jis pildo. Nėra cron
+konteinerio; planuoklis niekada neįtraukia rūšies, kol viena iš jos užduočių dar laukia ar
+vykdoma; administratoriaus rankiniu būdu pradėtas atnaujinimas laikomas tos savaitės vykdymu;
+o po ilgo sutrikimo kiekvienos rūšies laikas tiesiog būna atėjęs, ir ji įvykdoma vieną kartą.
+Šio patikrinimo nesėkmė užregistruojama žurnale ir niekada nesustabdo ciklo.
+
+\subsection{Kasdienė priežiūra}
+
+\code{ops.maintenance} (\file{ops/maintenance.py}) pašalina tai, kas nebeturi jokios
+naudos, ir atsako, kiek ko pašalino (\cref{tab:arch:purges}).
+
+\begin{table}[H]
+\caption{Ką pašalina kasdienė priežiūros užduotis}\label{tab:arch:purges}
+\begin{tabularx}{\textwidth}{@{}L{38mm}YL{43mm}@{}}
+\toprule
+\hd{Kas} & \hd{Sąlyga} & \hd{Konstanta} \\
+\midrule
+Sesijos & Pasibaigusios. & --- \\
+Baigtos užduotys su jų etapais & Atliktos, nepavykusios ar atšauktos prieš daugiau nei 90 dienų --- išskyrus užduotį, į kurią rodo ataskaita: ji saugoma tol, kol yra ataskaita. & \code{JOB_RETENTION_DAYS}~=~90 \\
+DI sąnaudų įrašai & \code{llm_calls} eilutės, senesnės nei 400 dienų, kartu su jose esančiomis pokalbių stenogramomis. & \code{TELEMETRY_RETENTION_DAYS}~=~400 \\
+Niekam nepriskirti įkelti failai & Dokumentų katalogo failai, kurių neįvardija jokia dokumento eilutė ir kurie senesni nei šešios valandos: tai, ką palieka gedimas tarp failo ir eilutės įrašymo. & \code{ORPHAN_GRACE_HOURS}~=~6 \\
+Užklausų ribojimo langai & Praėjęs jų nunulinimo laikas. & --- \\
+Nepanaudoti pokalbio įkėlimai & Dokumentai, nepriskirti jokiai įmonei, įkelti prieš daugiau nei septynias dienas ir neįvardyti jokioje pokalbio žinutėje: failas, įmestas į pokalbį, bet taip ir neišsiųstas. Ne daugiau kaip 500 per vykdymą. & \code{ORPHAN_UPLOAD_DAYS}~=~7, \code{ORPHAN_UPLOAD_BATCH}~=~500 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Antroji eilutė paaiškina, kodėl ataskaita išsaugo savo kilmę: užduotis, į kurią rodo
+ataskaita, su etapais, kuriuose įrašyta kiekviena instrukcijos versija, modelis ir kaina,
+nevaloma, kol ataskaita egzistuoja.
+Ataskaita, parengta su apimties peržiūra, rodo į savo antrosios dalies užduotį. Pirmosios
+dalies užduotis išvaloma kaip bet kuri kita, ir po vykdymo jos niekas nebeskaito: ataskaitos
+statistika su abiejų dalių instrukcijų versijomis, modeliais ir kaina įrašoma į ataskaitą, kai
+vykdymas baigiasi (\cref{ch:data}), o DI sąnaudų įrašai iškvietimus saugo 400 dienų.
+
+\section{Technologijų rinkinys ir du režimai}\label{sec:arch:stack}
+
+\Cref{tab:arch:stack} pateikia saugykloje fiksuotas versijas. Python paketai tiksliai
+fiksuoti \file{django/Dockerfile} faile --- projektas neturi reikalavimų failo, --- o baziniai
+atvaizdai fiksuoti žyme. Du Node projektai savo \file{package.json} deklaruoja minimalias
+versijas; tiksliai įdiegtos versijos yra nurodytos kiekviename \file{package-lock.json}.
+
+\begin{xltabular}{\textwidth}{@{}L{29mm}Y@{}}
+\caption{Technologijų rinkinys su saugykloje deklaruotomis versijomis}\label{tab:arch:stack}\\
+\toprule
+\hd{Dalis} & \hd{Komponentai ir versijos} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Dalis} & \hd{Komponentai ir versijos} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Įėjimas ir išėjimas & Caddy 2.11 (\code{caddy:2.11-alpine}); Caddy su ketvirtojo lygmens moduliu (\code{vuknf/caddy-l4:2.11}). \\
+API ir užduočių vykdytojo ciklas & Python 3.13 (\code{python:3.13-slim}); Django 5.2.17; psycopg 3.3.6 ir \code{pgvector} sąsaja 0.5.0; gunicorn 26.2.0; django-environ 0.14.0; bcrypt 5.0.0; requests 2.34.2. Dokumentų skaitymas: pypdf 6.19.0, cryptography 50.0.2, python-docx 1.2.0, lxml 6.1.3, PyYAML 6.0.3. Eksportas: WeasyPrint 70.0, openpyxl 3.1.5, Markdown 3.11. \\
+Asistento paslauga & Node 24.16.0; Express 5.1; DI SDK \code{ai} 7.0 su tiekėjų paketais \code{@ai-sdk/openai} 4.0, \code{@ai-sdk/openai-compatible} 3.0 ir \code{@ai-sdk/anthropic} 4.0, taip pat \code{@ai-sdk/mcp} 2.0; zod 4.1. \\
+Konsolė ir viešoji svetainė & React 19.2; Vite 7.3; MUI 7.3 su duomenų tinkleliu 8.27; Tailwind CSS 4.2; assistant-ui 0.15; TanStack Query 5; React Router 7.13; axios 1.13. Testuojama su vitest 5 ir msw 2; gamybos režimu sukurtą programą aptarnauja Caddy 2.11. \\
+Duomenų bazė & PostgreSQL 17.11 (\code{postgres:17.11-alpine3.24}) su į atvaizdą sukompiliuotu \code{pgvector} 0.8.6. \\
+Užduočių vykdytojo konteineris & Docker komandinės eilutės klientas (\code{docker:27-cli}). \\
+Duomenų bazės įrankis & DbGate 7.3.3. \\
+\end{xltabular}
+
+Compose failas parašytas taip, kad veiktų vienu iš dviejų režimų, o besiskiriančios eilutės
+turi komentarą \texttt{\# Dev} arba \texttt{\# Prod}. Norint perjungti režimą, vienos žymės
+eilutes reikia užkomentuoti, kitos --- atkomentuoti ir paleisti atnaujinimo scenarijų
+(\cref{tab:arch:modes}). Saugykloje esantis failas nustatytas kūrimo režimui.
+
+\begin{table}[H]
+\caption{Du \file{docker-compose.yml} režimai}\label{tab:arch:modes}
+\begin{tabularx}{\textwidth}{@{}L{27mm}YY@{}}
+\toprule
+\hd{Paslauga} & \hd{Kūrimo režimas} & \hd{Gamybos režimas} \\
+\midrule
+Konsolė ir viešoji svetainė & \file{vite/Dockerfile.dev}: Vite kūrimo serveris, veikiantis su iš serverio prijungtu išeities kodo katalogu; išsaugojus failą, puslapis perkraunamas. & \file{vite/Dockerfile}: programa vieną kartą sukuriama iš užfiksuotų priklausomybių, o Caddy rezultatą aptarnauja kaip statinius failus. \\
+Asistento paslauga & \file{assistant/Dockerfile.dev}: išeities kodas prijungtas iš serverio; jam pasikeitus, paslaugą iš naujo paleidžia nodemon. & \file{assistant/Dockerfile}: užfiksuotos gamybos priklausomybės ir išeities kodas įdėti į atvaizdą; \texttt{node server.js}. \\
+API & Nustatytas \code{DJANGO_RUNSERVER}: Django kūrimo serveris su iš serverio prijungtu išeities kodu. & Kintamasis nenustatytas: gunicorn iš sukurto atvaizdo, numatytuoju atveju trys procesai po aštuonias gijas (\file{django/gunicorn.conf.py}). \\
+Tinklai & Konsolės ir asistento paslaugos konteineriai taip pat jungiasi prie išorinio tinklo, kad galėtų įdiegti paketus. & Abu yra tik izoliuotame tinkle. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Dvi kūrimo režimo pasekmės priklauso architektūros skyriui, nes jos susilpnina dvi pagrindines
+jo savybes. Konteineris išoriniame tinkle gali tiesiogiai pasiekti internetą, todėl kūrimo
+režimu asistento paslaugos neriboja išėjimo leidžiamų adresų sąrašas. Be to, užduočių
+vykdytojo ciklas neperkraunamas, kai pasikeičia išeities kodo failas: jis vykdo kodą, su
+kuriuo buvo paleistas, kol iš naujo paleidžiamas vykdytojo konteineris, o tada darbą perima
+naujas ciklas. Gamybos režimu kodo pakeitimas į bet kurį konteinerį patenka tik per
+atnaujinimo scenarijų (\cref{ch:ops}).
+
+\section{Architektūriniai sprendimai}\label{sec:arch:decisions}
+
+Saugykloje užfiksuoti šeši sprendimai, kurie suformavo architektūrą
+(\file{docs/markdown/en/architecture.md}, 10~skirsnis). Čia jie pateikiami su priežastimis.
+
+\begin{description}
+  \item[API --- Django, o ne FastAPI.] Įraše tai nurodyta kaip pačioje pradžioje priimtas
+    sprendimas, be jokio techninio argumento. Kodas rodo, kaip mažai Django naudojama: ORM,
+    migracijos, užklausos ciklas ir valdymo komandos, be jokių kartu teikiamų programų.
+
+  \item[Pirmiausia pokalbis; puslapiai peržiūrai ir administravimui.] Numatyta, kad
+    naudotojas dirbs kalbėdamasis: aprašys įmonę, įmes jos dokumentus, paprašys analizės.
+    Konsolės puslapiai skirti peržiūrėti, kas parengta, ir administruoti sistemą. Pokalbio
+    įrankiai apima darbą su įmone ir nieko daugiau --- jie gali skaityti teisės aktų bazę,
+    bet ne ją keisti, ir negali pasiekti paskyrų, instrukcijų ar MCP nustatymų. Tai riboja,
+    ką dokumente paslėptas nurodymas galėtų priversti pokalbį padaryti (\cref{ch:security}).
+
+  \item[Sistema rengia projektus ir tikrina; tvirtina žmogus.] Ataskaitos apimtis, registro
+    pareiga, peržiūrėtojo sprendimas dėl išvados, programos dokumentas: kiekvieną jų
+    patvirtina įvardytas asmuo, tai užrašoma veiksmų žurnale, ir sistema nieko nepažymi kaip
+    patvirtinto. Balus, lygius ir identifikatorius skaičiuoja kodas, jie niekada neimami iš
+    modelio. Sustojimas apimties peržiūrai (\cref{fig:arch:report}) ir projekto būsena
+    (\cref{fig:arch:product}) yra šio sprendimo išraiška architektūroje; \cref{ch:control}
+    surenka visus tokius taškus.
+
+  \item[Pareigos priklauso teisės aktų bazei ir yra peržiūrimos.] Teisės akto pareigos
+    išskiriamos vieną kartą kiekvienai redakcijai ir pakartotinai naudojamos kiekvienoje
+    vėlesnėje kiekvienos įmonės ataskaitoje, užuot jas iš naujo skaičius kiekvienai
+    ataskaitai. Dėl to ataskaita pigesnė, dvi ataskaitos palyginamos, o pareigos peržiūra turi
+    ilgalaikį poveikį. Ataskaita įrašo, kiek jos išvadų remiasi peržiūrėtomis pareigomis. Kaip
+    registras buvo sukurtas ir peržiūrėtas, aptariama \cref{ch:obligations}.
+
+  \item[Oficialūs mašininiai teisės šaltiniai.] Tekstai gaunami iš CELLAR ir e-TAR, o ne iš
+    EUR-Lex ir e-seimo --- svetainių, kurias skaitytų žmogus, --- nes šios dvi atmeta
+    automatinius klientus. \cref{tab:arch:egress} pateiktas išeinančio srauto leidžiamų
+    adresų sąrašas yra architektūrinis šio sprendimo pėdsakas.
+
+  \item[Vienas modelių tiekėjas: fakulteto DI tinklų sąsaja.] Kiekvienas modelio iškvietimas
+    eina į DI tinklų sąsają adresu \code{ai.knf.vu.lt}. Įraše aiškiai pasakyta, kas dėl to
+    palieka serverį: įmonės dokumentai siunčiami į DI tinklų sąsają vektorizuoti ir
+    ataskaitos etapuose, o visa, ką perskaito pokalbis, keliauja kartu su jo ėjimais. Visa
+    kita --- duomenų bazė, failai, struktūros atpažinimas, patikros, eksportas --- vyksta
+    serveryje. Asistento paslaugą galima sukonfigūruoti kitiems tiekėjams, bet tam reikėtų
+    atverti jiems leidžiamų adresų sąrašą (\cref{ch:models}).
+\end{description}

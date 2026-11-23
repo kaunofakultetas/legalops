@@ -1,0 +1,304 @@
+% STATUS: verified
+\chapter{The system and the course}\label{ch:course}
+
+The \product{} was built as the project of a course, and the course's method is its
+specification. This chapter sets the two side by side: what the course's three assignments ask
+for and where each answer is in the product; which of the course's concepts became which part
+of the system; where the system follows the text of a source rather than a summary of it; and
+what the course teaches that the system does not do.
+
+\section{The course and its sample organisation}\label{sec:course:course}
+
+The course is \lt{Finansų teisė ir finansų įstaigų veiklos atitikties valdymas} --- financial
+law and the compliance management of financial institutions --- in the FinTech master's
+programme of Vilnius University Kaunas Faculty, autumn 2026. Its lectures run from the
+structure of the financial markets and the licensing of each kind of institution, through the
+place of the compliance function in internal governance and the building of a compliance
+management system, to the requirements on money-laundering prevention and on digital
+operational resilience, and to liability for breaches. Its independent work is done on one
+sample organisation, \demo{}: a simulated crypto-asset service provider of about forty people,
+published under a Creative Commons licence with 26 policies --- thirteen of an information
+security management system and thirteen on its financial-technology business
+(\cref{ch:company}).
+
+The course also describes a role: the technologist who builds tools for legal and compliance
+work. The duties it lists for that role read like a checklist for a system of this kind ---
+prompts whose answers are bound to a schema, answers grounded in retrieved sources, regression
+suites that include a model judging a model, kept sets of ground-truth cases, and audit
+trails. \Cref{sec:course:duties} goes through them.
+
+\section{The three assignments}\label{sec:course:assignments}
+
+Each assignment asks a student to obtain a set of documents about \demo{} with the help of a
+language model. The system treats the second and the third as products: something generated
+from the company's own documents, checked by code against the form the assignment prescribes,
+and left for a person to edit and approve; the first it answers in the chat and files on the
+company. \Cref{tab:course:assignments} gives the mapping; the
+paragraphs after it say what the form is and how it is enforced.
+
+\begin{table}[H]
+\caption{The course's assignments and where each is in the product}\label{tab:course:assignments}
+\begin{tabularx}{\textwidth}{@{}L{22mm}YY@{}}
+\toprule
+\hd{Assignment} & \hd{What it asks for} & \hd{Where it is in the product} \\
+\midrule
+1, first part & Classify an organisation: the financial market it works in, the institutes of
+  financial law that govern it, and the licence or list entry it needs. &
+  A conversation with the chat assistant, which answers from the corpus with citations and
+  files the result on the company's profile (\code{financial_market}) through its tools
+  (\cref{ch:chat,ch:company}). \\
+1, second part & A role profile --- for example the compliance officer's --- drawn from the
+  company's own documents. &
+  A role of the company (\code{company_roles}); a chat thread can adopt it, and its text then
+  enters the chat's prompt as the variable \code{ROLE_CONTEXT} (\cref{ch:chat}). \\
+2 & A compliance policy in eight parts and the lists of missing second-level policies and
+  third-level procedures; then the positions found in the documents, an organisational
+  structure, the compliance process in steps, and a responsibility matrix. &
+  The work products \code{policy} and \code{governance}, exported as PDF and, for the policy,
+  Word (\cref{ch:programme}). \\
+3 & Criteria of likelihood and impact, a five-by-five matrix with bands and responses, at
+  least five risk scenarios in a set sentence, and the legal risk register. &
+  The work product \code{risks}, exported as PDF and Excel (\cref{ch:programme}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Assignment 2: the policy.} The course teaches a compliance policy in eight parts,
+and the product's policy has exactly those eight, in that order: the introduction with
+purpose, scope and fit; management's commitment and its link to the company's values; the
+mandate of the compliance function; the commitment to meet requirements and to improve
+continually; roles and responsibilities; the core compliance processes; the reporting of
+breaches; and the consequences of non-compliance. Around the policy stands the course's
+hierarchy of documents --- the policy itself on the first level, thematic policies on the
+second, procedures on the third --- and the product places every document of the company on a
+level and lists the second- and third-level documents that are missing, each with the legal
+basis that calls for it where a provision does. Code refuses to let a policy be approved while
+one of the eight parts has fewer than 150 characters or an article it names does not exist in
+its act.
+
+\paragraph{Assignment 2: structure, process and the responsibility matrix.} The assignment's
+second half is a chain: the positions the documents name, the roles that are missing, a
+structure, a process, a matrix. The product follows the chain in one work product and enforces
+the assignment's own rule on the matrix by code: \emph{every step has exactly one accountable
+role and at least one responsible role}. It also holds the structure to the three lines of
+defence the course teaches --- the second line may not sit under the first, and internal audit
+reports to a governing body alone --- requires the process to have at least five steps, and
+checks the clauses of ISO~37301 and the paragraphs of the Bank of Lithuania's guidelines on the
+compliance function that the steps say they rest on.
+
+\paragraph{Assignment 3: the risk register.} The course prescribes the criteria closely, and
+the product's constants are the course's: likelihood on five levels over four dimensions (the
+state of internal control, the clarity of the law and the attention of the supervisor, the
+counterparties, the frequency), impact on five levels over four (financial, supervisory and
+licence, reputation, reach), the score as their product, and five bands --- 1 to 3
+\lt{nereikšminga}, 4 to 6 \lt{toleruotina}, 8 to 12 \lt{vidutinė}, 15 and 16 \lt{didelė},
+20 to 25 \lt{kritinė} --- each with the responses it allows. A scenario is written in the
+course's sentence, \enquote{\lt{Tikėtinas} [event], \lt{kylantis iš} [source], \lt{gali
+sukelti} [consequences], \lt{kurios paveiks} [objective]}, and typed by the six kinds of legal
+risk of ISO~31022 Annex~A; the product requires at least five scenarios over at least four of
+the six kinds, each tied to a unit and a policy of the company. The numbers are where the
+product departs from simply asking a model: the model gives the eight levels and its reasons,
+and code computes the likelihood, the impact, the score and the band (\cref{ch:programme}).
+The register exports in the course's nine columns.
+
+\begin{humanbox}{What the product does not do for the student}
+It does not approve its own work. Each of the three work products comes out as a draft with
+the rules it meets and the rules it breaks listed beside it; a person edits it and a person
+approves it, and the PDF's cover says whether anyone has. An assignment handed in from the
+product is therefore a reviewed draft or an unreviewed one, and says which.
+\end{humanbox}
+
+\section{The course's concepts in the system}\label{sec:course:concepts}
+
+Beyond the assignments, the course's lectures on monitoring and on the technologist's role
+supplied most of the system's shape. \Cref{tab:course:concepts} lists the concepts and the
+parts that embody them.
+
+\begin{xltabular}{\textwidth}{@{}L{40mm}YL{20mm}@{}}
+\caption{Concepts the course teaches and the part of the system that embodies each}\label{tab:course:concepts}\\
+\toprule
+\hd{The course teaches} & \hd{The system does} & \hd{Chapter} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{The course teaches} & \hd{The system does} & \hd{Chapter} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+A finding has four parts: the condition, the criterion, the cause and the consequence. &
+  A finding of a report holds all four. The condition is the assessment and its status; the
+  criterion is the obligation with the provision behind it; the consequence is joined by code
+  from the act's own sanction provisions; the cause is a field only a person fills, because
+  documents show that something is missing and never why. & \cref{ch:report} \\
+A report answers three questions: what, so what, now what. &
+  The findings say what; the consequence and the severity of the obligation say so what; the
+  action plan, which covers every open finding, says now what. The PDF is ordered from the
+  conclusion down. & \cref{ch:report} \\
+A person approves the scope of the work, and the outcome of each task. &
+  A report stops after deciding which acts apply and waits for a person to approve the list
+  before the costly part (a person may choose to let it run through, and the report then
+  records that nobody approved its scope); a person reviews findings and signs the finished
+  report off. &
+  \cref{ch:report} \\
+Findings and actions are kept in a register with the states open, in progress, late and
+closed, and an action is closed only after a re-test. &
+  The action register. An owner may call an action done, but only a later signed-off report
+  --- the re-test --- that finds its obligations met closes it, unless a person closes it by
+  hand with a note that says why. Late is derived from the due date, never set by hand. &
+  \cref{ch:register} \\
+The company's own rules are criteria too, not only the law. &
+  A report can assess whether the company's procedures carry out what its own policies
+  require, as a group of findings counted apart from the legal ones. & \cref{ch:report} \\
+The three lines of defence. &
+  The governance work product places every body, function and unit on a line and refuses to
+  approve a structure that puts the second line under the first. & \cref{ch:programme} \\
+Risk is likelihood times impact, on stated criteria. &
+  The risk work product, with the score and the band computed by code. & \cref{ch:programme} \\
+\end{xltabular}
+
+\section{The technologist's five duties}\label{sec:course:duties}
+
+The course's first lecture describes the technologist of legal operations for AI and
+compliance systems as the person who builds, tests and deploys prompt-based validation
+processes --- processes that audit a company's documents against its internal policies and
+against the law --- and it names five duties. They are the most direct statement of what the
+course expects of a system like this one. \Cref{tab:course:duties} holds the system against
+each duty, including where it stops short.
+
+\begin{xltabular}{\textwidth}{@{}L{34mm}YY@{}}
+\caption{The lecture's five duties of the technologist, and the system}\label{tab:course:duties}\\
+\toprule
+\hd{The duty, as the lecture puts it} & \hd{What the system does} & \hd{Where it stops short} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{The duty, as the lecture puts it} & \hd{What the system does} & \hd{Where it stops short} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\textbf{Prompt engineering and schema enforcement:} precise, structured prompts, constrained
+  by JSON schemas, that check company documents and flag non-compliant clauses or factual
+  inconsistencies. &
+  Twenty-one of the 23 prompts answer in a strict JSON schema, which the provider is asked to
+  enforce and the assistant service checks again (\cref{ch:models,ch:prompts}). The gap
+  analysis gives every obligation a status and quotes the evidence it found word for word; a
+  document's inventory lists
+  its weaknesses and its references to the law; the citation check flags a reference to an
+  article that does not say what the document claims (\cref{ch:report,ch:company}). &
+  The chat's two prompts answer in free text. \\
+\textbf{Grounding and context verification:} retrieval-augmented prompts that compare
+  documents directly with internal policy libraries, standard operating procedures and the
+  relevant regulations. &
+  The law is taken from the corpus, not from a model's memory, and a provision a model names
+  from memory --- a work product's legal basis --- is looked up there: the chat retrieves
+  provisions by hybrid search; a report hands the model the provisions themselves, or the
+  obligations read from them (\cref{ch:corpus}). The company's whole library goes with every call of the gap analysis ---
+  retrieved passages were used first and replaced, because they missed evidence the documents
+  held (\cref{ch:report}). A company's own policies can be the criteria too. &
+  Retrieval remains the fallback for a library too large to send whole, and the chat still
+  works from what it retrieves. \\
+\textbf{Automated evaluation and hallucination defence:} regression suites --- a model as
+  judge, natural-language inference, unit tests --- that keep measuring the reliability of
+  prompts, the accuracy of citations and the handling of edge cases. &
+  Six suites of cases, labelled on 12~November 2026 by an AI model and confirmed by no person
+  yet, run against the real model through the product's own functions and are held to a
+  committed baseline; a second model call judges in three places; some 6\,100 tests run without
+  calling a model (\cref{ch:control,ch:testing}). The defence that does not depend on any
+  model: every quotation a finding or a work product rests on is located in its document,
+  every provision a structured answer names is looked up, every score is computed. &
+  No natural-language-inference model is used. The suites measure six of the 23 prompts,
+  and are run by hand before and after a change of prompt or model, not continuously. \\
+\textbf{Collaboration with experts and golden datasets:} turning complex regulatory
+  requirements into deterministic prompt instructions together with compliance officers and
+  lawyers, and keeping verified ground-truth datasets. &
+  The register of obligations is the requirements in a deterministic form: each duty written
+  once, tied to its provision, judged and reviewed, and reused by every report
+  (\cref{ch:obligations}). Every status and verdict a prompt may give is defined in the prompt
+  (\cref{ch:prompts}). The labelled cases are kept in the repository, in five of the six
+  suites with the reason for each label. &
+  The labels were made on 12~November 2026 by the AI coding assistant used to build the
+  system (Claude), reading the sources; the register that ships is machine-reviewed, judged
+  by the judge and not read by a person entry by entry (\cref{ch:obligations,ch:control}). No
+  compliance officer or lawyer
+  has yet confirmed either. Both are built for a person to overrule any label or entry. \\
+\textbf{Auditability and integration:} validation built into the existing systems of legal
+  operations --- document management, contract management, process engines --- with full
+  event logging and audit trails. &
+  Every change by anyone is in the audit log; every model call that answers is logged with
+  its prompt version, tokens and cost (the embedding of a search query excepted), and every
+  chat turn with its transcript; every report records
+  the versions of the prompts and acts it was made from (\cref{ch:security,ch:models}). The
+  whole system is reachable through a JSON API (\cref{ch:api}). &
+  No connector to a document-management or contract-management system is built: documents
+  are uploaded. \\
+\end{xltabular}
+
+\section{Where the system follows the text of a source}\label{sec:course:sources}
+
+In two places the system's behaviour comes from the wording of a source itself, and a reader
+comparing it with a summary of that source may notice.
+
+\begin{itemize}
+  \item \textbf{The Bank of Lithuania's guidelines on the compliance function} are worded as
+    recommendations (\lt{turėtų}, \enquote{should}) and are addressed to the kinds of
+    institution their third paragraph lists, which do not include crypto-asset service
+    providers. The catalogue scopes them accordingly. For a company such as \demo{} a report
+    therefore does not assess them on its own; a person may take them into the scope of a
+    report on the scope screen, and they are then assessed as good practice and labelled so
+    (\cref{ch:report}).
+  \item \textbf{Clause numbers of ISO~37301.} The steps of the compliance process cite the
+    standard's clauses as the standard numbers them: raising concerns is clause~8.3 and
+    investigation processes clause~8.4. A step that cites no clause the standard has, and no
+    paragraph of the guidelines, is flagged by the product's own check, as a warning
+    (\cref{ch:programme}).
+\end{itemize}
+
+\section{What the system adds to the course's method}\label{sec:course:adds}
+
+Four things in the system are not asked for by any assignment and follow from taking the
+method seriously as software.
+
+\begin{description}
+  \item[The law as a maintained corpus.] The assignments let a model speak about the law. The
+    system fetches the acts from their official sources, keeps them in versions, and records
+    what each new version changed --- so that it can say which findings rest on a provision
+    that has changed since (\cref{ch:corpus,ch:register}).
+  \item[A register of obligations.] Between the law and a report stands a reviewed list of
+    what each act obliges, extracted once and reused by every report. It is what makes two
+    reports of two companies comparable, and what gives a person one place to correct the
+    reading of the law (\cref{ch:obligations}).
+  \item[The citation audit.] The sample organisation's overview document cites some articles
+    of the regulation on markets in crypto-assets by the wrong number. The system checks every
+    article a document cites against the corpus and against what the document says the
+    article covers (\cref{ch:company}).
+  \item[Cost as a design constraint.] Every call the system records is priced; a report shows its estimate before
+    it starts; the costly part waits for a person, unless the run was started without the
+    scope review; one-time work on the law is separated from
+    per-company work (\cref{ch:models,ch:control}).
+\end{description}
+
+\section{What the course teaches that the system does not do}\label{sec:course:not}
+
+\begin{itemize}
+  \item \textbf{The annual compliance report and a monitoring programme.} The course treats
+    both as products of a compliance function. The system has the material for them --- the
+    reports, the action register, the history of each obligation --- but does not draft
+    either.
+  \item \textbf{A maturity assessment} of the compliance management system is not a product of
+    the system.
+  \item \textbf{The ISO standards themselves.} The system can read a standard into clauses and
+    extract its requirements (\cref{ch:corpus,ch:obligations}), and a company can adopt one
+    and be assessed against it. The course's copies of the ISO standards are scanned images
+    under a teaching licence: the system does not read scans, and the licence does not cover
+    loading them. No standard is in the deployed corpus.
+  \item \textbf{Operating effectiveness.} The course distinguishes the design of a control
+    from its operation. A report judges design, from documents; it marks where operation
+    should be verified and leaves the verification to a person.
+  \item \textbf{The cause of a finding.} Deliberately left to the reviewer.
+\end{itemize}
+
+The limitations of the AI paths themselves --- what is not measured, what a judge cannot
+establish, how the shipped register of obligations was reviewed --- are gathered in
+\cref{ch:control}.

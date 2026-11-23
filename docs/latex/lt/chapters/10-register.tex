@@ -1,0 +1,810 @@
+% STATUS: reviewed
+\chapter{Laikui bėgant: veiksmų registras}\label{ch:register}
+
+Atitikties ataskaita aprašo vieną dieną. Šis skyrius aprašo, ką sistema saugo tarp ataskaitų:
+\term{veiksmų registrą} --- kiekvienos įmonės sąrašą veiksmų, kurių reikalavo jos patvirtintų
+ataskaitų planai; kiekvienas veiksmas turi atsakingą asmenį, terminą, būseną ir išvadas, kurias
+jis turi uždaryti. Skyrius išdėsto problemą ir vienintelį įvykį, kuris pajudina registrą
+(\cref{sec:register:why,sec:register:event}), kas į registrą patenka per tą įvykį
+(\cref{sec:register:plan}), veiksmo būsenas (\cref{sec:register:states}) ir --- skyriaus
+šerdį --- kaip vėlesnės ataskaitos patvirtina ir uždaro veiksmus
+(\cref{sec:register:settle}). Toliau aprašoma pareigos tapatybė, kuria visa tai remiasi,
+išvados istorija ir teisės aktų pokyčiai
+(\cref{sec:register:identity,sec:register:history,sec:register:law}); tada --- ką su registru
+daro pokalbių asistentas ir Excel eksportas (\cref{sec:register:reading}), kur eina riba tarp
+modelių, kodo ir žmonių (\cref{sec:register:line}) ir kas išbandyta su tikrais duomenimis
+(\cref{sec:register:tried}).
+
+Šiame skyriuje modelis niekur nekviečiamas. Todėl jame nėra kelio kortelės: registras yra kodas
+ir žmonės, o \cref{sec:register:line} paaiškina, kodėl taip padaryta sąmoningai.
+
+
+\section{Problema: planas, kuris baigdavo gyvenimą kartu su ataskaita}\label{sec:register:why}
+
+Ataskaita baigiasi \term{veiksmų planu}: pagal prioritetą surikiuotu veiksmų sąrašu, kuriame
+kiekvienas veiksmas nurodo išvadas, kurias turi uždaryti, laikotarpį ir atsakingo asmens rolę
+(kaip planas sudaromas, aprašyta \cref{ch:report}). Planas saugomas kartu su ataskaita, lentelėje
+\code{report_actions}. Kita tos pačios įmonės analizė parengia naują ataskaitą su nauju planu, ir
+niekas jų nesieja: niekas negali pasakyti, ar senojo plano veiksmas buvo įvykdytas, kas jį
+įvykdė, iki kada ir ar spraga, kurią jis šalino, išnyko.
+
+Kurso išvadų ir veiksmų registras į tai atsako viena taisykle: veiksmas uždaromas tik po
+pakartotinės patikros. Nepakanka pasakyti, kad darbas atliktas; kažkas turi pažiūrėti dar kartą
+ir rasti reikalavimą įvykdytą. Sistema jau turi būdą pažiūrėti dar kartą --- kitą ataskaitą ---
+ir žmogų, kuris prisiima atsakomybę už ataskaitą, --- tą, kuris ją patvirtina. Registras šiuos
+du dalykus sujungia:
+
+\begin{itemize}
+  \item kiekvienos patvirtintos ataskaitos planą jis saugo kaip savo eilutes, atskirai kiekvienai
+    įmonei, lentelėje \code{company_actions} (modelis \code{CompanyAction}), ir šios eilutės
+    išlieka ilgiau nei ataskaita;
+  \item kitą patvirtintą ataskaitą jis naudoja kaip pakartotinę patikrą: veiksmas uždaromas, kai
+    vėlesnės patvirtintos ataskaitos randa įvykdytas visas jo apimamas pareigas.
+\end{itemize}
+
+Visa tai yra viename API faile, \file{analysis/register.py}, su septyniomis viešomis funkcijomis:
+\code{sign_off}, \code{withdraw}, \code{standing}, \code{state_of}, \code{history},
+\code{changes} ir \code{law_changes}. Penkios konstantos failo pradžioje nustato viso skyriaus
+žodyną.
+
+\begin{table}[H]
+\caption{Konstantos registro failo pradžioje}\label{tab:register:constants}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{58mm}Y@{}}
+\toprule
+\hd{Konstanta} & \hd{Reikšmė} & \hd{Kam naudojama} \\
+\midrule
+\code{DUE_DAYS} & \code{immediate} 14, \code{30_days} 30, \code{90_days} 90, \code{12_months} 365 &
+  Dienų skaičius nuo patvirtinimo iki veiksmo termino pagal plano laikotarpį. \\
+\code{OPEN} & \code{missing}, \code{partial}, \code{unknown} & Išvados būsenos, kurioms reikia veiksmo. \\
+\code{SETTLED} & \code{met}, \code{not_applicable} & Būsenos, kurios išvadą patvirtina. \\
+\code{LIVE} & \code{open}, \code{in_progress}, \code{done} & Neuždaryto veiksmo būsenos. \\
+\code{HISTORY} & 4 & Kiek ankstesnių vertinimų siekia išvados istorija. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\code{OPEN} ir \code{SETTLED} penkias išvados būsenas suskirsto į dvi grupes, kuriomis registras
+samprotauja. Išvada, kurios būsena \status{missing}, \status{partial} ar \status{unknown}, yra
+\emph{atvira}: jai reikia veiksmo, o vėlesnė ataskaita, kuri ją randa tokią pat, nieko
+nepatvirtina. Išvada, kurios būsena \status{met} ar \status{na}, yra \emph{išspręsta}. Kur tik
+registras skaito būseną, jis skaito \emph{galiojančią} būseną --- peržiūrėtojo sprendimą, jei
+toks yra, kitaip modelio vertinimą (\code{_effective}). \code{LIVE} įvardija tris neuždaryto
+veiksmo būsenas.
+
+
+\section{Vienintelis įvykis, kuris pajudina registrą}\label{sec:register:event}
+
+Registras keičia savo patvirtinimus tik per vieną įvykį: kai žmogus \term{patvirtina baigtą
+ataskaitą} arba kai tas patvirtinimas atšaukiamas. Patvirtinimas --- tai maršrutas
+\route{PATCH}{/api/reports/{id}} su turiniu \code{{approved: true, note?}}; konsolė jį siunčia
+mygtuku \ui{Patvirtinti ataskaitą} ataskaitos puslapyje, o jo dialogas dar prieš patį mygtuką
+pasako, ką patvirtinimas padarys registrui
+(\file{pages/Reports/ReportApproval.jsx}). Patvirtinti galima tik baigtą ataskaitą (kitaip ---
+409 \code{NOT_FINISHED}). Rodinys \code{_approve} faile \file{analysis/api/views.py} ataskaitoje
+įrašo \code{approved_by}, \code{approved_at} ir \code{approval_note}, o tada iškviečia registrą;
+komentaras toje eilutėje sako: \enquote{Įmonės registras pajuda patvirtinus ataskaitą ir dėl nieko
+kito}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=3.5mm and 10mm]
+  \node[man, text width=41mm] (sign) {patvirtina baigtą ataskaitą};
+  \node[man, text width=41mm, below=of sign] (unsign) {atšaukia patvirtinimą};
+  \node[man, text width=41mm, below=of unsign] (review) {pakeičia patvirtintos ataskaitos išvadą};
+  \node[man, text width=41mm, below=of review] (delete) {ištrina patvirtintą ataskaitą};
+  \coordinate (mid) at ($(unsign.east)!.5!(review.east)$);
+  \node[chk, text width=37mm, right=10mm of mid] (settle) {\code{_settle}\\ visi išvadų patvirtinimai iš naujo apskaičiuojami pagal visas patvirtintas ataskaitas};
+  \node[chk, text width=30mm, right=of settle, yshift=13mm] (plan) {\code{sign_off}, 2~žingsnis\\ tik patvirtinant:\\ įtraukiamas ataskaitos planas};
+  \node[store, inner xsep=2pt, below=9mm of plan] (table) {\code{company_actions}};
+  \node[man, text width=41mm, below=7mm of delete] (edit) {keičia vieną veiksmą: atsakingą asmenį, terminą, būseną, pastabą};
+  \draw[flow] (sign.east) -- ++(4mm,0) |- ([yshift=3mm]settle.west);
+  \draw[flow] (unsign.east) -- ++(4mm,0) |- ([yshift=1mm]settle.west);
+  \draw[flow] (review.east) -- ++(4mm,0) |- ([yshift=-1mm]settle.west);
+  \draw[flow] (delete.east) -- ++(4mm,0) |- ([yshift=-3mm]settle.west);
+  \draw[flow] (settle.east) -- ++(4mm,0) |- (plan.west);
+  \draw[flow] (settle.east) -- ++(4mm,0) |- (table.west);
+  \draw[flow] (plan.south) -- (table.north);
+  \draw[flow] (edit.east) -| (table.south) node[lbl, pos=.25] {\code{PATCH}~~\code{/api/actions/{id}}};
+\end{tikzpicture}
+\actorlegend
+\caption{Viskas, kas rašo į registrą. Keturi dalykai, kuriuos žmogus daro su ataskaita, pasiekia vienintelę
+funkciją, kuri apskaičiuoja patvirtinimus; tik patvirtinimas dar ir įtraukia planą. Žmogus gali
+tiesiogiai keisti atskirą veiksmą. Nei užduotis, nei rengiama ar baigiama ataskaita, nei
+įkeltas dokumentas neturi kelio į šią lentelę, o pokalbis neturi įrankio, kuris į ją rašytų:
+peržiūra, kurią jis įrašo naudotojo nurodymu, yra trečiasis iš čia parodytų dalykų
+(\cref{sec:register:reading}).}\label{fig:register:events}
+\end{figure}
+
+\Cref{fig:register:events} rodo visus, kas rašo į lentelę. Dvi \file{analysis/register.py}
+funkcijos kviečiamos iš rodinių ir niekur kitur kode:
+
+\begin{table}[H]
+\caption{Įvykiai, kurie pajudina registrą, ir ką kiekvienas iškviečia}\label{tab:register:events}
+\begin{tabularx}{\textwidth}{@{}L{48mm}L{37mm}Y@{}}
+\toprule
+\hd{Įvykis} & \hd{Iškviečia} & \hd{Poveikis} \\
+\midrule
+Žmogus patvirtina baigtą ataskaitą (\code{_approve}, \code{approved: true}) &
+  \code{register.sign_off} &
+  Esami veiksmai patikrinami pagal visas patvirtintas ataskaitas, dabar ir pagal šią; tada
+  įtraukiamas ataskaitos planas. Grąžina \code{{added, covered, confirmed, closed, reopened}}. \\
+Žmogus atšaukia patvirtinimą (\code{_approve}, \code{approved: false}) &
+  \code{register.withdraw} &
+  Patvirtinimai iš naujo apskaičiuojami be šios ataskaitos. Grąžina
+  \code{{withdrawn}} --- pasikeitusių veiksmų skaičių. \\
+Peržiūrėtojas pakeičia patvirtintos ataskaitos išvadą (\code{finding_item}) &
+  \code{register.withdraw} &
+  Bet koks išvados pakeitimas --- pakeista būsena, peržiūrėtojo pastaba, priežastis ---
+  panaikina patvirtinimą: pakeistam vertinimui reikia naujo patvirtinimo. Kartu su juo atšaukiama ir
+  tai, ką jis buvo patvirtinęs. \\
+Ištrinama patvirtinta ataskaita (\code{report_item}, \code{DELETE}) &
+  \code{register.withdraw} &
+  Pirmiausia panaikinamas patvirtinimas, registras apskaičiuojamas be ataskaitos, tada ataskaita
+  ištrinama: ji nusineša tai, ką patvirtino tik ji viena. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Atsakymas į patvirtinimą grąžina ataskaitą ir, po raktu \code{register}, penkis skaičius; konsolė
+juos pateikia sėkmės pranešime su nuoroda į registrą arba pasako, kad registras nepasikeitė, kai
+visi penki lygūs nuliui. Ir patvirtinimas, ir jo atšaukimas įrašomi į veiksmų žurnalą
+(\code{reports.approve}, \code{reports.unapprove}) kartu su tais skaičiais.
+
+\begin{humanbox}{Kodėl jį pajudina tik parašas}
+Baigta ataskaita yra modelio įvertinimas, kurio žmogus dar nepriėmė. Jos išvadas dar galima
+pakeisti peržiūroje, o modelis \code{Report} patvirtinimą aprašo kaip žmogaus pritarimą tam, kad
+\enquote{peržiūrėta ataskaita yra įmonės įvertinimas}. Jei veiksmą galėtų uždaryti nepatvirtinta
+ataskaita, modelio vertinimas nutrauktų žmogaus prisiimtą įsipareigojimą. Todėl įrodymas, kuris
+uždaro veiksmą, visada yra ataskaita, po kuria kažkas pasirašė, o kai tas parašas atšaukiamas ---
+ranka arba todėl, kad vėliau buvo pakeista išvada, --- kartu nyksta ir uždarymas. Pačio registro
+failo antraštė tai pasako trumpai: uždarymas yra pakartotinė patikra, o ne pareiškimas.
+\end{humanbox}
+
+Tas pats samprotavimas atmeta ir kitus kandidatus. Nauja, dar nepatvirtinta ataskaita registre
+niekur neatsiranda; testas \code{test_a_sign_off_brings_the_plan_in_once} tikrina, kad
+nepatvirtinta ataskaita \enquote{nieko nepajudina}. Nė viena užduoties apdorojimo funkcija
+neimportuoja registro rašymo funkcijų. Pokalbių asistentas registrui turi vieną įrankį, ir tas
+tik skaito (\cref{sec:register:reading}). Įkėlus dokumentą, kuris uždarytų spragą, niekas
+nepasikeičia, kol vėlesnė ataskaita jo neįvertina ir žmogus tos ataskaitos nepatvirtina.
+
+
+\section{Kas patenka į registrą patvirtinus ataskaitą}\label{sec:register:plan}
+
+\code{sign_off(report, user)} vykdoma vienoje duomenų bazės transakcijoje, dviem žingsniais.
+1~žingsnis esamus veiksmus patikrina pagal patvirtintas ataskaitas (\cref{sec:register:settle});
+2~žingsnis, aprašomas čia, įtraukia pačios ataskaitos planą. Jis eina per plano veiksmus jų
+eilės tvarka ir kiekvienam sudaro \term{elementų} sąrašą: išvadų, kurias veiksmas turi uždaryti.
+
+Plano veiksmo išvada tampa elementu, nebent tenkinama viena iš trijų sąlygų:
+
+\begin{enumerate}
+  \item \textbf{Ji nėra atvira.} Jos galiojanti būsena nepatenka į \code{OPEN}: tam, kas
+    įvykdyta, veiksmo nereikia.
+  \item \textbf{Naujesnė patvirtinta ataskaita ją jau randa išspręstą.} \code{_later(report)}
+    iš įmonės patvirtintų ataskaitų, parengtų \emph{po} šios, surenka naujausią kiekvienos
+    pareigos vertinimą; kai tas vertinimas patenka į \code{SETTLED}, nebelieka ko daryti. Tai
+    svarbu, kai senesnė ataskaita patvirtinama pavėluotai.
+  \item \textbf{Jos pareigą jau apima neuždarytas veiksmas.} Aibėje \code{under_way} yra kiekviena
+    pareiga, kurią nurodo bet kurio \code{LIVE} būsenos veiksmo elementas. Tokia išvada
+    skaičiuojama kaip \code{covered} ir praleidžiama: pareigos niekada neapima du
+    neuždaryti veiksmai. Šiuo patvirtinimu įtraukta pareiga į aibę patenka iš karto, todėl jos
+    negali perimti abu to paties plano veiksmai.
+\end{enumerate}
+
+Elementas yra momentinė kopija, saugoma veiksmo JSON stulpelyje \code{items}:
+\code{obligationId}, \code{findingId}, \code{title} (pareigos pavadinimas, kaip jį pateikia
+išvada), \code{act} ir \code{path} (išvados pirmosios nuorodos aktas, o jei jos nėra --- pačios
+išvados aktas, ir tos nuorodos nuostata), \code{sourceKind}, \code{status} (galiojanti būsena
+patvirtinimo metu) ir \code{confirmed}, kuris iš pradžių yra null. Kaip ir ataskaita, registras
+nusikopijuoja rodomus pavadinimus, todėl veiksmas atrodo taip pat ir pasikeitus teisės aktų
+bazei ar ataskaitai.
+
+Plano veiksmas, kurio visos išvados buvo praleistos, neįtraukiamas. Kitu atveju sukuriamas
+\code{CompanyAction} su plano \code{title}, \code{description}, \code{category},
+\code{priority} ir \code{effort}; plano atsakingo asmens role kaip \code{owner}; būsena
+\code{open}; ir terminu, skaičiuojamu nuo patvirtinimo momento pagal plano laikotarpį
+(\code{DUE_DAYS}): 14 dienų, kai laikotarpis yra \code{immediate}, 30, kai \code{30_days}, 90,
+kai \code{90_days}, 365, kai \code{12_months}, ir 90, kai laikotarpio lentelė neįvardija. Terminas
+skaičiuojamas nuo patvirtinimo, o ne nuo ataskaitos parengimo dienos, nes patvirtinimo diena yra
+ta diena, kai žmogus priėmė planą.
+
+\paragraph{Nieko neįtraukiama du kartus.} Kiekvienas registro veiksmas prisimena plano veiksmą,
+iš kurio kilo (\code{plan_action_id}), o įmonės ir šio identifikatoriaus unikalumo
+apribojimas paremia patikrą kode. Todėl atšauktas ir vėl suteiktas patvirtinimas nieko neprideda; neprideda
+ir kita ataskaita, kurios planas apima tas pačias atviras pareigas, --- jos išvados
+skaičiuojamos kaip \code{covered}.
+
+\paragraph{Veiksmai, kurie neuždaro jokios išvados.} Plane gali būti veiksmų be išvadų ---
+ištaisyti nuorodas, kurias teisės aktų nuorodų patikra rado klaidingas, išsiaiškinti faktą,
+kurio įmonės profilis nenurodo. Jie taip pat įtraukiami, su tuščiu sąrašu \code{items}. Neturėdami
+pareigos, pagal kurią būtų atpažįstami, jie sutapatinami pagal savo \code{category}: kol
+\emph{kitos} ataskaitos veiksmas be elementų toje kategorijoje dar neuždarytas, vėlesnės ataskaitos
+veiksmas be išvadų toje pačioje kategorijoje yra tas pats dar kartą paprašytas darbas, jis
+skaičiuojamas kaip \code{covered} ir neįtraukiamas. Jokia ataskaita tokio veiksmo niekada negali
+patvirtinti; jį uždaro tik žmogus (\cref{sec:register:states}).
+
+
+\section{Veiksmo būsenos ir ką gali pakeisti žmogus}\label{sec:register:states}
+
+Veiksmas saugomas vienoje iš keturių būsenų, \code{ACTION_STATES} faile
+\file{analysis/models.py}, o jų laikymąsi užtikrina duomenų bazės tikrinimo apribojimas.
+
+\begin{table}[H]
+\caption{Veiksmo būsenos. Pirmosios keturios saugomos; penktoji apskaičiuojama skaitant registrą}\label{tab:register:states}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{45mm}Y@{}}
+\toprule
+\hd{Būsena} & \hd{Konsolėje} & \hd{Reiškia} \\
+\midrule
+\code{open} & \ui{Atviras} & Įtrauktas patvirtinus ataskaitą; apie jį dar nieko nepranešta. \\
+\code{in_progress} & \ui{Vykdomas} & Kažkas prie jo dirba. \\
+\code{done} & \ui{Įvykdytas, laukia patikros} &
+  Atsakingo asmens žodis, kad veiksmas atliktas. Tai ne uždarymas: veiksmas laukia vėlesnės
+  patvirtintos ataskaitos. Nustačius šią būseną, įrašomas \code{done_at}. \\
+\code{closed} & \ui{Uždarytas} &
+  Arba vėlesnės patvirtintos ataskaitos rado įvykdytas visas jo apimamas pareigas
+  (\code{confirmed_report} nurodo uždariusią ataskaitą), arba žmogus jį uždarė ranka, nurodęs
+  priežastį. \\
+\midrule
+\code{late} & \ui{Vėluojantis} &
+  Niekada nesaugoma. \code{state_of(action, today)} atsako \code{late} veiksmui, kuris yra
+  \code{open} ar \code{in_progress} ir kurio termino data ankstesnė už šiandienos. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Vėlavimas apskaičiuojamas, nes jis priklauso nuo kalendoriaus, o ne nuo to, kas nutiko
+veiksmui: saugomas požymis jau kitą rytą po termino būtų klaidingas, nebent jį perrašytų kokia
+nors užduotis. Veiksmas, pažymėtas \code{done}, niekada nerodomas kaip vėluojantis: atsakingas
+asmuo atsakė, ir veiksmas laukia pakartotinės patikros. Kiekvienas API atsakymas grąžina abi
+reikšmes: \code{status} --- saugomą būseną ir \code{state} --- rodytiną būseną.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm]
+  \node[man, text width=20mm] (in) at (11,0) {ataskaita patvirtinama};
+  \node[svc, minimum width=20mm] (open) at (47,0) {\code{open}};
+  \node[svc, minimum width=26mm] (prog) at (84,0) {\code{in_progress}};
+  \node[svc, minimum width=20mm] (done) at (121,0) {\code{done}};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(open)(prog)(done), inner sep=7pt] (live) {};
+  \end{scope}
+  \node[draw=warn, dashed, rounded corners=3pt, line width=.6pt, fit=(open)(prog), inner sep=3.5pt] (late) {};
+  \node[lanelabel, anchor=south west] at (live.north west) {neuždarytos būsenos};
+  \node[note, text=warn, anchor=north, text width=24mm, align=center] at (11,-8)
+    {brūkšninis rėmelis: praėjus terminui rodoma \code{late}};
+  \draw[flow] (in) -- (open) node[lbl, pos=.4, above=1pt] {planas};
+  \draw[flow, <->] (open) -- (prog) node[lbl, midway, above=1.5pt] {žmogus};
+  \draw[flow, <->] (prog) -- (done) node[lbl, midway, above=1.5pt] {žmogus};
+  \draw[flow] (done.north) -- ++(0,9) -| (prog.north)
+    node[lbl, pos=.25, above=1pt] {patvirtinimas ar jo atšaukimas: po \code{done_at} parengta ataskaita vis dar randa atvirą išvadą};
+  \node[chk, text width=38mm] (crep) at (58,-31) {\code{closed}: uždarė ataskaita\\ nustatytas \code{confirmed_report}};
+  \node[man, text width=38mm] (chand) at (116,-31) {\code{closed}: uždarė žmogus\\ pastaba nurodo kodėl};
+  \coordinate (r1) at (52,0);  \coordinate (r2) at (64,0);
+  \coordinate (h1) at (110,0); \coordinate (h2) at (122,0);
+  \draw[flow] (r1 |- live.south) -- (r1 |- crep.north)
+    node[lbl, midway, left=2pt, align=right] {patvirtinimas: visos\\ išvados patvirtintos};
+  \draw[opt] (r2 |- crep.north) -- (r2 |- live.south)
+    node[lbl, midway, right=2pt, align=left] {įrodymas nebegalioja:\\ atgal į \code{closed_from}};
+  \draw[flow] (h1 |- live.south) -- (h1 |- chand.north)
+    node[lbl, midway, left=2pt, align=right] {žmogus,\\ su pastaba};
+  \draw[flow] (h2 |- chand.north) -- (h2 |- live.south)
+    node[lbl, midway, right=2pt, align=left] {žmogus\\ atšaukia};
+\end{tikzpicture}
+\actorlegend
+\caption{Veiksmo būsenos ir kas veiksmą perkelia iš vienos į kitą. Žmogus laisvai perkelia veiksmą
+tarp neuždarytų būsenų ir gali jį uždaryti ranka; kodas veiksmą uždaro, grąžina į darbą ar vėl
+atidaro tik patvirtinus ataskaitą ar atšaukus patvirtinimą. Jokia rodyklė iš ataskaitos atlikto
+uždarymo neveda ranka.}\label{fig:register:states}
+\end{figure}
+
+\subsection{Žmogus keičia vieną veiksmą}
+
+Tarp patvirtinimų žmogus atnaujina veiksmo duomenis per maršrutą
+\route{PATCH}{/api/actions/{id}}
+(\code{action_item}); užklausą siunčia atvertos eilutės forma įmonės skiltyje \ui{Veiksmai}.
+Turinyje yra tik tai, kas pasikeitė.
+
+\begin{table}[H]
+\caption{Ką žmogus gali pakeisti veiksme}\label{tab:register:patch}
+\begin{tabularx}{\textwidth}{@{}L{20mm}Y@{}}
+\toprule
+\hd{Laukas} & \hd{Taisyklė} \\
+\midrule
+\code{owner} & Tekstas be pradinių ir galinių tarpų, ne daugiau kaip 300 ženklų. Iš pradžių tai
+  plano atsakingo asmens rolė; žmogus ją pakeičia tuo, kas iš tikrųjų atsakingas už darbą. \\
+\code{dueDate} & Data, \code{YYYY-MM-DD}. \\
+\code{note} & Tekstas be pradinių ir galinių tarpų arba null, ne daugiau kaip 4\,000 ženklų. \\
+\code{status} & Viena iš \code{open}, \code{in_progress}, \code{done}, \code{closed} --- niekada
+  \code{late}. Pakeitus į \code{done}, įrašomas \code{done_at}. Uždarant reikia pastabos. Vėl
+  atidaryti galima tik ranka uždarytą veiksmą. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Klaidinga reikšmė atmetama su 400 \code{INVALID_FIELD}; naudotojas, kuris nemato veiksmo įmonės,
+gauna 404. Kiekvienas pakeitimas įrašomas į veiksmų žurnalą kaip \code{actions.update} su
+pasikeitusiais laukais (pastabos tekstas ten nekopijuojamas, tik pats faktas, kad ji pasikeitė).
+Nėra maršruto, kuris sukurtų veiksmą, ir nėra tokio, kuris jį ištrintų: veiksmai atsiranda iš planų ir
+išnyksta tik kartu su savo įmone.
+
+\begin{humanbox}{Uždarymas ranka ir ko ranka negali atšaukti}
+Žmogus gali uždaryti veiksmą be jokios ataskaitos patvirtinimo --- paslauga nutraukta, pareiga
+įmonei nebeaktuali, --- bet tik su pastaba: be jos API atsako 400 \code{NOTE_REQUIRED}
+(\enquote{Uždarant veiksmą be ataskaitos patvirtinimo, pastaboje nurodykite priežastį}), o
+konsolė laiko išsaugojimo mygtuką išjungtą, kol pastaba neparašyta. Tada veiksme įrašoma, kas ir
+kada jį uždarė (\code{closed_by}, \code{closed_at}), ir būsena, iš kurios jis buvo uždarytas, o
+registras uždarymą rodo kaip \code{manual}. Žmogus gali jį atšaukti, nustatydamas kitą būseną;
+tada uždarymo laukai išvalomi.
+
+\smallskip
+Ataskaitos atliktas uždarymas yra kas kita. Bandymas nustatyti jam kitą būseną atmetamas su 409
+\code{CLOSED_BY_REPORT}: \enquote{Šį veiksmą uždarė patvirtinta ataskaita --- norėdami jį
+ginčyti, peržiūrėkite išvadą toje ataskaitoje}. Uždarymas remiasi patvirtintos ataskaitos
+išvadomis, todėl ginčyti jį reikia ties išvada. Ten pakeitus išvadą, ataskaitos patvirtinimas
+atšaukiamas, o tas pats kodas, kuris veiksmą uždarė, apskaičiuoja uždarymą iš naujo be tos
+ataskaitos (\cref{sec:register:settle}). Tokio veiksmo būsenos pasirinkimo lauką konsolė rodo išjungtą,
+o po juo --- eilutę, kuri pasako, kur uždarymą ginčyti.
+\end{humanbox}
+
+\subsection{Registro skaitymas}
+
+\route{GET}{/api/companies/{id}/actions} (\code{company_actions}) grąžina registrą ir veiksmų
+skaičių kiekvienoje rodomoje būsenoje. Tvarka yra tokia, kokios reikia žmogui: pirma vėluojantys
+veiksmai, tada atviri ir vykdomi, tada pažymėti kaip įvykdyti, tada uždaryti; grupės viduje ---
+pagal terminą, tada pagal plano prioritetą. Sąrašas apribojamas 500 eilučių; skaičiai ---
+ne. Skiltis, kuri jį rodo, aprašyta \cref{ch:console}.
+
+
+\section{Patvirtinimas vėlesnėmis ataskaitomis}\label{sec:register:settle}
+
+Šis poskyris yra registro šerdis: kaip vėlesnė ataskaita patvirtina išvadą, uždaro veiksmą ar
+grąžina jį į darbą. Visa tai atlieka viena privati funkcija, \code{_settle(company_id,
+now)}, ir ją kviečia tiek \code{sign_off}, tiek \code{withdraw}. Ji netaiko naujai patvirtintos
+ataskaitos registrui kaip pakeitimo. Kiekvieną kartą ji visus patvirtinimus apskaičiuoja iš
+naujo iš \emph{visų} patvirtintų įmonės ataskaitų. Iš šios savybės išplaukia visa kita: esamų
+veiksmų patvirtinimai ir uždarymai išeina tokie patys, kad ir kokia tvarka buvo suteikti parašai,
+o parašui atšaukti nereikia jokio atšaukimų žurnalo --- funkcija tiesiog vykdoma dar kartą be tos ataskaitos.
+
+\subsection{Ką funkcija skaito}
+
+\code{_settle} ima tuos įmonės veiksmus, kurie turi elementų ir yra arba neuždaryti, arba uždaryti
+ataskaitos. Žmogaus ranka uždaryti veiksmai ir veiksmai be elementų paliekami ramybėje. Elementų
+nurodytoms pareigoms ji įkelia visas jų išvadas iš įmonės ataskaitų, kurios yra baigtos ir
+patvirtintos, surikiuotas pagal tai, kada ataskaita buvo \emph{parengta} (\code{created_at}), ir
+kiekvienai pareigai išsaugo vertinimų sąrašą: kada ataskaita parengta, kuri tai ataskaita ir
+galiojanti būsena.
+
+Vienam veiksmui skaičiuojami tik tų ataskaitų vertinimai, kurios parengtos ne anksčiau nei paties
+veiksmo ataskaita (\code{since}; jei ta ataskaita ištrinta --- ne anksčiau nei pats veiksmas). Ataskaita, parengta dar prieš atsirandant veiksmui, nieko nepasako apie
+pagal jį atliktą darbą, net jei ji patvirtinama vėliau.
+
+\subsection{Taisyklės}
+
+Kiekvienam veiksmo elementui funkcija eina per pareigos vertinimus ta tvarka, kuria buvo rengiamos
+ataskaitos, ir ieško ataskaitos, kuri \emph{pirmoji rado pareigą išspręstą ir po kurios nė viena
+vėlesnė ataskaita jos nerado atviros}: išspręstas vertinimas pradeda seką, atviras vertinimas ją
+nutraukia.
+
+\begin{enumerate}
+  \item \textbf{Išvada patvirtinama}, kai naujausias jos pareigos vertinimas yra išspręstas.
+    Elemento laukui \code{confirmed} priskiriama \code{{reportId, at}}, nurodanti pirmąją tos
+    nenutrūkusios sekos ataskaitą. Ataskaita, kuri pareigos nevertino, vertinimo nepalieka, todėl
+    nieko nepatvirtina ir nieko nenutraukia: tarpinė siaura ataskaita apie kelis dokumentus
+    registro netrikdo. \status{unknown} vertinimas yra atviras --- ataskaita, kuri negalėjo rasti
+    įrodymų, nepatvirtina.
+  \item \textbf{Veiksmas uždaromas}, kai patvirtintas kiekvienas jo elementas. Jo būsena tampa
+    \code{closed}, \code{closed_from} prisimena ankstesnę būseną, \code{closed_by} lieka tuščias,
+    o \code{confirmed_report} nurodo naujausią iš patvirtinusių ataskaitų --- tą, kuri rinkinį
+    užbaigė.
+  \item \textbf{Įvykdytu pažymėtas veiksmas grąžinamas į darbą} (\code{in_progress}), kai
+    naujausias vienos iš jo pareigų vertinimas yra atviras \emph{ir} kilęs iš ataskaitos,
+    parengtos po to momento, kai atsakingas asmuo pažymėjo veiksmą įvykdytu (\code{done_at}).
+    Atsakingas asmuo pasakė, kad darbas atliktas; ataskaita, kuri pažiūrėjo vėliau, spragą vis
+    tiek rado.
+  \item \textbf{Įvykdytu pažymėto veiksmo negrąžina} ataskaita, parengta prieš \code{done_at}, net
+    jei ta ataskaita patvirtinama vėliau: ji niekada nematė baigto darbo. Jo negrąžina ir
+    ataskaita, kuri pareigos nevertino. Veiksmo, kuris yra \code{open} ar \code{in_progress},
+    atviras vertinimas niekada nepajudina; jis tiesiog lieka, koks buvo.
+  \item \textbf{Uždarytas veiksmas lieka uždarytas.} Ataskaitos uždarytam veiksmui skaitomi tik
+    vertinimai iki uždariusios ataskaitos, todėl vėlesnė ataskaita, vėl radusi pareigą atvirą, jo
+    neatidaro. Pačios tos ataskaitos planas spragai atneša \emph{naują} veiksmą, nes pareigos
+    nebeapima joks neuždarytas veiksmas (\cref{sec:register:plan}), o kai ji randa pareigą
+    \status{missing} ar \status{partial}, ataskaita tą spragą skaičiuoja kaip vėl atsiradusią
+    (\cref{sec:register:history}). Senasis veiksmas lieka teisingu įrašu: spraga tada buvo
+    uždaryta, o vėliau vėl atsivėrė.
+  \item \textbf{Uždarymas nebegalioja tik dingus jį pagrindžiančiam įrodymui.} Kol uždariusi ataskaita
+    patvirtinta, elementai skaitomi pagal ataskaitas iki jos; kai nebe --- pagal kiekvieną
+    ataskaitą, kuri vis dar patvirtinta. Jei kiekvienas elementas tebėra patvirtintas, veiksmas
+    lieka uždarytas, o \code{confirmed_report} nurodo naujausią likusią patvirtinusią ataskaitą.
+    Jei bent vienas nebepatvirtintas, uždarymas nebegalioja: veiksmas grįžta į būseną, iš kurios buvo
+    uždarytas (\code{closed_from}), \code{confirmed_report} ir \code{closed_at} išvalomi, o
+    elementai dar kartą perskaitomi pagal kiekvieną patvirtintą ataskaitą.
+\end{enumerate}
+
+Funkcija grąžina keturis skaičius --- naujai patvirtintas išvadas, uždarytus veiksmus, į darbą
+grąžintus veiksmus ir apskritai paliestus veiksmus. Patvirtinimas pirmuosius tris praneša kaip
+\code{confirmed}, \code{closed} ir \code{reopened}; atšaukimas ketvirtąjį praneša kaip
+\code{withdrawn}.
+
+\subsection{Pavyzdys laiko juostoje}
+
+\Cref{fig:register:timeline} seka vieną veiksmą per tris ataskaitas. Tai pavyzdys, šiam skyriui
+sudarytas pagal pirmiau išdėstytas taisykles, o ne tikrų duomenų įrašas; testas
+\code{test_a_later_signed_report_is_the_re_test} faile \file{tests/test_register.py} tokią pačią
+seką atlieka per API.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1mm, y=1mm,
+    cell/.style={align=center, text width=23mm, inner sep=1.5pt, font=\sffamily\scriptsize, text=body},
+    rowlabel/.style={align=right, text width=19mm, anchor=east, inner sep=1.5pt,
+                     font=\sffamily\scriptsize\bfseries, text=ink},
+    ev/.style={man, text width=20.5mm, inner xsep=3pt, inner ysep=3pt, minimum height=11mm, font=\sffamily\scriptsize},
+    st/.style={chk, text width=20.5mm, inner xsep=3pt, inner ysep=3pt, minimum height=7mm, font=\sffamily\scriptsize}]
+  % columns
+  \foreach \x/\n in {33.5/1, 58.5/2, 83.5/3, 108.5/4, 133.5/5} {\coordinate (c\n) at (\x,0);}
+  % time arrow
+  \draw[flow] (21,0) -- (147,0);
+  \node[rowlabel] at (20,0) {Šia tvarka};
+  \foreach \n in {1,3,4} {\fill[ink] (c\n) circle[radius=.9];}
+  \node[note, anchor=south] at (33.5,1) {parengta 1~ataskaita};
+  \node[note, anchor=south] at (83.5,1) {parengta 2~ataskaita};
+  \node[note, anchor=south] at (108.5,1) {parengta 3~ataskaita};
+  % events
+  \node[rowlabel] at (20,-10) {Žmogus};
+  \node[ev] at (33.5,-10) {patvirtina 1~ataskaitą};
+  \node[ev] at (58.5,-10) {pažymi veiksmą įvykdytu};
+  \node[ev] at (83.5,-10) {patvirtina 2~ataskaitą};
+  \node[ev] at (108.5,-10) {patvirtina 3~ataskaitą};
+  \node[ev] at (133.5,-10) {atšaukia 3~ataskaitos patvirtinimą};
+  % obligation X
+  \node[rowlabel] at (20,-24) {Pareiga X};
+  \node[cell] at (33.5,-24) {\status{missing}\\ veiksmo elementas};
+  \node[cell] at (58.5,-24) {---};
+  \node[cell] at (83.5,-24) {\status{met}\\ patvirtino 2~ataskaita};
+  \node[cell] at (108.5,-24) {\status{met}\\ tebegalioja 2~ataskaitos patvirtinimas};
+  \node[cell] at (133.5,-24) {patvirtino 2~ataskaita};
+  % obligation Y
+  \node[rowlabel] at (20,-38) {Pareiga Y};
+  \node[cell] at (33.5,-38) {\status{partial}\\ veiksmo elementas};
+  \node[cell] at (58.5,-38) {---};
+  \node[cell] at (83.5,-38) {\status{partial}\\ nepatvirtinta};
+  \node[cell] at (108.5,-38) {\status{met}\\ patvirtino 3~ataskaita};
+  \node[cell] at (133.5,-38) {patvirtinimas panaikintas};
+  % state
+  \node[rowlabel] at (20,-52) {Veiksmas};
+  \node[st] (s1) at (33.5,-52) {\code{open}};
+  \node[ev, minimum height=7mm] (s2) at (58.5,-52) {\code{done}};
+  \node[st] (s3) at (83.5,-52) {\code{in_progress}};
+  \node[st] (s4) at (108.5,-52) {\code{closed}};
+  \node[st] (s5) at (133.5,-52) {\code{in_progress}};
+  \draw[flow] (s1) -- (s2);  \draw[flow] (s2) -- (s3);  \draw[flow] (s3) -- (s4);  \draw[flow] (s4) -- (s5);
+  \node[cell, text=muted] at (33.5,-61) {įtraukiamas planas; terminas skaičiuojamas nuo čia};
+  \node[cell, text=muted] at (58.5,-61) {įrašomas \code{done_at}};
+  \node[cell, text=muted] at (83.5,-61) {grąžintas: Y atvira po \code{done_at} parengtoje ataskaitoje};
+  \node[cell, text=muted] at (108.5,-61) {abu elementai patvirtinti; uždarė 3~ataskaita};
+  \node[cell, text=muted] at (133.5,-61) {grįžta į būseną, iš kurios buvo uždarytas};
+  % separators
+  \begin{scope}[on background layer]
+    \foreach \x in {46, 71, 96, 121} {\draw[draw=rule, line width=.4pt] (\x,-4) -- (\x,-66);}
+    \foreach \y in {-17, -31, -45} {\draw[draw=rule, line width=.4pt] (0,\y) -- (146,\y);}
+  \end{scope}
+\end{tikzpicture}
+\actorlegend
+\caption{Vienas veiksmas, dvi pareigos, trys ataskaitos. Kiekvienas stulpelis yra vienas žmogaus
+žingsnis; eilutės rodo, ką apie kiekvieną pareigą sako naujausia patvirtinta ataskaita, ką
+registras patvirtino ir kokia veiksmo būsena. Kiekvieną šviesiai mėlyną langelį apskaičiuoja
+kodas, patvirtinant ataskaitą arba atšaukiant patvirtinimą.}\label{fig:register:timeline}
+\end{figure}
+
+Skaitant stulpelį po stulpelio:
+
+\begin{enumerate}
+  \item \textbf{Patvirtinama 1~ataskaita.} Jos plane yra veiksmas dviem išvadoms: pareiga X yra
+    \status{missing}, pareiga Y --- \status{partial}. Veiksmas įtraukiamas kaip \code{open} su
+    dviem elementais.
+  \item \textbf{Atsakingas asmuo pažymi jį įvykdytu.} Įrašomas \code{done_at}. Nieko
+    nepatvirtinama: tai pareiškimas.
+  \item \textbf{Patvirtinama po to parengta 2~ataskaita.} Ji randa X \status{met}, o Y vis dar
+    \status{partial}. Elementą dėl X patvirtina 2~ataskaita. Elemento dėl Y --- ne, ir kadangi
+    2~ataskaita parengta po \code{done_at}, veiksmas grįžta į \code{in_progress}. Patvirtinimas
+    grąžina \code{confirmed: 1}, \code{reopened: 1}, o kai 2~ataskaitos planas vėl nurodo savo
+    atvirą išvadą dėl Y, tą išvadą skaičiuoja kaip \code{covered}. Jei 2~ataskaita Y apskritai nebūtų vertinusi, veiksmas
+    būtų likęs \code{done}.
+  \item \textbf{Patvirtinama 3~ataskaita.} Ji randa abi įvykdytas. Y patvirtina 3~ataskaita; X
+    lieka patvirtinta 2~ataskaitos --- pirmosios jos nenutrūkusios sekos ataskaitos. Patvirtintas
+    kiekvienas elementas, todėl veiksmą uždaro 3~ataskaita, iš būsenos \code{in_progress}.
+  \item \textbf{3~ataskaitos patvirtinimas atšaukiamas} --- ranka arba todėl, kad peržiūrėtojas
+    pakeitė vieną iš jos išvadų. Be 3~ataskaitos Y neturi išspręsto vertinimo: jos patvirtinimas
+    išvalomas, ir veiksmas grįžta į \code{in_progress}. X lieka patvirtinta, nes 2~ataskaita vis
+    dar patvirtinta. Vėl patvirtinus 3~ataskaitą, veiksmas vėl uždaromas.
+\end{enumerate}
+
+\subsection{Lemia ataskaitų parengimo, o ne patvirtinimo tvarka}
+
+Ataskaitos ne visada patvirtinamos ta tvarka, kuria buvo parengtos. Kadangi \code{_settle}
+vertinimus rikiuoja pagal ataskaitos sukūrimo laiką ir perskaito juos visus, sena, pavėluotai
+patvirtinta ataskaita negali nusverti naujesnės. Testas
+\code{test_the_reports_speak_in_the_order_they_were_made} ketvirtą ataskaitą, kuri viską randa
+įvykdyta, patvirtina anksčiau už trečią, kuri vieną pareigą vis dar randa atvirą: ketvirtoji
+veiksmą uždaro, o trečioji, patvirtinta po jos, nieko nepakeičia ir neprideda veiksmo išvadai,
+kurią naujesnė ataskaita randa įvykdytą. Tada tas pats testas ataskaitas trina: ištrynus trečią,
+uždarymas išlieka, nes ketvirtoji rado tą patį; ištrynus ir ketvirtą, uždarymą pagrindžiantis
+įrodymas dingsta, o kartu su juo --- ir uždarymas.
+
+\subsection{Ko atšaukimas neatšaukia}
+
+Veiksmai, kuriuos ataskaita įtraukė, lieka, kai jos patvirtinimas atšaukiamas ar ataskaita
+ištrinama: kodo žodžiais, \enquote{dabar jie yra įmonės}. Įrodymą seka tik patvirtinimai ir jais
+pagrįsti uždarymai. Veiksmas, kurio ataskaita ištrinta, išsaugo savo elementus ir praranda tik
+nuorodą į ataskaitą. Vėl patvirtinus ataskaitą, nieko neįtraukiama du kartus.
+
+
+\section{Tapatybė: pareiga atpažįstama pagal jos identifikatorių}\label{sec:register:identity}
+
+Viskas, kas aprašyta \cref{sec:register:settle}, sieja vienos ataskaitos išvadą su kitos
+ataskaitos išvada per \code{obligationId}. Sąsaja tiksli, be jokio derinimo pagal pavadinimą ar
+nuostatą; ji veikia tik tol, kol pareiga iš vienos ataskaitos į kitą išlaiko savo
+identifikatorių. Kada taip yra, sprendžiama už registro ribų --- tuo, kaip saugomos pareigos.
+
+\begin{itemize}
+  \item \textbf{Teisės akto ar standarto pareiga} išlaiko savo identifikatorių, kai jos aktas
+    perskaitomas iš naujo, jei žmogus ją jau patvirtino. Pakartotinis išskyrimas ištrina ir
+    pakeičia tik tas eilutes, kurios vis dar \code{proposed} (\file{corpus/obligations.py});
+    patvirtintos ir atmestos eilutės niekada neliečiamos. Pasiūlyta pareiga, išskirta dar kartą,
+    yra nauja eilutė su nauju identifikatoriumi. Išskyrimas ir peržiūra aprašyti
+    \cref{ch:obligations}.
+  \item \textbf{Įmonės vidaus reikalavimas} išlaiko savo identifikatorių, kai jo politika
+    perskaitoma iš naujo, o jį nustatanti ištrauka nepasikeitė (\code{read_requirements} faile
+    \file{analysis/internal.py}): nauja eilutė perima pasiūlytos eilutės su ta pačia cituojama
+    ištrauka identifikatorių. Pakeista ištrauka duoda naują reikalavimą.
+\end{itemize}
+
+Kai nepatvirtinto elemento pareigos nebėra, jokia vėlesnė ataskaita niekada nebeturės jos
+identifikatoriaus, ir veiksmas galėtų laukti patvirtinimo amžinai. Užuot laukęs, registras tai
+pasako. \code{standing(actions)} patikrina, kurios elementų pareigos tebeegzistuoja, o
+\code{serialize_company_action} nepatvirtintą elementą, kurio pareigos nebėra, pateikia su
+\code{obligationId: null}. Tada veiksmas turi \code{byHandOnly: true}, kaip ir kiekvienas
+veiksmas, neturintis jokių elementų. Konsolė tokiam veiksmui parodo vieną nekrintančią į akis
+eilutę --- \enquote{Šio veiksmo ataskaita patvirtinti negali --- jį uždaro tik žmogus, pastaboje
+nurodęs priežastį} --- o prie elemento paaiškina kodėl: nuo to laiko iš naujo perskaitytas jo aktas, o įmonės
+vidaus reikalavimo atveju --- jo politika. Saugomas elementas
+identifikatorių išlaiko; jį slepia tik atsakymas.
+
+Todėl pareigų registro peržiūra turi būti atlikta prieš pasikliaujant patvirtinimais, o akto,
+kurio pasiūlytas pareigas apima atviri veiksmai, nereikėtų išskirti iš naujo, kol jos
+neperžiūrėtos (\cref{ch:ops}). 2026~m. lapkričio 13~d. veikiančios sistemos pareigų registre buvo 5\,960
+pareigų, iš jų 5\,938 patvirtintos ir 12 vis dar pasiūlytų; kaip ta peržiūra atlikta, nurodyta
+\cref{ch:obligations}.
+
+
+\section{Istorija ir pokyčiai}\label{sec:register:history}
+
+Dvi mažesnės funkcijos naudoja tą pačią sąsają, kad nuo ataskaitos pažvelgtų atgal. Kitaip nei
+patvirtinimai, jos skaito kiekvieną ankstesnę \emph{baigtą} įmonės ataskaitą, patvirtintą ar
+ne: jos aprašo, ką sakė ataskaitos, o ne ką priėmė žmogus.
+
+\paragraph{Išvados istorija.} \code{history(report)} kiekvienai ataskaitos išvadų pareigai
+grąžina paskutinius kartus, kai ją vertino ankstesnė baigta ataskaita, naujausius pirma, ne
+daugiau kaip \code{HISTORY}~=~4 įrašus \code{{reportId, date, status}} su galiojančia būsena.
+Ataskaita, kuri pareigos nevertino, įrašo nepalieka. \code{serialize_report} sąrašą prideda prie
+kiekvienos išsamios ataskaitos išvados kaip \code{history}; jis apskaičiuojamas, kai ataskaita
+pateikiama, todėl atspindi vėlesnius peržiūrėtojų sprendimus ankstesnėse ataskaitose. Konsolė
+pirmuosius tris įrašus rodo išvados kortelėje kaip ankstesnių vertinimų eilutę, kiekvieną --- su
+nuoroda į tą ataskaitą.
+
+\paragraph{Kas pasikeitė.} \code{changes(report)} palygina ataskaitą su ankstesnėmis baigtomis
+įmonės ataskaitomis, pareigą po pareigos, ir grąžina tris sąrašus, kiekvieną kaip skaičių su
+ne daugiau kaip penkiais pavadinimais. Čia \emph{spraga} yra išvada, kurios būsena
+\status{missing} ar \status{partial}; \status{unknown} nėra nei spraga, nei išspręsta.
+
+\begin{table}[H]
+\caption{Kaip \code{changes} klasifikuoja ataskaitos pareigą}\label{tab:register:changes}
+\begin{tabularx}{\textwidth}{@{}L{20mm}L{44mm}Y@{}}
+\toprule
+\hd{Raktas} & \hd{Ankstesnis vertinimas → dabar} & \hd{Reiškia} \\
+\midrule
+\code{closed} & spraga → išspręsta & Spraga, kuri dabar įvykdyta. \\
+\code{back} & išspręsta → spraga & Pareiga, kuri buvo įvykdyta, o dabar vėl yra spraga. \\
+\code{new} & nei spraga, nei išspręsta arba niekada nevertinta → spraga & Spraga pareigoje,
+  kurios nevertino nė viena ankstesnė ataskaita arba kuri anksčiau buvo \status{unknown}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ankstesnis vertinimas yra \emph{paskutinės ankstesnės ataskaitos, kuri tą pareigą vertino},
+vertinimas, o ne tiesiog prieš tai buvusios ataskaitos. Priežastis praktinė: ataskaita gali būti
+parengta keliems dokumentams ar keliems aktams. Jei kiekviena pareiga būtų lyginama su tiesiog
+prieš tai buvusia ataskaita, tarp jų parengta siaura ataskaita lemtų, kad kitoje išsamioje ataskaitoje viskas,
+ko ji nevertino, atrodytų nauja. Testas
+\code{test_a_narrow_report_in_between_does_not_make_the_rest_look_new} šią elgseną įtvirtina.
+Atsakymas vis tiek nurodo tiesiog prieš tai buvusią ataskaitą (\code{since}, \code{sinceDate})
+kaip datą, nuo kurios kalbama. Išvados dėl įmonės vidaus reikalavimų į pokyčius neįtraukiamos,
+nes jos visur skaičiuojamos atskirai, o kai įmonė neturi ankstesnės baigtos ataskaitos, funkcija
+nieko negrąžina.
+
+Rezultatas naudojamas trijose vietose, ir visas jas aprašo \cref{ch:report}. Ataskaitai
+baigiantis jis išsaugomas ataskaitos statistikoje kaip \code{stats.changes} (\code{report_stats}
+faile \file{analysis/pipeline.py}). Jis pridedamas prie santraukos etapo įvesties kaip blokas su
+antrašte \texttt{SINCE THE PREVIOUS REPORT}, su trimis skaičiais ir jų pavadinimais, o santraukos
+instrukcijai nurodoma pirmąją pastraipą, bendrąjį įvertinimą, užbaigti vienu sakiniu apie
+pokyčius. Be to, ataskaitos PDF po skyriumi \enquote{Trumpai} išspausdina vieną eilutę
+(\file{analysis/pdf.py}, \code{_glance}): \enquote{Nuo ankstesnės ataskaitos (data): pašalinta
+spragų -- n, naujų spragų -- n, vėl atsiradusių -- n.} Visose trijose vietose skaičius
+apskaičiuoja kodas; modelis tik suformuluoja sakinį.
+
+
+\section{Teisės aktų pokyčiai}\label{sec:register:law}
+
+Ataskaita yra įvertinimas pagal tas aktų redakcijas, kurios galiojo jos vykdymo metu. Kai aktas
+vėliau pasikeičia, dalis ataskaitos išvadų remiasi nuostatomis, kurios nebeskamba taip, kaip
+skambėjo. Įkėlimas užfiksuoja, kas pasikeitė, o registro \code{law_changes} įvardija tas
+išvadas.
+
+\paragraph{Kas užfiksuojama.} Kai įkėlimo užduotis aktyvuoja naują akto redakciją, ji lauke
+\code{legal_document_versions.changes} išsaugo, ką ta redakcija pakeitė, palyginti su redakcija,
+kurią ji pakeičia (\code{version_changes} faile \file{corpus/ingest.py}): \code{{from, changed, added,
+removed}}, kur trijuose sąrašuose yra nuostatų keliai akto tvarka. Tekstas, kuriame tarpai normalizuoti,
+lyginamas straipsnis po straipsnio --- akto be straipsnių atveju pagal jo aukščiausio lygio
+punktus: \code{changed} yra keliai, esantys abiejose redakcijose su skirtingu tekstu,
+\code{added} --- esantys tik naujojoje, \code{removed} --- esantys tik senojoje. Pirmoji akto
+redakcija įrašo neturi (null); jo neturi ir redakcija, kuri apdorojama dar kartą vietoje, nes ji
+būtų lyginama su savimi. Abiejų redakcijų joks modelis neskaito; tai saugomo teksto palyginimas.
+Įkėlimas ir redakcijos aprašyti \cref{ch:corpus}.
+
+\paragraph{Ką pateikia maršrutas.} \route{GET}{/api/companies/{id}/law-changes}
+(\code{law_changes}) paima naujausią baigtą įmonės ataskaitą ir kiekvienam aktui, kurį ta
+ataskaita vertino (kaip \code{assessed} ar \code{upcoming}) ir kurio dabartinė redakcija nebėra ta,
+kurią ataskaita skaitė, sujungia visų nuo to laiko atsiradusių redakcijų įrašus. Kiekvienam aktui
+grąžinamas ataskaitos skaitytos redakcijos numeris ir dabartinės redakcijos numeris su jos data,
+trys sąrašai ir \code{findings}: ataskaitos išvados pagal tą aktą, kurių nuorodos remiasi pakeista
+ar panaikinta nuostata, kiekviena su identifikatoriumi, pavadinimu, galiojančia būsena ir cituojamu
+keliu. Nuoroda remiasi straipsniu, kai jos kelias yra straipsnio kelias arba jį tęsia be dar vieno
+skaitmens, todėl \texttt{Art.\ 68(1)} remiasi \texttt{Art.\ 68}, o \texttt{Art.\ 680} --- ne.
+Pridėtos nuostatos jokios esamos išvados neliečia ir pateikiamos informacijai.
+
+Požymis \code{recorded} yra false, kai tarpinė redakcija įrašo neturi. Tada aktas pasikeitė, o
+sistema negali pasakyti kur, ir pasako būtent tai, užuot rodžiusi tuščius sąrašus, kurie būtų
+perskaityti kaip \enquote{niekas nepasikeitė}: konsolė išspausdina \enquote{Aktas pasikeitė, bet
+pakeistos nuostatos neužfiksuotos}, o pokalbio įrankiui pasakoma, kad iš naujo peržiūrėti reikia
+visą aktą.
+
+Konsolė sąrašą rodo po registru, dalyje \ui{Teisės aktų pokyčiai}, kiekvieną išvadą susiedama
+su jos kortele ataskaitoje. Sąrašas nieko nekeičia: jis neatidaro veiksmo ir nepakeičia išvados.
+Jis įvardija, kur žmogui verta pažiūrėti, o nauja analizė įmonę įvertina pagal dabar galiojantį
+tekstą.
+
+2026~m. lapkričio 13~d. jokia veikiančios sistemos saugoma redakcija neturėjo pokyčių įrašo: nuo
+tada, kai pradėta fiksuoti, nebuvo aktyvuota nė viena nauja akto redakcija. Mechanizmą išbando
+testas \code{test_a_new_version_of_an_act_names_the_findings_to_look_at_again}, kuris
+perrašo vieną straipsnį, vieną pašalina ir vieną prideda, o tada tikrina tris sąrašus ir
+įvardytas išvadas; su tikru pakeitimu mechanizmas dar nesusidūrė.
+
+
+\section{Registro skaitymas: pokalbis ir Excel eksportas}\label{sec:register:reading}
+
+\subsection{Pokalbių asistentas skaito ir niekada nerašo}
+
+Pokalbių asistentas registrui turi vieną įrankį, \code{getActionRegister}, asistento paslaugos
+faile \file{llm/tools/actions.js}. Jis kviečia du skaitymo maršrutus --- registrą, tada teisės
+aktų pokyčius --- ir grąžina glaustą atsakymą: skaičius pagal rodomą būseną; ne daugiau kaip
+\code{MAX_ACTIONS}~=~20 veiksmų, uždarytus --- tik tada, kai prašoma būtent tos būsenos,
+kiekvieną su būsena, atsakingu asmeniu, terminu ir ne daugiau kaip \code{MAX_ITEMS}~=~6
+išvadomis, kurias jis uždaro; \code{closedOnlyByHand} ten, kur API sako \code{byHandOnly}; ir,
+jei aktai pasikeitė, teisės aktų pokyčius su išvadomis, kurias reikia patikrinti iš naujo. Jei
+užklausa į teisės aktų pokyčių maršrutą nepavyksta, ta dalis praleidžiama, o registras vis tiek grąžinamas.
+
+Įrankis nepriima jokio argumento, kuris galėtų ką nors pakeisti, ir joks kitas pokalbio įrankis
+nepatvirtina ataskaitos ir nekeičia veiksmo; testas faile \file{tests/tools-actions.test.mjs}
+tikrina, kad vienintelis įrankis, kurio pavadinime minimas veiksmas, patvirtinimas ar registras,
+yra šis. Tai, ką modelis gali \emph{pasakyti}, apribota dvejopai: įrankio aprašu ir jo
+užuomina \code{next}, grąžinama su kiekvienu atsakymu, ir pokalbio instrukcijos taisykle.
+
+\begin{promptexcerpt}{chat.assistant}{13 taisyklė, apie registrą}
+[…]
+The register moves only when a person signs a report off on the report page: its plan comes in, and a later signed-off report that finds an action's obligations met closes it. You cannot open, close or edit an action, and you never call one closed because a document was uploaded or the user says it is done – "done" there means carried out and awaiting that re-test; tell the user to sign the next report off, or to close the action by hand with a reason on the company's Actions tab.
+[…]
+\end{promptexcerpt}
+
+Ši taisyklė reikalinga todėl, kad viliojantis atsakymas yra klaidingas. Naudotoją, ką tik įkėlusį
+trūkstamą procedūrą ir klausiantį \enquote{ar dabar jau uždaryta?}, \enquote{taip} pradžiugintų, ir
+modelis, linkęs padėti, galėtų taip atsakyti. Registro atsakymas yra toks: įkeltas dokumentas
+nėra įrodymas, kol ataskaita jo neįvertino ir žmogus tos ataskaitos nepatvirtino. Pokalbio
+įrankiai ir instrukcija kaip visuma aprašyti \cref{ch:chat}.
+
+Vieną netiesioginį kelią verta įvardyti. Pokalbis gali įrašyti peržiūrėtojo sprendimą dėl
+išvados naudotojo nurodymu ir su naudotojo nurodyta priežastimi (įrankis \code{overrideFinding},
+\cref{ch:chat}). Jis siunčia tą pačią užklausą kaip konsolės peržiūros dialogas, todėl
+patvirtintai ataskaitai pasekmė ta pati: patvirtinimas atšaukiamas, o tai, ką jis patvirtino
+registre, atšaukiama kartu. Patvirtinti ataskaitos pokalbis vis tiek negali.
+
+\subsection{Excel eksportas}
+
+\route{GET}{/api/companies/{id}/actions/export} grąžina visą registrą kaip darbaknygę
+(\code{render_actions_xlsx} faile \file{analysis/exports.py}), lietuvių ar anglų kalba pagal
+parametrą \code{language}, išdėstytą kurso išvadų ir veiksmų registro stulpeliais. Viena eilutė
+yra vienas veiksmas, sąrašo tvarka: eilės numeris; veiksmas su aprašu; išvados, kurias jis turi
+uždaryti, kiekviena atskiroje eilutėje su aktu ir nuostata ir žodžiu \enquote{patvirtinta}, kai
+ją patvirtino vėlesnė ataskaita; atsakingas asmuo; terminas; rodoma būsena, įskaitant
+vėlavimą; prioritetas; ataskaitos, iš kurios veiksmas kilo, data; uždarymo data; kaip uždaryta
+(\enquote{patvirtino vėlesnė ataskaita} arba \enquote{uždarė asmuo}); ir pastaba. Kiekvienas
+tekstinis langelis saugomas kaip tekstas, niekada kaip formulė. Atsisiuntimas įrašomas į veiksmų
+žurnalą kaip \code{actions.export}. Pokalbio įrankis tai, ką veiksmas uždaro, formuluoja taip pat
+kaip darbaknygė, todėl abu sutampa.
+
+
+\section{Kur nubrėžta riba}\label{sec:register:line}
+
+\begin{codebox}{Registre modelis niekur nekviečiamas}
+\file{analysis/register.py} importuoja ataskaitų ir teisės aktų bazės modelius, duomenų bazės
+transakciją ir laikrodį. Jis neimportuoja funkcijos, kuri kviečia modelį, ir nė viena jo kviečiama
+funkcija jos neimportuoja. Plano įtraukimas, išvados patvirtinimas, veiksmo uždarymas, grąžinimas į darbą,
+\code{late} apskaičiavimas, išvados istorija, pokyčiai tarp ataskaitų ir teisės aktų pokyčiai ---
+visa tai yra saugomų identifikatorių, būsenų, datų ir tekstų palyginimai. Turint tas pačias
+ataskaitas, tuos pačius parašus ir tuos pačius žmonių pakeitimus ta pačia tvarka, registras
+visada išeina toks pat.
+
+\smallskip
+Kas kita yra jo \emph{įvestys}, ir jas reikia įvardyti. Veiksmo pavadinimus, atsakingo asmens
+rolę, laikotarpį ir kategoriją ataskaitos plane parašė modelis, o išvados būsena yra modelio
+vertinimas, nebent ją pakeitė peržiūrėtojas. Registras joms neprideda jokio savo sprendimo: jis
+tik užfiksuoja, kurias iš jų žmogus patvirtino.
+\end{codebox}
+
+\begin{humanbox}{Ką čia daro tik žmonės}
+Žmogus patvirtina ataskaitą ir gali patvirtinimą atšaukti. Žmogus yra atsakingas už veiksmą,
+nustato jo terminą ir nurodo, kokia jo padėtis. Žmogus gali uždaryti veiksmą ranka, nurodydamas
+priežastį, kuri lieka įraše, ir gali vėl atidaryti tai, ką uždarė žmogus. Žmogus ginčija
+ataskaitos atliktą uždarymą ties išvada, kuria tas uždarymas remiasi. Registre niekas nevyksta
+sistemos iniciatyva: kiekvienas pakeitimas išplaukia iš vieno iš šių žmogaus žingsnių.
+\end{humanbox}
+
+Riba nubrėžta čia dėl trijų priežasčių. Pirmoji --- atskaitomybė: veiksmų registras pasako, ką
+įmonė įsipareigojo padaryti ir ar įsipareigojimą įvykdė, ir abu šie teiginiai turėtų vesti iki
+įvardyto žmogaus ir datuotos ataskaitos, o ne iki modelio formuluotės vieną dieną. Antroji ---
+atkuriamumas: modelis, dukart paklaustas, ar veiksmas uždarytas, gali dukart atsakyti skirtingai,
+o sąsaja pagal pareigos identifikatorių --- ne. Trečioji --- sprendimas, kuriam modelis
+\emph{tinka}, jau priimtas, patikrintas ir peržiūrėtas kitur --- išvadoje (\cref{ch:report}).
+Registras tą sprendimą panaudoja pakartotinai ir savo neprideda, todėl neprideda ir naujos
+vietos, kur modelis galėtų suklysti. Sistemos kontrolės priemones surenka \cref{ch:control} ir
+tarp jų aptaria šią.
+
+
+\section{Kas išbandyta, kas testuojama ir žinomas apribojimas}\label{sec:register:tried}
+
+\begin{lessonbox}{Išbandyta duomenų bazės kopijoje 2026 m. lapkričio 12 d.}
+Registras buvo paleistas su tikromis pavyzdinės įmonės \demo{} ataskaitomis duomenų bazės
+kopijoje, be jokio modelio iškvietimo. Patvirtinus išsamią įmonės ataskaitą, buvo įtraukti 25 jos
+plano veiksmai su 587 atviromis išvadomis, kurias jie turi uždaryti, ir kiekviena turėjo savo
+pareigos identifikatorių. Patvirtinus vėlesnę nedidelę ataskaitą, buvo pridėti 7 veiksmai, o 6 praleisti kaip jau vykdomi. Patvirtinus atvirkštine tvarka --- pirma naujesnę ataskaitą --- registre buvo
+tos pačios 653 išvados, ir nė vienos neapėmė du veiksmai.
+
+\smallskip
+Tada buvo surežisuota pakartotinė patikra: išsami ataskaita nukopijuota, o dalis jos išvadų
+pažymėta kaip įvykdytos. Patvirtinus kopiją, buvo patvirtintos 7 išvados, uždarytas veiksmas,
+kurio visos išvados buvo įvykdytos, ir į darbą grąžintas vienas veiksmas, kuris buvo pažymėtas
+įvykdytu, bet vis dar turėjo atvirą išvadą. Atšaukus tą patvirtinimą, būtent tai ir buvo
+atšaukta. Po antros pakartotinės patikros ištrynus kopiją, uždarymai išliko, remdamiesi antrąja.
+Tai vienos dienos stebėjimai su viena įmone; pakartotinė patikra buvo surežisuota redaguojant
+išvadas, o ne gauta iš antros tikros analizės po tikro trūkumų šalinimo.
+\end{lessonbox}
+
+\paragraph{Testai.} \file{tests/test_register.py} turi septynis testus, kurie registrą išbando
+per API maršrutus su modelių imitacijomis: patvirtinimas planą įtraukia vieną kartą; vėlesnė
+patvirtinta ataskaita yra pakartotinė patikra; ataskaitos kalba ta tvarka, kuria buvo parengtos;
+žmogus yra atsakingas už veiksmą, nustato terminą, perkelia ir uždaro veiksmą, ir eksportas;
+išvados istorija ir ataskaitos pokyčiai; tarpinė siaura ataskaita; ir nauja akto redakcija.
+Prieigos teisių matrica (\file{tests/test_authz_matrix.py}) apima registro maršrutus, o asistento
+paslauga testuoja pokalbio įrankį. Testų rinkiniai aprašyti \cref{ch:testing}.
+
+\paragraph{Žinomas apribojimas.} \code{standing()} klausia tik, ar pareigos eilutė tebeegzistuoja.
+Tačiau ataskaita vertina dabartinės akto redakcijos pareigas, kurios nėra atmestos. Todėl pareiga,
+kurią administratorius atmeta jau po to, kai ją apėmė veiksmas, tebeegzistuoja, niekada
+nebevertinama ir nepažymima \code{byHandOnly}: jos veiksmas laukia patvirtinimo, kuris negali
+ateiti, kol žmogus tai pastebi ir uždaro jį ranka. 2026~m. lapkričio 13~d. nė vienos iš dešimties
+atmestų pareigų neapėmė joks veiksmas. Tas pats, tuo pačiu kodo skaitymu, galioja ir patvirtintai
+pareigai, kurią nauja jos akto redakcija paliko nuošalyje, nes pasikeitė jos cituojama nuostata:
+\code{carry_forward} tokią eilutę palieka senojoje redakcijoje, kur jos neskaito jokia vėlesnė
+ataskaita. Antruoju atveju, kol įmonei nebus parengta kita ataskaita, aktas turi naujesnę redakciją, nei skaitė
+jos naujausia ataskaita, todėl pokytis bent jau pateikiamas tarp teisės aktų pokyčių
+(\cref{sec:register:law}), kur žmogus į jį nukreipiamas.

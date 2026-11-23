@@ -1,0 +1,1016 @@
+% STATUS: reviewed
+\chapter{Diegimas ir eksploatavimas}\label{ch:ops}
+
+Šis skyrius skirtas tam, kas įdiegia \product{} ir palaiko jo veikimą, --- operatoriui. Jis eina ta
+tvarka, kuria operatorius susiduria su sistema: kas veikia ir ką turi suteikti serveris, naujas
+diegimas, du Compose failo režimai, atnaujinimai, --- o paskui pereina
+prie darbų, būdingų būtent šiam produktui: teisės aktų bazės palaikymo, trijų mokamų visos teisės aktų
+bazės skaitymų, kuriuos paleidžia tik operatorius, instrukcijų priežiūros ir biudžetų stebėjimo.
+Baigiama suplanuotais darbais, būklės patikra ir dažniausiomis nesėkmėmis. Komandos cituojamos
+tiksliai, ir jų nedaug; kiekviena vykdoma projekto aplanke serveryje, kuriame neįdiegta nieko,
+išskyrus Docker. Skyriuje minimų parametrų ir konstantų sąrašas --- \cref{app:config}.
+
+Tą pačią sritį išsamiau aprašo du saugyklos dokumentai, kurie buvo šio skyriaus žemėlapis:
+\file{docs/markdown/en/deployment.md} ir \file{docs/markdown/en/operations.md}. Paskutinis žodis priklauso
+scenarijams ir Compose failui, ir skyrius patikrintas pagal juos.
+
+
+\section{Kas veikia ir ko reikia serveriui}\label{sec:ops:runs}
+
+Visa sistema yra vienas Docker Compose projektas, aprašytas faile \file{docker-compose.yml}:
+aštuoni konteineriai viename serveryje (\cref{tab:ops:services,fig:ops:host}). \Cref{ch:arch}
+paaiškina, ką paslaugos daro viena kitai; čia jos išvardytos taip, kaip operatorius jas mato
+komandos \texttt{docker compose ps} išvestyje.
+
+Kiekvieno konteinerio šakninė failų sistema yra tik skaitoma, o paleidimo iš naujo politika ---
+\code{unless-stopped}. Įėjimas, išėjimas, API ir duomenų bazė veikia kaip naudotojas 1000; konsolė
+ir asistento paslauga veikia kaip numatytasis jų atvaizdo naudotojas (eilutė
+\texttt{user: 1000:1000} joms užkomentuota); duomenų bazės įrankis ir užduočių vykdytojo
+konteineris veikia kaip root. Užduočių vykdytojo konteineriui root reikia todėl, kad jis laiko
+serverio Docker lizdą --- o tai daro jį root visame serveryje, --- todėl jis neturi jokio tinklo ir
+nevykdo nieko, išskyrus tą vieną komandą. Compose failas nenustato nei išteklių ribų, nei
+būklės patikrų, nei paleidimo tvarkos: paslaugos paleidžiamos kartu, o įėjimas atsako 502, kol
+paslauga už atitinkamo kelio dar neveikia.
+
+\begin{table}[H]
+\caption{Sistemos konteineriai, kaip juos apibrėžia \file{docker-compose.yml}}\label{tab:ops:services}
+\begin{tabularx}{\textwidth}{@{}L{35mm}L{33mm}Y@{}}
+\toprule
+\hd{Konteineris} & \hd{Atvaizdas} & \hd{Ką daro} \\
+\midrule
+\code{legalops-endpoint} & \code{caddy:2.11-alpine} & Vienintelis kelias į vidų, serverio 80 prievadas. \code{/api/assistant/*} siunčia į asistento paslaugą, \code{/api/*} --- į API, \code{/dbgate/*} --- į duomenų bazės įrankį, prieš tai paklausęs API, ar kviečiantysis yra administratorius, o visa kita --- į konsolę ir viešąją svetainę. Rašo JSON prieigos žurnalą. \\
+\code{legalops-exit} & \code{vuknf/caddy-l4:2.11} & Vienintelis kelias į išorę: TLS ryšius persiunčia į fiksuotą serverių vardų sąrašą (\cref{sec:ops:secrets}). \\
+\code{legalops-vite} & sukurtas iš \file{vite/} & Viešoji svetainė ir konsolė: Vite kūrimo serveris, o gamybos režime --- Caddy pateikiami sukompiliuoti failai. \\
+\code{legalops-django} & sukurtas iš \file{django/} & API (Django). Šiame konteineryje veikia ir užduočių vykdytojo ciklas. \\
+\code{legalops-worker} & \code{docker:27-cli} & Tik viena komanda, \texttt{docker exec legalops-django python3 manage.py run\_worker}: ji paleidžia užduočių vykdytojo ciklą API konteineryje ir paleidžia jį iš naujo, kai šis baigiasi. \\
+\code{legalops-assistant} & sukurtas iš \file{assistant/} & Asistento paslauga: pokalbis ir kiekvienas modelio iškvietimas. \\
+\code{legalops-postgres} & sukurtas iš \file{postgres/} & PostgreSQL 17.11 su sukompiliuotu pgvector plėtiniu 0.8.6. \\
+\code{legalops-dbgate} & \code{dbgate/dbgate:7.3.3-alpine} & Duomenų bazės administravimo įrankis administratoriams, pasiekiamas adresu \code{/dbgate/}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[x=1cm, y=1cm]
+  \node[ext]   (proxy)    at (0,1.2)     {išorinis\\tarpinis serv.\\TLS};
+  \node[svc]   (endpoint) at (2.75,1.2)  {įėjimas\\80 prievadas};
+  \node[svc]   (vite)     at (6.1,2.45)  {vite\\svetainė ir konsolė};
+  \node[svc]   (asst)     at (6.1,1.2)   {asistentas\\modelio iškvietimai};
+  \node[svc]   (django)   at (6.1,-0.15) {django\\API + vykdytojo ciklas};
+  \node[svc]   (worker)   at (6.1,-1.75) {užduočių vykdytojas\\tik Docker CLI};
+  \node[svc]   (exit)     at (9.75,1.2)  {išėjimas\\leidžiamų adresų\\sąrašas};
+  \node[store] (pg)       at (9.75,-0.15) {postgres};
+  \node[svc]   (dbgate)   at (9.75,-1.75) {dbgate};
+  \node[ext]   (gw)       at (12.75,1.75) {DI tinklų sąsaja};
+  \node[ext]   (src)      at (12.75,0.65) {teisės aktų\\šaltiniai};
+
+  \draw[flow] (proxy) -- (endpoint);
+  \draw[flow] (endpoint) -- (asst);
+  \draw[flow] (endpoint.east) -- ++(0.55,0) |- (vite.west);
+  \draw[flow] (endpoint.east) -- ++(0.55,0) |- (django.west);
+  \draw[flow] (endpoint.south) -- (2.75,-2.75) -| node[lbl, pos=.25] {/dbgate/, tik administratoriams} (dbgate.south);
+  \draw[flow] (asst) -- (exit);
+  \draw[flow] (django) -- (pg);
+  \draw[flow] (dbgate) -- (pg);
+  \draw[flow] ([yshift=2.5mm]django.east) -- ++(0.45,0) |- ([yshift=-2mm]exit.west);
+  \draw[flow] (exit.east) -- ++(0.45,0) |- (gw.west);
+  \draw[flow] (exit.east) -- ++(0.45,0) |- (src.west);
+  \draw[call, <->] (django) -- node[lbl, right=1mm] {vidinės durys} (asst);
+  \draw[call] (worker) -- node[lbl, right=1mm] {docker exec} (django);
+
+  \node[store] (d1) at (1.7,-4.9)   {\_DATA/postgres\\duomenų bazė};
+  \node[store] (d2) at (5.55,-4.9)  {\_DATA/django/uploads\\įkelti failai};
+  \node[data]  (envf) at (9.3,-4.9) {.env\\paslaptys};
+  \begin{scope}[on background layer]
+    \node[lane, fit=(endpoint)(vite)(django)(asst)(dbgate)(pg)(exit)(worker), inner ysep=9pt] (stack) {};
+    \node[lane, fit=(d1)(d2)(envf), fill=codebg] (disk) {};
+  \end{scope}
+  \node[lanelabel, anchor=south west] at (stack.north west) {vienas Docker Compose projektas: aštuoni konteineriai};
+  \node[lanelabel, anchor=south west] at (disk.north west) {serverio diske, projekto aplanke};
+\end{tikzpicture}
+\caption{Sistema savo serveryje. Užklausos ateina tik per įėjimą, o ryšiai į išorę išeina tik per
+išėjimą. Užduočių vykdytojo konteineris paleidžia užduočių vykdytojo ciklą API konteineryje ir
+neturi savo tinklo. Viskas, ką sistema įsimena, guli serverio aplankuose, prijungtuose prie
+duomenų bazės ir API konteinerių.}\label{fig:ops:host}
+\end{figure}
+
+\paragraph{Tinklai.} Compose failas apibrėžia \code{isolated} --- vidinį tilto tinklą
+172.28.10.0/24, kuriuo sujungti visi konteineriai, išskyrus užduočių vykdytojo, ir kuris neturi
+maršruto į išorę, --- ir prisijungia prie antro tinklo, \code{external}, kurį tikisi rasti jau
+sukurtą: jį sukuria atnaujinimo scenarijus komanda \texttt{docker network create}, potinklyje
+172.18.0.0/24, kai serveryje tokio pavadinimo tinklo nėra; serveryje, kuriame toks tinklas jau
+yra, jis lieka toks, koks yra, ir sistema prie jo prisijungia. Veikiančiame serveryje šis tinklas
+buvo dar iki sistemos, ir prie jo prijungti ir kiti prieglobos konteineriai (pastebėta 2026~m.
+lapkričio 16~d.). Įėjimas ir išėjimas yra abiejuose tinkluose; kūrimo režime tinkle \code{external}
+yra ir konsolė bei asistento paslauga, kad galėtų įsidiegti savo paketus.
+
+\paragraph{Būsena.} Viskas, ką sistema įsimena, yra dviejuose aplankuose, kuriuos sukuria ir
+naudotojui 1000 atiduoda scenarijus \file{runUpdateThisStack.sh}: \file{_DATA/postgres} --- duomenų bazės
+klasteris, ir \file{_DATA/django/uploads} --- naudotojų ir administratorių įkelti failai. Paslaptys
+laikomos faile \file{.env}, kurį Compose perskaito kurdamas konteinerį. Nė vieno iš šių trijų nėra
+saugykloje.
+
+\paragraph{Ką turi suteikti serveris.} Pagal \file{docs/markdown/en/deployment.md}:
+\begin{itemize}
+  \item Linux su Docker Engine (išbandyta su 27.3.1) ir abi Compose sąsajos: atnaujinimo
+    scenarijus kviečia \code{docker-compose}, kiti scenarijai --- \texttt{docker compose}.
+    Atnaujinimo scenarijus taip pat naudoja \code{sudo} ir \code{openssl}.
+  \item Užtenka keturių procesoriaus branduolių ir 8~GB atminties. Nė vienam konteineriui
+    neribojama atmintis; piką sukelia izoliuoti antriniai procesai, išgaunantys tekstą iš įkeltų
+    failų (kiekvienam po 1,5~GB adresų erdvės, \code{CHILD_MEMORY_MB} faile
+    \file{common/sandbox.py}), ir ataskaitos generavimas PDF formatu.
+  \item Apie 3~GB disko vietos atvaizdams ir dar vietos duomenims.
+  \item Laisvas serverio 80 prievadas ir nenaudojami du minėti potinkliai.
+  \item Išeinantis HTTPS ryšys į DI tinklų sąsają (\code{ai.knf.vu.lt}) ir į tris teisės aktų
+    šaltinius (\code{publications.europa.eu}, \code{www.e-tar.lt}, \code{www.lb.lt}); kol kuriami
+    atvaizdai --- ir į paketų registrus.
+  \item Priekyje stovintis atvirkštinis tarpinis serveris, kuris užbaigia TLS, nes įėjimas naudoja
+    paprastą HTTP. Jis turi perduoti antraštę \code{Host} tokią, kokią ją siuntė naršyklė, nes
+    įėjimas su ja lygina užklausos \code{Origin}, ir į antraštę \code{X-Forwarded-For}, kurią
+    įėjimas nukopijuoja į \code{X-Real-IP}, įrašyti lankytojo adresą, ir tik jį (ką siunčia
+    veikiančios sistemos tarpinis serveris, aprašo \cref{ch:security}). Jis neturi buferizuoti
+    \code{text/event-stream} (pokalbis savo atsakymą siunčia
+    srautu), turi laukti atsakymo bent 330~s (ataskaitos eksportas yra viena ilga užklausa, o
+    instrukcijos bandomasis paleidimas gali laukti iki penkiolikos minučių: anksčiau jį
+    nutraukiantis tarpinis serveris instrukcijų redaktoriuje parodo klaidą, nors iškvietimas vis
+    tiek užbaigiamas ir įrašomas), turi praleisti 62~MiB užklausų turinį (API priima iki
+    60~MiB dydžio įkeliamą teisės aktą) ir turi palikti abi įėjimo saugumo antraštes.
+\end{itemize}
+
+\paragraph{Pajėgumas.} Gamybos režime API veikia su gunicorn: \code{GUNICORN_WORKERS} procesai
+po \code{GUNICORN_THREADS} gijų (numatytieji 3 ir 8, \file{django/gunicorn.conf.py}), taigi vienu
+metu aptarnaujamos 24 užklausos. Vienas užduočių vykdytojo ciklas vienu metu vykdo vieną užduotį;
+užduoties viduje vienu metu vyksta iki keturių modelio iškvietimų (\cref{app:config}). Užduotys iš
+eilės paimamos užklausa \texttt{SELECT … FOR UPDATE SKIP LOCKED} (\code{claim} faile
+\file{jobs/runner.py}), todėl antras ciklas būtų saugus; jam reikia savo \code{WORKER_PID_FILE},
+nes ciklas, radęs kito ciklo PID failą, perima jo darbą, užuot veikęs šalia.
+\file{docs/markdown/en/operations.md} įvardija tikrąją ribą: DI tinklų sąsajos biudžetą, ne serverį.
+
+
+\section{Naujas diegimas}\label{sec:ops:install}
+
+Diegimą sudaro keturi žingsniai šia tvarka: du vietiniai failai, vienas atnaujinimo scenarijaus
+paleidimas, pirmasis administratorius ir vienas vektorių perskaičiavimas. Pati teisės aktų bazė
+nei atsisiunčiama, nei modelio skaitoma iš naujo: ji atkeliauja su duomenų bazės pradine
+išklotine (angl. \en{bootstrap dump}).
+
+\subsection{Vietiniai failai ir atnaujinimo scenarijus}
+
+\begin{codeblock}
+git clone <repository> /apps/aplikacijos/comp-assistant
+cd /apps/aplikacijos/comp-assistant
+cp docker-compose.sample.yml docker-compose.yml
+touch .env && chmod 600 .env      # then add the line  AI_GATEWAY_KEY=<the gateway key>
+./runUpdateThisStack.sh
+\end{codeblock}
+
+Saugykloje versijuojamas \file{docker-compose.sample.yml}; \file{docker-compose.yml} yra vietinė
+kopija, kurią vykdo diegimas, ir git ją ignoruoja, kaip ir \file{.env}.
+
+\begin{notebox}{Dvi Compose failo eilutės, nuo kurių priklauso diegimas}
+Kopija priklauso pačiam diegimui: jos nesukuria joks scenarijus, o \texttt{git pull} jos niekada
+nekeičia, todėl vėlesnis pavyzdžio pakeitimas ją pasiekia tik tada, kai kas nors jį perkelia.
+Naujam diegimui svarbiausios dvi pavyzdžio eilutės: tik skaitymui skirtas
+\file{postgres/bootstrap.sql.gz} prijungimas prie duomenų
+bazės konteinerio aplanko \file{/docker-entrypoint-initdb.d} ir įėjimo kintamasis
+\code{DBGATE_AUTH_HEADER}. Be pirmojo naujas diegimas prasideda su tuščia duomenų baze:
+atnaujinimo scenarijaus \code{migrate} tada sukuria schemą, o operatorius turi įkelti instrukcijas
+(\code{seed_prompts}, \cref{sec:ops:prompts}) ir katalogą (\code{seed_corpus},
+\cref{sec:ops:corpus}) ir vėl sumokėti už kiekvieną teisės aktų bazės skaitymą. Be antrojo įėjimas
+negali prisijungti prie duomenų bazės įrankio. Saugykloje nėra failo \file{.env} pavyzdžio:
+failas prasideda nuo vienos eilutės su DI tinklų sąsajos raktu, o atnaujinimo scenarijus prie jo
+prideda savo sugeneruotas paslaptis.
+\end{notebox}
+
+\file{runUpdateThisStack.sh} kiekvieną kartą, taip pat ir pirmąjį, atlieka tuos pačius šešis
+veiksmus:
+
+\begin{enumerate}
+  \item Sukuria \file{_DATA/django/uploads} ir \file{_DATA/postgres} ir atiduoda \file{_DATA}
+    naudotojui 1000.
+  \item Sugeneruoja \code{DJANGO_SECRET_KEY} (32 atsitiktinius baitus šešioliktaine forma, iš
+    \texttt{openssl rand}) ir prideda jį prie \file{.env} --- tik tada, kai \file{.env} neturi
+    eilutės, prasidedančios šiuo vardu. Esama eilutė, net ir tuščia, nekeičiama.
+  \item Tokiu pat būdu sugeneruoja \code{ASSISTANT_INTERNAL_SECRET}. Tai bendra API ir asistento
+    paslaugos vidinių durų paslaptis; jei reikšmė tuščia, abi pusės atmeta kiekvieną vidinį
+    iškvietimą.
+  \item Sugeneruoja \code{DBGATE_PASSWORD} --- paties duomenų bazės įrankio prisijungimo slaptažodį
+    --- ir \code{DBGATE_AUTH_HEADER} --- tą patį prisijungimą, užkoduotą HTTP antraštei, kurią
+    įėjimas prideda prie kiekvienos įrankiui perduodamos užklausos.
+  \item Sukuria Docker tinklą \code{external} (kai tokio pavadinimo tinklas jau yra ---
+    kiekvieną vėlesnį kartą arba nuo pat pradžių serveryje, kuriame jį sukūrė kas nors kita, ---
+    tai klaida, bet nekenksminga), sustabdo sistemą ir vėl ją paleidžia iš naujai sukurtų atvaizdų:
+    \texttt{docker-compose down}, paskui \texttt{docker-compose up -d -{}-build}.
+  \item Palaukia penkias sekundes ir API konteineryje paleidžia
+    \texttt{manage.py migrate -{}-noinput}.
+\end{enumerate}
+
+Scenarijus niekada nerašo \code{AI_GATEWAY_KEY}: fakulteto DI tinklų sąsajos (angl.
+\en{gateway}) raktas yra vienintelė reikšmė, kurią pateikia žmogus. Be jo sistema pasileidžia,
+bet asistento paslauga praneša, kad jos modelis nesukonfigūruotas, pokalbis atsako 503, o
+kiekvienas užduoties etapas, kuriam reikia modelio, nepavyksta.
+
+\subsection{Pradinė išklotinė}\label{sec:ops:bootstrap}
+
+Kai duomenų bazės konteineris paleidžiamas su tuščiu \file{_DATA/postgres}, oficialus PostgreSQL
+paleidimo scenarijus inicializuoja klasterį ir įkelia kiekvieną failą, kurį randa aplanke
+\file{/docker-entrypoint-initdb.d}, --- čia vienas failas, \file{postgres/bootstrap.sql.gz}, apie
+11~MB gzip suspausto paprasto SQL. Jau esamo klasterio jis niekada neliečia. Failą iš veikiančio
+diegimo parašo \file{scripts/db_bootstrap_dump.sh} (\cref{fig:ops:bootstrap}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm and 6mm]
+  \node[store] (live) {veikianti\\duomenų bazė};
+  \node[svc, right=of live] (copy) {laikinas\\postgres\\be tinklo};
+  \node[chk, right=of copy] (cut) {apkarpymas:\\palikti aštuonias\\lenteles, kitas\\išvalyti};
+  \node[data, right=of cut] (file) {bootstrap\\.sql.gz};
+  \node[store, below=13mm of live] (new) {tuščias\\duomenų aplankas};
+  \node[svc, right=of new] (load) {paleidimo\\scenarijus\\įkelia failą};
+  \node[man, right=of load] (admin) {pirmasis\\administratorius};
+  \node[ai, right=of admin] (embed) {vienas vektorių\\perskaičiavimas};
+  \draw[flow] (live) -- node[lbl, above] {skaito} (copy);
+  \draw[flow] (copy) -- (cut);
+  \draw[flow] (cut) -- (file);
+  \draw[flow] (new) -- (load);
+  \draw[flow] (load) -- (admin);
+  \draw[flow] (admin) -- (embed);
+  \draw[opt] (file.south) |- ([yshift=6mm]load.north) -- (load.north);
+  \node[note, anchor=west] at ([xshift=3mm]file.east) {sukuriama\\veikiančioje\\sistemoje};
+  \node[note, anchor=west] at ([xshift=3mm]embed.east) {naujame\\diegime};
+\end{tikzpicture}
+\actorlegend
+\caption{Kaip naujas diegimas gauna savo teisės aktų bazę. Viršuje: \file{scripts/db_bootstrap_dump.sh}
+nukopijuoja veikiančią duomenų bazę į laikiną konteinerį, ten ją apkarpo ir išsaugo rezultatą
+išklotine; veikiančią duomenų bazę jis tik skaito. Apačioje: naujas diegimas vieną kartą įkelia tą
+failą ir sukuria pirmąjį administratorių, kuris tada paleidžia vienintelį mokamą žingsnį ---
+vektorius, kurių failas neturi.}\label{fig:ops:bootstrap}
+\end{figure}
+
+\paragraph{Ką failas turi.} Scenarijus laiko aštuonių lentelių leidžiamųjų sąrašą (masyvas
+\code{keep} jo SQL kode): \code{django_migrations}, \code{legal_documents},
+\code{legal_document_versions}, \code{legal_units}, \code{legal_chunks}, \code{obligations},
+\code{prompts} ir \code{prompt_versions}. Todėl naujas diegimas prasideda su
+\begin{itemize}
+  \item schema, kurioje kiekviena migracija pažymėta kaip pritaikyta;
+  \item teisės aktų baze: katalogo teisės aktais, kiekvieno ją turinčio akto dabartine redakcija,
+    jos nuostatomis ir fragmentais bei viskuo, kas buvo perskaityta į redakcijų eilutes
+    (apimties ir sankcijų skaitymai, aprašyti \cref{ch:obligations}, yra lentelės
+    \code{legal_document_versions} stulpeliai);
+  \item pareigų registru su vertintojo verdiktais ir peržiūros būsenomis --- 2026 m. lapkričio
+    19 d. išleistame faile 68 teisės aktų 5\,960 pareigų;
+  \item instrukcijomis su jų versijomis, kokios jos buvo išklotinės dieną: 2026~m. lapkričio
+    20~d. faile yra 91 versija, pokalbio instrukcijos --- septynioliktoji.
+\end{itemize}
+
+\paragraph{Ko failas neturi.} Visos kitos lentelės išvalomos: paskyros, sesijos, įmonės ir viskas,
+kas po jomis, ataskaitos, pokalbiai, programos dokumentai, užduotys, veiksmų žurnalas, modelio
+iškvietimų įrašai, kainų podėlis. Kadangi sąrašas įvardija, kas lieka, vėliau į sistemą pridėta
+lentelė išleidžiama tuščia, kol kas nors jos neįtraukia į tą sąrašą, --- pagal nutylėjimą niekas
+nenuteka. Paliktose lentelėse scenarijus pašalina tai, kas priklauso žmonėms ar vienam diegimui:
+įmonės vidaus reikalavimus (pareigas, turinčias įmonę), paliktų eilučių nuorodas į paskyras
+(\code{created_by}, \code{reviewed_by}), naujesnėmis pakeistas teisės aktų redakcijas su jų vienetais ir
+fragmentais ir kiekvieną vektorių. Vektoriai pašalinami dėl dydžio --- SQL tekstu jie sudarė tris
+ketvirtadalius 156~MB failo, kaip rašo \file{docs/markdown/en/operations.md}, --- o kartu išvaloma ir
+\code{embed_model}, todėl konsolė rodo, kurios redakcijos dar laukia savo vektorių. Neįtraukiami
+ir teisės aktų šaltinių failai; kai redakcija paruošta, jų niekas nebeskaito. Apkarpymas vyksta
+vienoje transakcijoje su visais atidėtais išoriniais raktais, todėl palikta eilutė, vis dar
+rodanti į išvalytą lentelę, sužlugdo išklotinės kūrimą veikiančioje sistemoje, o ne diegimą,
+kuris ją įkeltų.
+
+Pagal \file{docs/markdown/en/deployment.md} įkėlimas trunka apie dešimt sekundžių
+--- ilgiau nei atnaujinimo scenarijaus penkių sekundžių laukimas. Todėl pirmą kartą scenarijaus
+\code{migrate} gali nepavykti su pranešimu \enquote{connection refused}; išklotinė jau
+migruota, tad tokia nesėkmė tuomet nekenksminga.
+
+\subsection{Pirmasis administratorius}\label{sec:ops:admin}
+
+Niekas negali užsiregistruoti pats, o kiekvienam paskyrą kuriančiam maršrutui reikia
+administratoriaus. Į tuščią diegimą patenkama valdymo komanda \code{create_admin}
+(\file{users/management/commands/create_admin.py}):
+
+\begin{codeblock}
+read -rsp 'Admin password: ' ADMIN_PASSWORD; echo; export ADMIN_PASSWORD
+docker compose exec -T -e ADMIN_PASSWORD legalops-django \
+    python3 manage.py create_admin --email <address> --password-env ADMIN_PASSWORD
+unset ADMIN_PASSWORD
+\end{codeblock}
+
+Saugyklos šaknyje esantis \file{runCreateAdmin.sh} paklausia adreso bei slaptažodžio ir įvykdo
+būtent tai. Slaptažodis perduodamas aplinkos kintamuoju, kurį nurodo \code{--password-env}, o ne komandų
+eilute, kurioje jį parodytų procesų sąrašas. Kitaip nei konsolėje nustatomam slaptažodžiui,
+mažiausias ilgis jam netaikomas: slaptažodį pasirenka tas, kas serveryje vykdo komandą, o komanda
+atmeta tik tuščią ir ilgesnį nei 72 bcrypt baitai (\code{PASSWORD_MAX_BYTES}). Esamai paskyrai
+komanda nieko nedaro. Su \code{--reset} ji paskyrą vėl padaro aktyvia administratoriaus paskyra ir,
+jei slaptažodis pateiktas, jį nustato ir užbaigia kiekvieną paskyros sesiją; taip atkuriama prieiga
+po užsirakinimo, ir tai įrašoma į veiksmų žurnalą (\code{users.reset_password} arba, jei
+slaptažodis nepateiktas, \code{users.update}) be veikėjo.
+
+\subsection{Vienas vektorių perskaičiavimas}
+
+Administratorius prisijungia, atveria teisės aktų bazės puslapį (\ui{Teisės aktų bazė}) ir jo
+meniu pasirenka \ui{Perskaičiuoti visus vektorius}. Tai per \route{POST}{/api/corpus/reembed} į
+eilę įrašo vieną užduotį, \code{corpus.reembed}. Užduotis (\code{reembed} faile
+\file{corpus/ingest.py}) vektorizavimo modeliui po 64 (\code{EMBED_BATCH}) siunčia kiekvieno teisės
+akto dabartinės redakcijos fragmentus, paskui kiekvienos pareigos lietuvišką ir anglišką tekstą,
+paskui esamų įmonės dokumentų fragmentus --- naujame diegime jų nėra. Ji niekam nepriskiriama.
+2026 m. lapkričio 13 d. teisės aktų bazėje buvo 4\,059 fragmentai ir 5\,960 pareigų;
+\file{docs/markdown/en/deployment.md} užduotį --- apie 4\,100 fragmentų ir 11\,900 pareigų tekstų ---
+vertina keliomis minutėmis ir mažiau nei vienu doleriu; tai jo įvertis, o ne datuotas matavimas.
+Vektorizavimo iškvietimą aprašo \cref{ch:models}.
+
+Kol užduotis neįvykdyta, trys dalykai matomai negerai, ir operatorius turėtų juos atpažinti kaip
+praleisto žingsnio požymius, o ne kaip gedimus: teisės aktų bazės paieška randa tik raktažodžių
+atitikmenis, ataskaita, kurios dokumentų rinkinys per didelis, kad būtų siunčiamas visas, neranda
+įrodymų savo pareigoms (telpantis rinkinys perskaitomas visas, ir vektorių jam nereikia;
+\cref{ch:report}), o teisės akto redakcijų lentelėje ten, kur
+turėtų būti vektorizavimo modelio pavadinimas, rodomas brūkšnys.
+
+Tą pačią užduotį reikia paleisti kaskart, kai pasikeičia \code{AI_EMBED_MODEL}. Dviejų modelių
+vektorių palyginti negalima, todėl užduotis atnaujina visus tris vektorių rinkinius kartu; kintamasis
+nustatomas dviejose vietose (API kopija įrašyta pačiame \file{docker-compose.yml}, asistento
+paslaugos --- imama iš \file{.env}, kur numatytasis yra tas pats modelis), ir abiejose turi būti
+nurodytas tas pats modelis.
+
+\subsection{Rezultato patikra}
+
+\begin{codeblock}
+docker compose ps                       # every container Up
+curl -s http://127.0.0.1/api/health     # {"status": "ok", "service": "legalops-django", ...}
+\end{codeblock}
+
+Pradinė išklotinė
+tokia aktuali, kokia buvo paskutinį kartą ją sukuriant: kai saugyklos numatytosios instrukcijos ar katalogas yra
+naujesni už failą, \code{seed_prompts} ir \code{seed_corpus} prideda tai, ko trūksta, o kas savaitę
+vykdomas atnaujinimas teisės aktus padaro aktualius.
+
+
+\section{Kūrimo ir gamybos režimai}\label{sec:ops:modes}
+
+\file{docker-compose.yml} abu režimus laiko viename faile. Eilutės, priklausančios vienam režimui,
+baigiasi komentaru \texttt{\# Dev} arba \texttt{\# Prod}; pateiktame faile aktyvios kūrimo režimo
+eilutės. Norėdamas pereiti į gamybos režimą, operatorius užkomentuoja kiekvieną eilutę, pažymėtą
+\texttt{\# Dev}, pašalina komentaro ženklą iš kiekvienos eilutės, pažymėtos \texttt{\# Prod}, ir
+paleidžia \file{runUpdateThisStack.sh}. Kas pasikeičia, išvardyta \cref{tab:ops:modes}.
+
+\begin{table}[H]
+\caption{Ką vykdo du Compose failo režimai}\label{tab:ops:modes}
+\begin{tabularx}{\textwidth}{@{}L{27mm}YY@{}}
+\toprule
+\hd{Paslauga} & \hd{Kūrimo (kaip pateikta)} & \hd{Gamybos} \\
+\midrule
+Konsolė ir viešoji svetainė & \file{vite/Dockerfile.dev}: \texttt{npm install} ir Vite kūrimo serveris su prijungtu \file{vite/app}; taip pat tinkle \code{external}. & \file{vite/Dockerfile}: puslapis ir jo scenarijai sukompiliuojami atvaizde (\texttt{npm ci}, vertimų sargas, \texttt{vite build}) ir pateikiami per Caddy; išeities kodas neprijungiamas, tik izoliuotas tinklas. \\
+API & \code{DJANGO_RUNSERVER} yra \code{True}: Django \code{runserver} su prijungtu \file{django}, palaukus duomenų bazės. & Kintamasis nenustatytas: gunicorn su į atvaizdą įdiegtu kodu, suderintas faile \file{django/gunicorn.conf.py}. \\
+Asistento paslauga & \file{assistant/Dockerfile.dev}: \texttt{npm install} ir \code{nodemon} su prijungtu \file{assistant/app}; taip pat tinkle \code{external}. & \file{assistant/Dockerfile}: \texttt{npm ci -{}-omit=dev} ir \texttt{node server.js}; 64~MB laikinoji failų sistema, tik izoliuotas tinklas. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Operatoriui svarbios dvi pasekmės. Kūrimo režime išsaugotas išeities failas iškart perkrauna
+konsolę, asistento paslaugą ir API, bet ne užduočių vykdytojo ciklą: komanda
+\texttt{docker compose restart legalops-worker} paleidžia ciklą su nauju kodu. Be to, kūrimo
+režime asistento paslauga turi antrą tinklą su maršrutu į išorę, todėl jos srautas neapribotas
+išėjimo leidžiamų adresų sąrašu; gamybos režimas tai nutraukia. Gamybos režime kodo pakeitimas
+konteinerius pasiekia tik per atnaujinimo scenarijų. Ką kūrimo režimas kainuoja apsaugos
+požiūriu, pasveria \cref{ch:security}.
+
+
+\section{Atnaujinimas}\label{sec:ops:update}
+
+\begin{codeblock}
+git pull
+./runUpdateThisStack.sh
+docker compose exec legalops-django python3 manage.py seed_prompts
+\end{codeblock}
+
+Scenarijus tas pats kaip diegimo: jis sustabdo visą sistemą, iš naujo sukuria atvaizdus (dėl
+podėlyje esančių sluoksnių vien kodo pakeitimas užtrunka kelias sekundes), viską paleidžia ir
+migruoja duomenų bazę. Nuo \code{down} iki konteinerių grįžimo svetainė nepasiekiama; jei pirma
+paleidžiama \texttt{docker compose build}, atvaizdų kūrimas į šį langą nepatenka. Trečioji eilutė
+privaloma, kai atnaujinimas pakeitė failą aplanke
+\file{prompts/defaults/}: \code{seed_prompts} savaime nepaleidžia niekas
+(\cref{sec:ops:prompts}). Testų rinkinių scenarijus irgi nepaleidžia (\cref{ch:testing}).
+
+Docker stabdomam konteineriui duoda dešimt sekundžių, nes Compose failas nenustato
+\code{stop_grace_period}. Ką tai reiškia vykstančiam darbui:
+
+\begin{itemize}
+  \item \textbf{Pokalbio ėjimas.} Asistento paslauga iškart nustoja priimti ryšius, užklausą per
+    anksčiau atvertą ir vis dar atvirą ryšį atmeta su 503 \code{SHUTTING_DOWN} ir leidžia
+    vykstantiems ėjimams baigtis --- jos pačios kantrybė, \code{SHUTDOWN_GRACE_MS}, yra 190~s,
+    --- bet Docker po dešimties sekundžių procesą nutraukia, ir tuo metu dar srautu siunčiamo
+    ėjimo atsakymas prarandamas.
+  \item \textbf{Užklausa API.} Po dešimties sekundžių dar vykdomos užklausos nutraukiamos.
+  \item \textbf{Užduotis.} Užduočių vykdytojo ciklas yra antras procesas API konteineryje ir
+    žūva kartu su juo. Jo vykdyta užduotis lieka pažymėta kaip vykdoma, kol kitas ciklas
+    neranda, kad jos gyvybės signalas senesnis nei \code{STALE_S} (120~s, \file{jobs/runner.py});
+    tada ji vėl įrašoma į eilę, jei jos rūšis leidžia dar vieną bandymą, o jei ne --- pažymima
+    kaip nepavykusi su pranešimu \enquote{The worker running this job stopped unexpectedly}.
+\end{itemize}
+
+\Cref{tab:ops:jobs} rodo, kurios rūšys gauna antrą bandymą. Dauguma mokamų rūšių --- sąmoningai
+--- jo negauna: pinigus išleidusi užduotis tyliai nevykdoma dukart. Todėl prieš atnaujinimą
+operatorius pažiūri į konsolės užduočių puslapį (\cref{ch:console}) ir neatnaujina, kol vykdoma
+ataskaita ar teisės aktų bazės skaitymas. Ataskaita, kurios užduotis taip baigiasi, pažymima kaip
+nepavykusi per rūšies \code{on_abandon} kabliuką; ką išsaugo nepavykusi ataskaita, aprašyta
+\cref{ch:report}.
+
+\begin{table}[H]
+\caption{Užduočių rūšys, kiek bandymų kiekvienai registruota (\code{max_attempts}) ir kas jas
+paleidžia}\label{tab:ops:jobs}
+\begin{tabularx}{\textwidth}{@{}L{48mm}C{16mm}Y@{}}
+\toprule
+\hd{Rūšis} & \hd{Bandymai} & \hd{Kas paleidžia} \\
+\midrule
+\code{report.analyze} & 1 & Naudotojas, pradedantis atitikties ataskaitą, ir dar kartą, kai patvirtinama jos apimtis. \\
+\code{programme.generate} & 1 & Naudotojas, užsakantis programos dokumentą. \\
+\code{documents.index} & 3 & Kiekvienas dokumento, turinčio tekstą, įkėlimas. \\
+\code{corpus.ingest} & 2 & \code{seed_corpus}, atnaujinimas, teisės aktų bazės puslapyje pridėtas teisės aktas, įkelta akto redakcija. \\
+\code{corpus.refresh_all} & 1 & Savaitinis tvarkaraštis; teisės aktų bazės puslapis. \\
+\code{corpus.reembed} & 1 & Teisės aktų bazės puslapis. \\
+\code{corpus.extract_obligations} & 1 & To paties pavadinimo komanda; teisės akto puslapis. \\
+\code{corpus.verify_obligations} & 1 & To paties pavadinimo komanda; teisės akto puslapis. \\
+\code{corpus.read_sanctions} & 1 & To paties pavadinimo komanda. \\
+\code{ops.maintenance} & 1 & Dienos tvarkaraštis. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Pats savaime iš naujo paleistas užduočių vykdytojas elgiasi geriau nei nužudytas kartu su savo
+konteineriu. Naujas ciklas perskaito dar veikiančio ciklo PID failą ir nusiunčia jam
+\code{SIGTERM} (\code{take_over} faile \file{jobs/management/commands/run_worker.py}); senasis
+ciklas nustoja imti užduotis, jo apdorojimo funkcija sustoja ties artimiausia atšaukimo patikra,
+o jo užduotis grįžta į eilę \emph{neišnaudojusi} bandymo.
+
+Baziniai atvaizdai prisegti žyma, tik ne visi vienodai tiksliai: \code{caddy:2.11-alpine},
+\code{vuknf/caddy-l4:2.11} ir \code{python:3.13-slim} seka smulkiosios versijos liniją,
+\code{docker:27-cli} --- pagrindinės versijos liniją, o \code{node:24.16.0-alpine} (dviejuose
+kūrimo režimo atvaizduose --- \code{node:24.16.0}), \code{postgres:17.11-alpine3.24} ir
+\code{dbgate/dbgate:7.3.3-alpine} nurodo tikslią laidą, todėl naujesnė jų laida atkeliauja
+tik su pakeista žyma.
+\file{docs/markdown/en/operations.md} prašo kartą per mėnesį prieš atnaujinimo scenarijų juos perkurti
+komanda \texttt{docker compose build -{}-pull}, kad būtų įtraukta tai, kas su čia kuriamų atvaizdų
+žymomis paskelbta naujai; atvaizdas, kurį Compose tik atsisiunčia, --- įėjimo, išėjimo, užduočių
+vykdytojo, duomenų bazės įrankio --- atnaujinamas komanda \texttt{docker compose pull}. Nauja
+PostgreSQL 17 smulkioji versija --- tai pakeista žyma faile \file{postgres/Dockerfile} ir
+perkūrimas; naujai pagrindinei versijai duomenų bazę reikia išrašyti ir įkelti į tuščią naujos
+versijos klasterį, ir saugykloje niekas to neautomatizuoja.
+
+
+\section{Teisės aktų bazės priežiūra}\label{sec:ops:corpus}
+
+Teisės aktų bazei reikia keturių rūšių operatoriaus dėmesio: įkelti teisės aktus, kuriais pasipildė
+katalogas, palaikyti teisės aktų aktualumą, pateikti sistemai failą ten, kur ji negali jo
+atsisiųsti, ir paleisti tris mokamus modelio skaitymus, kurių visai teisės aktų bazei niekas nepaleidžia
+savaime (vienam aktui du iš jų administratorius gali paleisti akto puslapyje, o ataskaita pati
+perskaito jai reikalingą dar neskaitytą aktą). Ką
+įkėlimas ir skaitymai daro viduje, aprašo \cref{ch:corpus,ch:obligations}; šis poskyris sako, kada
+juos paleisti, ką jie įrašo į eilę ir kiek kainuoja.
+
+\subsection{Pradinis įkėlimas, atnaujinimas, failo įkėlimas}
+
+\paragraph{Katalogo įkėlimas.} \code{seed_corpus}
+(\file{corpus/management/commands/seed_corpus.py}) perskaito katalogą,
+\file{corpus/catalog.yaml} --- 78 teisės aktus, iš kurių 68 įjungti, --- patikrina kiekvieną įrašą
+ir sukuria dar nesamas teisės aktų eilutes. Kiekvienam naujam, įjungtam teisės aktui, kurio šaltinį
+galima atsisiųsti, jis į eilę įrašo vieną \code{corpus.ingest} užduotį. Esami teisės aktai
+neliečiami: po pirmojo įkėlimo tiesa yra duomenų bazė, ne failas.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py seed_corpus                   # every missing act
+docker compose exec legalops-django python3 manage.py seed_corpus --only mica,dora  # only these slugs
+docker compose exec legalops-django python3 manage.py seed_corpus --no-ingest       # rows only
+\end{codeblock}
+
+Diegimui, pradėtam nuo pradinės išklotinės, komandos reikia tik tada, kai katalogas naujesnis už
+išklotinę. Iš to, kaip ji veikia, kyla vienas perspėjimas: ji iš naujo sukuria ir teisės aktą,
+kurį administratorius ištrynė sąmoningai; tai riboja \code{--only}. Įkėlimas šiek tiek išleidžia
+vektorizavimui, ir tai niekam nepriskiriama: 2026 m. lapkričio 12 d. 24 naujų katalogo teisės aktų
+--- 22 atsisiųstų ir dvejų gairių, kurių failą reikia įkelti (žr. toliau), --- įtraukimas
+duomenų bazės kopijoje truko 89~s ir kainavo 0,08~\$.
+
+\paragraph{Atnaujinimas.} Atnaujinimas teisės aktą iš jo šaltinio atsisiunčia iš naujo; nauja
+redakcija išsaugoma tik tada, kai pasikeitė tekstas (\cref{sec:corpus:unchanged}), todėl nepakitęs
+teisės aktas kainuoja
+vieną užklausą ir nė vieno modelio iškvietimo. ES teisės aktas, kurio redakcijų rodyklė
+neatsako, paliekamas toks, koks yra, o nesėkmė įrašoma kaip paskutinė jo klaida; nauja
+redakcija, kurios tekstą teisės aktas jau yra turėjęs, perima tos ankstesnės redakcijos
+pareigas ir skaitymo rezultatus (\cref{ch:corpus}). Užduočių vykdytojo tvarkaraštis kartą per savaitę į
+eilę įrašo \code{corpus.refresh_all} (\cref{sec:ops:schedule}); ta užduotis įrašo po vieną
+\code{corpus.ingest} kiekvienam įjungtam teisės aktui, kurio šaltinis nėra \code{upload}.
+Administratorius tą patį paleidžia iš teisės aktų bazės puslapio (\ui{Tikrinti visus šaltinius};
+\route{POST}{/api/corpus/refresh-all}) arba vienam teisės aktui --- iš jo puslapio
+(\route{POST}{/api/corpus/documents/{id}/refresh}). Atsisiuntimo moduliai siunčia ne daugiau kaip
+vieną užklausą per sekundę vienam serveriui (\code{MIN_INTERVAL_S} faile
+\file{corpus/fetchers.py}) ir naudoja tik HTTPS.
+
+\paragraph{Teisės aktas, kurio negalima atsisiųsti.} Du įjungti katalogo teisės aktai --- Europos
+bankininkystės institucijos gairės dėl pinigų plovimo rizikos veiksnių ir jų pakeitimas, skirtas
+kriptoturto paslaugų teikėjams, --- turi šaltinį \code{upload}: institucijos svetainės nėra
+išėjimo leidžiamų adresų sąraše, todėl joms nieko neatsisiunčiama. \code{seed_corpus} sukuria jų
+eilutes ir išspausdina, kad jos laukia failo. Administratorius teisės aktų bazės puslapyje atveria
+kiekvieną teisės aktą, iš akto šaltinio nuorodos atsisiunčia lietuvišką PDF ir įkelia jį mygtuku
+\ui{Įkelti naują redakciją}; įkeltas failas tampa laukiančia redakcija, o jo įkėlimas įrašomas į
+eilę. Tas pats mygtukas tinka bet kuriam teisės aktui, kurio šaltinis neveikia, ir taip į teisės
+aktų bazę patenka licencijuotas standartas (\cref{ch:corpus}). Failas gali būti iki 60~MiB
+(\code{MAX_UPLOAD_BYTES} faile \file{corpus/api/views.py}).
+
+\subsection{Trys mokami skaitymai}\label{sec:ops:readings}
+
+Trys valdymo komandos teisės aktų bazę perduoda modeliui. Kiekviena tik \emph{įrašo} užduotis į
+eilę ir iškart grįžta; skaito užduočių vykdytojas, o užduočių puslapis rodo eigą ir klaidas.
+\Cref{tab:ops:readings} jas palygina, o \cref{fig:ops:readings} rodo tvarką, kuria operatorius
+jas naudoja.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=6mm and 5mm]
+  \node[svc] (ingest) {įkelti teisės aktai\\\code{seed_corpus},\\atnaujinimas, failas};
+  \node[ai, right=of ingest] (extract) {\code{extract_}\\\code{obligations}};
+  \node[ai, right=of extract] (verify) {\code{verify_}\\\code{obligations}};
+  \node[man, right=of verify] (review) {peržiūra pareigų\\puslapyje};
+  \node[ai, right=of review] (sanctions) {\code{read_}\\\code{sanctions}};
+  \node[svc, below=14mm of sanctions] (dump) {\code{db_bootstrap_}\\\code{dump.sh}};
+  \draw[flow] (ingest) -- (extract);
+  \draw[flow] (extract) -- (verify);
+  \draw[flow] (verify) -- (review);
+  \draw[flow] (review) -- (sanctions);
+  \draw[opt] (sanctions) -- (dump);
+  \node[note, below=1mm of extract, align=center] {modelis kiekvienoje\\nuostatoje ieško pareigų};
+  \node[note, below=1mm of verify, align=center] {vertintojas lygina\\kiekvieną pareigą\\su jos nuostatomis};
+  \node[note, below=1mm of review, align=center] {žmogus patvirtina,\\pataiso ar atmeta};
+  \node[note, left=3mm of dump, align=right] {kad nauji diegimai\\paveldėtų skaitymus};
+\end{tikzpicture}
+\actorlegend
+\caption{Mokami teisės aktų bazės skaitymai tokia tvarka, kuria juos paleidžia operatorius.
+Sankcijų skaitymas nuo kitų dviejų nepriklauso ir gali būti vykdomas bet kada; čia jis paskutinis,
+nes yra pigiausias ir mažiausiai skubus.}\label{fig:ops:readings}
+\end{figure}
+
+\begin{table}[H]
+\caption{Trys mokami skaitymai, kuriuos paleidžia operatorius. Kiekviena užduotis į eilę įrašoma
+prioritetu $-1$ ir, paleista iš komandų eilutės, niekam nepriskiriama. Kainos --- pavieniai
+datuoti paleidimai veikiančioje sistemoje su \model{gpt-6.1-sol}.}\label{tab:ops:readings}
+\begin{tabularx}{\textwidth}{@{}L{25mm}YYY@{}}
+\toprule
+ & \hd{\code{extract_obligations}} & \hd{\code{verify_obligations}} & \hd{\code{read_sanctions}} \\
+\midrule
+\hd{Instrukcija} & \prompt{corpus.extract_obligations}; standartui \prompt{corpus.extract_requirements} & \prompt{corpus.verify_obligations} & \prompt{corpus.sanctions} \\
+\hd{Į eilę įrašo} & Po vieną užduotį teisės aktui. & Po vieną užduotį teisės aktui. & Vieną užduotį visiems teisės aktams. \\
+\hd{Be argumentų} & Kiekvieną įjungtą teisės aktą, kuris \emph{atsilikęs}: neskaitytas arba skaitytas prieš parašant dabar aktyvią instrukcijos versiją. & Kiekvieną įjungtą teisės aktą su pareigomis, kurių nematė joks vertintojas. & Kiekvieną įjungtą teisės aktą, niekada neskaitytą dėl sankcijų; standartai praleidžiami. \\
+\hd{Su trumpiniais} & Tuos teisės aktus, kad ir kokia jų būsena. & Tuos teisės aktus, kiek juose yra neįvertintų pareigų; su \code{--again} --- visas jų pareigas. & Tuos teisės aktus, kiek jie niekada nebuvo skaityti; su \code{--again} --- visus. \\
+\hd{Tvarka} & Pirma mažiausias teisės aktas. & Pirma mažiausiai pareigų turintis. & Pagal jurisdikciją, paskui pagal trumpinį. \\
+\hd{Išmatuota} & 2026-11-10: 51 teisės aktas, 461 iškvietimas, 23,61~\$, pustrečios valandos. 2026-11-13: 17 teisės aktų, 36 iškvietimai, 4,77~\$. & 2026-11-13: 5\,960 pareigų, 369 iškvietimai, 9,80~\$. & 2026-11-13: 29 iškvietimai, 0,71~\$, 262 pakopos 27 teisės aktuose. 2026-11-19, dar kartą perskaičius kopijoje: 29 iškvietimai, 0,61~\$, 309 pakopos su antrąja instrukcijos versija; 29 iškvietimai, 0,63~\$, 288 pakopos su trečiąja. 2026-11-20 su ketvirtąja: 29 iškvietimai, 0,61~\$, 302 pakopos. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{codebox}{Ką trys komandos patikrina prieš ką nors išleidžiant}
+Visos trys parašytos vienodai (\file{corpus/management/commands/}). Kiekviena suranda aktyvią savo
+instrukcijos versiją ir, jei jos nėra, sustoja su pranešimu \enquote{run
+seed\_prompts first}. Kiekviena išspausdina instrukcijos versiją ir modelį, kuriais bus skaitomi
+teisės aktai, kad ne ta instrukcija išryškėtų dar neišleidus nė cento. Kiekviena atsisako įrašyti
+į eilę antrą užduotį tam pačiam teisės aktui (o sankcijų atveju --- apskritai antrą užduotį), kol
+viena laukia eilėje ar vykdoma. Ir kiekviena pagal nutylėjimą ima tik tai, ko dar trūksta, todėl
+po nesėkmės --- išnaudoto DI tinklų sąsajos biudžeto, sutrikimo --- vėl paleista komanda užbaigia
+darbą ir už nieką nemoka dukart.
+\end{codebox}
+
+\paragraph{Prioritetai.} Užduočių vykdytojas pirmiausia paima eilėje laukiančią aukščiausio
+prioriteto užduotį, o tarp lygių --- seniausią (\code{claim} faile \file{jobs/runner.py}).
+Naudotojų paleisto darbo prioritetas 0 (įkelto dokumento indeksavimo --- 5), trijų komandų $-1$
+(\code{PRIORITY}), o tvarkaraščio $-5$. Todėl ataskaita, įrašyta į eilę vykstant visos teisės aktų
+bazės perskaitymui, vykdoma prieš skaitant kitą teisės aktą, nors ir ne anksčiau, nei baigiamas
+skaityti esamas: vienas ciklas vienu metu vykdo vieną užduotį.
+
+\paragraph{Išskyrimas --- kada teisės aktus reikia perskaityti iš naujo.} Komanda vadinasi
+\code{extract_obligations}. Registro pareigos yra vienos instrukcijos versijos ir vieno modelio
+darbo rezultatas. Pasikeitus išskyrimo instrukcijai ar jos modeliui, kiekvienas teisės aktas tampa
+\emph{atsilikęs} (\code{is_behind} faile \file{corpus/obligations.py} palygina laiką, kada buvo
+perskaityta teisės akto redakcija, su laiku, kada buvo parašyta aktyvi instrukcijos versija), ir
+komanda į eilę įrašo juos visus. Atsilikę yra ir nauji teisės aktų bazės aktai, nors pirmoji
+ataskaita, kuriai toks teisės aktas reikalingas, jį perskaito pati; komanda juos perskaito
+anksčiau už bet kurią ataskaitą.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py extract_obligations             # every act that is behind
+docker compose exec legalops-django python3 manage.py extract_obligations mica dora   # these acts, whatever their state
+\end{codeblock}
+
+Masinio paleidimo užduotis turi požymį \code{only_behind}: jei, atėjus užduoties eilei, teisės aktą
+jau perskaitė ataskaita, užduotis baigiasi kaip praleista, ir už nieką nemokama dukart. Teisės
+aktas išlaiko esamas pasiūlytas pareigas, kol naujas jo išskyrimas sėkmingai neužbaigiamas visas, o
+pareigų, kurias administratorius patvirtino ar atmetė, niekada neliečiama.
+
+\begin{humanbox}{Peržiūra prieš perskaitymą}
+Veiksmų registras (\cref{ch:register}) pareigą atpažįsta pagal jos identifikatorių, o pareiga
+išlaiko savo identifikatorių, kai jos teisės aktas perskaitomas iš naujo, tik jei ją patvirtino
+žmogus; pasiūlyta pareiga pakeičiama. Todėl prieš iš naujo išskirdamas teisės aktą, kurio pareigos
+yra po atvirais veiksmais, operatorius pasirūpina, kad registras būtų peržiūrėtas, --- kitaip tuos
+veiksmus bus galima uždaryti tik rankomis. Tai sprendimas dėl tvarkos, kurį sistema palieka savo
+operatoriui.
+\end{humanbox}
+
+\paragraph{Vertintojas --- prieš registro peržiūrą.} Komanda vadinasi \code{verify_obligations}.
+Vertintojas, antrasis modelio iškvietimas, kiekvieną pareigą palygina su visu jos cituojamų
+nuostatų tekstu ir pažymi ją kaip pagrįstą, iš dalies pagrįstą arba nepagrįstą, pridėdamas pastabą
+(\cref{ch:obligations}). Jis nieko nepatvirtina ir neatmeta: jo verdiktai tik iškelia abejotinus
+įrašus pareigų puslapyje į priekį, kad žmogaus peržiūra prasidėtų ten, kur jos reikia. Komanda
+paleidžiama po išskyrimo ir prieš tą peržiūrą, o su \code{--again} --- dar kartą, kai pasikeičia
+vertintojo instrukcija ar modelis.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py verify_obligations             # every act with unjudged obligations
+docker compose exec legalops-django python3 manage.py verify_obligations --again mica  # judge these anew
+\end{codeblock}
+
+\paragraph{Sankcijos --- kiek gali kainuoti pažeidimas.} Komanda vadinasi \code{read_sanctions}.
+Ataskaita pati perskaito vertinamų teisės aktų sankcijų nuostatas. Komanda skirta likusiai teisės
+aktų bazei: nacionalinį įstatymą, nustatantį baudas už ES reglamento pažeidimus, išvada pagal tą
+reglamentą randa tik tada, kai nacionalinis įstatymas jau perskaitytas. Ji paleidžiama vieną kartą
+po to, kai pridedama teisės aktų, ir su \code{--again} --- pasikeitus instrukcijai. Vienintelė
+užduotis teisės aktus skaito vieną po kito ir sustoja ties pirmuoju, kurio negalima perskaityti;
+iki tol perskaityti teisės aktai išlaiko savo rezultatą, o kitas paleidimas tęsia likusius.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py read_sanctions           # every enabled act never read
+docker compose exec legalops-django python3 manage.py read_sanctions --again   # read all anew
+\end{codeblock}
+
+\begin{lessonbox}{Išmatuota: kiek kainuoja perskaityti visą teisės aktų bazę}
+2026 m. lapkričio 10 d. visi 51 tuo metu įjungti teisės aktai buvo iš naujo perskaityti ieškant
+pareigų su \model{gpt-6.1-sol}: 461 modelio iškvietimas, 23,61~\$, nuo 12:42 iki 15:12~UTC, nė
+vienos nesėkmės, 4\,892 pareigos. Lapkričio 13 d. tą savaitę pridėtų 17 teisės aktų skaitymas kainavo
+36 iškvietimus ir 4,77~\$ ir davė dar 1\,068 pareigas. Paskui vertintojas perskaitė visas
+5\,960 pareigų per 369 iškvietimus už 9,80~\$, o visos teisės aktų bazės sankcijų nuostatoms
+prireikė 29 iškvietimų ir 0,71~\$. Kartu trys 68 teisės aktų bazės skaitymai tomis kainomis
+kainavo apie 39~\$ (iš jų 28,38~\$ --- išskyrimas per 497 iškvietimus) --- daugiau, nei turėjo DI
+tinklų sąsajos komandos biudžetas tą dieną, kai jis
+baigėsi (\cref{sec:ops:budgets}).
+\end{lessonbox}
+
+\subsection{Pradinės išklotinės atnaujinimas}
+
+Po teisės aktų bazės atnaujinimo, išskyrimo ar peržiūros, kurią turėtų paveldėti nauji diegimai,
+operatorius išklotinę sukuria iš naujo:
+
+\begin{codeblock}
+scripts/db_bootstrap_dump.sh
+\end{codeblock}
+
+Scenarijus daro tai, ką aprašo \cref{sec:ops:bootstrap}; pagal \file{docs/markdown/en/operations.md}, kai
+failas buvo 9~MB, jis truko apie
+40~s. Veikianti duomenų bazė tik skaitoma. Naujas failas įtraukiamas į saugyklą kartu su kodu ---
+taip vieną kartą apmokėti skaitymai pasiekia kiekvieną vėlesnį diegimą.
+
+
+\section{Instrukcijų priežiūra}\label{sec:ops:prompts}
+
+Instrukcijos yra duomenų bazės eilutės, redaguojamos konsolėje (\cref{ch:prompts}); saugykla
+pateikia jų numatytąsias versijas kaip YAML failus aplanke \file{prompts/defaults/} --- jų 23. Dvi
+komandos sieja failus, duomenų bazę ir modelius.
+
+\subsection{Pateiktų instrukcijų įkėlimas po atnaujinimo}
+
+\code{seed_prompts} kviečia \code{seed_defaults} iš \file{prompts/store.py}; ši perskaito kiekvieną
+numatytąjį failą, ir ją saugu paleisti kiek norima kartų:
+
+\begin{itemize}
+  \item nesama instrukcija sukuriama, o numatytoji versija tampa jos aktyvia versija;
+  \item instrukcijos pavadinimas, aprašymas, kintamieji ir išvesties schema visada imami iš failo, nes
+    juos skaito kodas;
+  \item anksčiau nematyta numatytoji versija (atpažįstama pagal jos teksto, modelio, temperatūros
+    ir išvesties ribos maišą, \code{default_hash}) tampa nauja instrukcijos versija. Ji iškart
+    aktyvuojama, jei instrukcija vis dar vykdo pateiktą numatytąją versiją. Kur administratorius
+    aktyvavo savo tekstą, nauja numatytoji versija laukia šalia kaip versija, kurią galima
+    palyginti ir aktyvuoti rankomis;
+  \item kur administratorius paliko numatytosios versijos tekstą, bet pasirinko kitą modelį ar
+    kitus parametrus, naujas tekstas aktyvuojamas su tais parametrais.
+\end{itemize}
+
+Komanda išspausdina, kurios instrukcijos buvo sukurtos, kurios atnaujintos ir kurios laukia. Ji
+paleidžiama rankomis po atnaujinimo, ir niekas kitas jos nepaleidžia. Pamiršus ją po
+atnaujinimo, esamos instrukcijos be jokios klaidos lieka su ankstesniais tekstais. Atnaujinimo
+pridėtos instrukcijos nėra, kol komanda nepaleista, kaip nėra ir jokios instrukcijos duomenų bazėje,
+kuri nebuvo pradėta nuo pradinės išklotinės: užduoties etapas, kuriam jos reikia, nepavyksta su
+pranešimu \enquote{Prompt '…' has no active version}.
+
+Prieš paleidžiant komandą didelei teisės aktų bazei verta žinoti vieną šalutinį poveikį: nauja
+aktyvi išskyrimo instrukcijos versija kiekvieną teisės aktą padaro \emph{atsilikusiu}, todėl kitas
+\code{extract_obligations} be argumentų pasiūlo vėl perskaityti visą teisės aktų bazę
+(\cref{sec:ops:readings}).
+
+\subsection{Matavimas prieš keičiant instrukciją ar modelį}
+
+Testų rinkiniai (\cref{ch:testing}) veikia su modelio imitacija ir įrodo, kad veikia sujungimai. Ką
+instrukcijos ar jos modelio pakeitimas daro modelio atsakymams, matuoja \code{eval_prompts}
+(\file{prompts/management/commands/eval_prompts.py}): ji pažymėtus atvejus pateikia tikram
+modeliui per tas pačias funkcijas, kurias kviečia produktas (žymas yra uždėjęs DI modelis, žmogus
+jų dar nepatvirtino). Rinkinius ir jų atvejus aprašo \cref{ch:control}; šis poskyris --- operatoriaus
+pusė.
+
+\begin{codeblock}
+docker compose exec legalops-django python3 manage.py eval_prompts            # every suite
+docker compose exec legalops-django python3 manage.py eval_prompts verify     # one suite
+docker compose exec legalops-django python3 manage.py eval_prompts --record   # accept the scores as the baseline
+\end{codeblock}
+
+\begin{table}[H]
+\caption{Šeši \code{eval_prompts} vertinimo rinkiniai ir baziniai rezultatai, įrašyti į
+\file{prompts/evals/baseline.json} 2026 m. lapkričio 12 d. (sankcijų rinkinys dar kartą ---
+lapkričio 20 d., ketvirtajai jo instrukcijos versijai ir su šešiolika atvejų), visi su
+\model{gpt-6.1-sol}}\label{tab:ops:suites}
+\begin{tabularx}{\textwidth}{@{}L{22mm}L{47mm}YL{22mm}@{}}
+\toprule
+\hd{Rinkinys} & \hd{Kurią instrukciją matuoja} & \hd{Ko klausia atvejis} & \hd{Bazinis rezultatas} \\
+\midrule
+\code{verify} & \prompt{corpus.verify_obligations} & Ar ši nuostata nustato šią pareigą? & 14 iš 14 \\
+\code{scope} & \prompt{corpus.scope} & Kam taikomas paties teisės akto tekstas? & 9 iš 9 \\
+\code{citations} & \prompt{corpus.check_citations} & Ar šis straipsnis reguliuoja tai, ką jam priskiria dokumentas? & 19 iš 20 \\
+\code{gap} & \prompt{report.gap_analysis} & Ar pavyzdinės įmonės dokumentai atitinka šią pareigą? & 67 iš 71, leistinas nuokrypis 2 \\
+\code{applicability} & \prompt{report.applicability} & Ar šis teisės aktas taikomas šiai įmonei? & 19 iš 19 \\
+\code{sanctions} & \prompt{corpus.sanctions} & Kiek gali kainuoti šio straipsnio pažeidimas? & 16 iš 16 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Kiekvienam rinkiniui komanda išspausdina kiekvieną atvejį, kurį modelis atsakė neteisingai, su
+tuo, ko buvo tikimasi, ir tuo, ką jis atsakė, paskui rezultatą šalia bazinio, o pabaigoje --- kiek
+kainavo nuo paleidimo pradžios atlikti modelio iškvietimai (įrašytų iškvietimų suma, todėl
+įskaičiuojami ir tuo pat metu vykdomo kito darbo iškvietimai). Ji baigiasi klaida, kai rinkinio
+rezultatas žemesnis už bazinį. Rinkinys, kurio atsakymai nuo paleidimo iki paleidimo šiek tiek
+svyruoja, savo bazinio rezultato įraše turi \code{slack} --- leistiną nuokrypį, t.~y. kiek atvejų
+paleidimas gali prarasti, kol nepavyksta: spragų rinkiniui 2. Su \code{--record} rezultatai
+įrašomi kaip naujas bazinis rezultatas kartu su instrukcijos versija, modeliu ir data, kurie juos
+pasiekė, ir komanda nesibaigia klaida. Versija įvardijama numeriu, kurį ji turi bazinį rezultatą
+įrašiusio diegimo duomenų bazėje, ir tai padaryta sąmoningai: ta pati formuluotė kitame diegime
+gali turėti kitą numerį (\cref{ch:control}).
+
+Visas šešių rinkinių paleidimas, išmatuotas 2026~m. lapkričio 12~d., kainavo apie dolerį, o beveik
+pusę tos sumos, 0,42~\$, sudarė spragų rinkinys (\file{docs/markdown/en/operations.md}).
+Rinkiniai \code{scope}, \code{citations}, \code{applicability} ir
+\code{sanctions} skaito šio diegimo teisės aktų bazę, todėl jiems reikia teisės aktų, kuriuos
+nurodo jų atvejai; atvejis, kurio teisės akto trūksta, laikomas nepavykusiu ir nurodo priežastį.
+Spragų rinkinys atsineša savo įmonę: \demo{} įmonės 26 politikos ir profilis laikomi šalia atvejų aplanke
+\file{prompts/evals/data/1009-ltd}, todėl kiekviename diegime jis vertina tuos pačius dokumentus.
+
+\begin{humanbox}{Bazinio rezultato įrašymas yra žmogaus sprendimas}
+Tvarka tokia: paleisti rinkinius, pakeisti instrukciją ar modelį, paleisti juos dar kartą,
+perskaityti kiekvieną klaidą. Tik tada žmogus sprendžia, ar nauji rezultatai yra tas lygis,
+kurio turės laikytis būsimi pakeitimai, ir juos įrašo. Klaida gali reikšti ir tai, kad neteisinga
+žyma; žyma panaikinama redaguojant jos atvejo failą, o tai yra saugyklos pakeitimas, matomas jos
+istorijoje.
+\end{humanbox}
+
+
+\section{Biudžetai ir kvotos}\label{sec:ops:budgets}
+
+Tarp naudotojo ir DI tinklų sąsajos sąskaitos ar serverio disko stovi keturios ribos; jos
+išvardytos nuo išorinės.
+Kaip iškvietimas įkainojamas ir įrašomas, paaiškina \cref{ch:models}; čia --- ribos, kurias
+nustato operatorius, ir kiekvienos požymiai.
+
+\begin{table}[H]
+\caption{Išlaidų ir saugojimo ribos ir kas nutinka pasiekus kiekvieną}\label{tab:ops:limits}
+\begin{tabularx}{\textwidth}{@{}L{30mm}L{36mm}Y@{}}
+\toprule
+\hd{Riba} & \hd{Kur nustatoma} & \hd{Kas nutinka ją pasiekus} \\
+\midrule
+DI tinklų sąsajos komandos biudžetas & DI tinklų sąsajoje, raktui; niekas šioje sistemoje jo nekeičia. & DI tinklų sąsaja į kiekvieną iškvietimą atsako HTTP 402. Pokalbis rodo \code{AI_BUDGET_EXHAUSTED}; užduočių etapai nepavyksta su tuo pačiu kodu ir nekartojami. \\
+Naudotojo dienos biudžetas & \code{LLM_DAILY_BUDGET_USD} (numatytasis 10.0; 0 reiškia neribotą) arba kiekvienai paskyrai naudotojų puslapyje (\ui{Naudotojai}). & Pokalbio ėjimas atmetamas su 429 \code{BUDGET_EXCEEDED}; taip pat instrukcijos bandomasis paleidimas, o ataskaitos ar programos dokumento pradžia --- kai lieka mažiau nei 0,25~\$. \\
+Naudotojo įkėlimų kvota & \code{UPLOAD_QUOTA_FILES} (1000) ir \code{UPLOAD_QUOTA_BYTES} (2~GiB). & Įkėlimas atmetamas su 413 \code{QUOTA_EXCEEDED}. Ištrintas dokumentas atlaisvina savo dalį. \\
+Vieno failo dydis & \code{MAX_FILE_BYTES}, 50~MiB, dokumentui ar pokalbio priedui; \code{MAX_UPLOAD_BYTES}, 60~MiB, teisės aktui. & Įkėlimas atmetamas. Konsolė didesnio failo atsisako dar prieš siųsdama. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Komandos biudžetas} yra griežta viso diegimo riba, ir ne sistemai ją didinti.
+
+\begin{lessonbox}{Pastebėta 2026 m. rugsėjo 27 d.}
+DI tinklų sąsaja atmetė kiekvieną iškvietimą su pranešimu \enquote{Team budget exceeded: 10.18 >=
+10.00 dollars} (\file{docs/markdown/en/operations.md}). Tada rakto biudžetas buvo dešimt dolerių. Produktas
+šią būklę visur vadina vienu kodu, \code{AI_BUDGET_EXHAUSTED}; užduoties etapas, su ja susidūręs,
+iškart nepavyksta, užuot kartojęs, o teisės aktų bazės komandos pagal nutylėjimą ima tik tai, ko
+dar trūksta, todėl jos nutrauktas paleidimas užbaigiamas komandą paleidus dar kartą.
+\end{lessonbox}
+
+\paragraph{Dienos biudžetas} neleidžia vienai paskyrai ištuštinti bendro rakto. Jis skaičiuojamas
+kiekvienai paskyrai ir kiekvienai UTC dienai pagal įrašytą tos paskyros modelio iškvietimų kainą
+(\code{budget_status} faile \file{assistant/usage.py}). Paskyros nuosava suma, jei ją nustatė
+administratorius, pakeičia diegimo numatytąją; administratoriai neriboti, nebent jiems nustatyta
+suma. Skaičiuojamas kiekvienas paskyrai įrašytas iškvietimas: pokalbio ėjimai, jos ataskaitų ir
+programos dokumentų etapai, instrukcijų bandomieji paleidimai, modelio dalis nuorodų patikroje,
+jos įkeltų failų vektorizavimas ir skaitymai, kuriuos administratorius paleidžia iš teisės akto
+puslapio. Bendras darbas su teisės aktų baze niekam nepriskiriamas: pareigų išskyrimas ataskaitos
+viduje, operatoriaus iš komandų eilutės paleisti skaitymai, įkėlimas ir vektorių perskaičiavimas.
+
+Trys elgsenos pasiekus ribą yra sąmoningos. Ataskaita atmetama tik jos pradžioje ir tada, kai
+patvirtinama jos apimtis; jau prasidėjęs vykdymas niekada nesustabdomas pusiaukelėje, todėl
+paskyra dieną gali baigti viršijusi biudžetą vieno vykdymo kaina. Nuorodų patikra paskyrai, kuriai
+nieko neliko, nesibaigia nesėkme: ji vertina antraštes pagal žodžių sutapimą, užuot klaususi modelio.
+Ir įkelto failo indeksavimas taip pat nesibaigia nesėkme: užduotis \code{documents.index} pati save vėl
+įrašo į eilę 00:05~UTC, praėjus penkioms minutėms po biudžeto nunulinimo (\code{RESUME_AFTER_RESET} faile
+\file{companies/indexing.py}), o jos rezultatas užduočių puslapyje sako, kad ji laukia dienos
+biudžeto.
+
+\paragraph{Kvotos ir biudžetas kartu.} \file{docs/markdown/en/operations.md} apskaičiuoja blogiausią
+atvejį, kurį leidžia numatytosios reikšmės: viena paskyra, užpildžiusi savo 1000 failų ir 2~GiB
+kvotą tekstu, vektorizavimo modelio kainomis sukelia maždaug nuo 65~\$ iki 195~\$ vektorizavimo
+išlaidų --- bet per vieną dieną niekada ne daugiau nei savo dienos biudžetą, nes indeksavimas
+laukia nunulinimo. Paskyra, kuri cikle įkelia ir trina, kasdien išleidžia savo dienos biudžetą ir
+ne daugiau. Tai rodo konsolės DI sąnaudų puslapis; priemonės --- mažesnis paskyros biudžetas,
+mažesnė kvota arba paskyros išjungimas.
+
+\paragraph{Prisijungimo bandymai} taip pat riboti, nors nieko nekainuoja: dešimt vienai paskyrai
+per dešimt minučių (\code{EMAIL_LIMIT}, \code{EMAIL_WINDOW_S} faile \file{users/api/auth_views.py})
+ir \code{LOGIN_RATE_PER_IP}, numatytasis 60, vienam kliento adresui per minutę. Veikiančiame
+serveryje dauguma lankytojų ateina vienu adresu ir dalijasi tuo antruoju langu
+(\cref{ch:security}). Pokalbis leidžia
+\code{RATE_LIMIT_TURNS}, 12, ėjimų vienam naudotojui per minutę.
+
+
+\section{Suplanuoti darbai}\label{sec:ops:schedule}
+
+Cron konteinerio nėra. Pats užduočių vykdytojo ciklas tarp užduočių ir ne dažniau kaip kas 60~s
+pažiūri į nedidelę lentelę (\code{SCHEDULE} faile \file{jobs/schedule.py},
+\code{SCHEDULE_EVERY_S} faile \file{jobs/management/commands/run_worker.py}) ir įrašo rūšį į eilę,
+kai naujausia tos rūšies užduotis --- kad ir kokia jos būsena ir kas ją paleido --- sukurta prieš
+ilgesnį laiką nei rūšies intervalas. Rūšis, kuri dar laukia eilėje ar vykdoma, niekada neįrašoma
+dukart. Suplanuotos dvi rūšys, abi prioritetu $-5$, žemiau už visa kita:
+
+\begin{itemize}
+  \item \code{corpus.refresh_all}, kas septynias dienas (\cref{sec:ops:corpus}). Administratoriaus
+    rankomis paleista visų šaltinių patikra septynias dienas pradeda skaičiuoti iš naujo.
+  \item \code{ops.maintenance}, kasdien (\cref{tab:ops:maintenance}).
+\end{itemize}
+
+\begin{table}[H]
+\caption{Ką šalina kasdienė priežiūros užduotis (\file{ops/maintenance.py}). Užduoties
+rezultatas užduočių puslapyje nurodo kiekvieno skaičių.}\label{tab:ops:maintenance}
+\begin{tabularx}{\textwidth}{@{}L{38mm}YL{45mm}@{}}
+\toprule
+\hd{Kas} & \hd{Taisyklė} & \hd{Konstanta} \\
+\midrule
+Pasibaigusios sesijos & Sesijos, kurių galiojimas baigėsi. & --- (sesija gyvuoja \code{SESSION_DAYS}, 30) \\
+Senos užduotys ir jų etapai & Baigtos, nepavykusios ar atšauktos daugiau nei prieš 90 dienų --- išskyrus užduotį, į kurią rodo ataskaita: ji laikoma tol, kol yra ataskaita. Dviem dalimis rengtos ataskaitos atveju tai antrosios dalies užduotis; pirmosios dalies užduotis šalinama kaip bet kuri kita (\cref{ch:arch}). & \code{JOB_RETENTION_DAYS} \\
+Seni modelio iškvietimų įrašai & Senesni nei 400 dienų. Pokalbio iškvietimo įraše yra tai, kas buvo pasakyta, todėl tai kartu ir šios pokalbio turinio kopijos saugojimo terminas. & \code{TELEMETRY_RETENTION_DAYS} \\
+Niekam nepriklausantys failai &Dokumentų aplanko failai, kurių nenurodo jokia dokumento eilutė ir kurie senesni nei šešios valandos: tai, ką palieka gedimas tarp failo ir eilutės įrašymo. & \code{ORPHAN_GRACE_HOURS} \\
+Pasibaigę užklausų ribojimo langai & Užklausų ribų skaičiavimo langai, kurių laikas baigėsi. & --- \\
+Nepanaudoti pokalbio įkėlimai & Dokumentai be įmonės, senesni nei septynios dienos, kurių nenurodo jokia pokalbio žinutė: į pokalbį įmestas, bet neišsiųstas failas. Ne daugiau kaip 500 per paleidimą. & \code{ORPHAN_UPLOAD_DAYS}, \code{ORPHAN_UPLOAD_BATCH} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Užduotis turi vieną bandymą; nepavykusį paleidimą dar kartą bando kitos dienos tvarkaraštis.
+
+
+\section{Būklė, žurnalai ir gedimų šalinimas}\label{sec:ops:health}
+
+\paragraph{Būklės patikra.} \route{GET}{/api/health} (\code{health} faile \file{ops/api/views.py})
+sąmoningai vieša --- ji neneša jokių duomenų, o patikros, kuriai reikia prisijungimo duomenų,
+niekas neprijungia. Ji tikrina parengtį: duomenų bazė turi atsakyti į paprastą užklausą, o į
+įkeltų failų aplanką turi būti galima rašyti.
+
+\begin{codeblock}
+200  {"status": "ok", "service": "legalops-django", "database": "ok", "uploads": "ok"}
+503  {"status": "error", "service": "legalops-django", "reason": "database",
+      "database": "error", "uploads": "ok"}
+\end{codeblock}
+
+Atsakymas įvardija, kuri patikra nepavyko, bet niekada --- kodėl: išimties tekstas pašaliniam
+atskleistų serverių vardus ir kelius, todėl priežastis yra žurnale. Asistento paslauga turi savo
+patikrą, \code{/health} savo prievade izoliuotame tinkle, kuri atsako, ar sukonfigūruotas modelis,
+kurie tiekėjai turi prisijungimo duomenis ir kiek pokalbio ėjimų vyksta; ji nepaskelbta per
+įėjimą. Užduočių vykdytojo ciklas kiekvienos iteracijos metu ir per ilgas užduotis paliečia gyvybės
+signalo failą (\file{/tmp/worker-heartbeat}); šiandien jo niekas neskaito. Aiškiausias gyvo
+užduočių vykdytojo požymis --- užduotis, paliekanti eilę.
+
+\paragraph{Žurnalai.} Kiekvienas konteineris rašo į savo standartinę išvestį;
+\texttt{docker compose logs} ją skaito. Šių žurnalų nerotuoja nei Compose failas, nei
+Docker tarnyba, todėl jie auga, kol konteineris pašalinamas, o tai daro kiekvienas atnaujinimas.
+Įėjimas kiekvienai užklausai rašo vieną JSON eilutę su būsena ir trukme. API rašo \code{INFO} lygiu
+formatu, nustatytu faile \file{settings.py}; gamybos režime gunicorn prideda prieigos eilutę. Užduočių
+vykdytojo konteinerio žurnalas yra ciklo žurnalas, nes konteineris tik vykdo ciklą. PostgreSQL
+registruoja sakinius, lėtesnius nei dvi sekundės (\code{log_min_duration_statement=2000}).
+
+\begin{codeblock}
+docker compose logs -f --tail 100 legalops-django     # follow the API
+docker compose logs -f legalops-worker                # follow the job loop
+\end{codeblock}
+
+Viskam, kas susiję su modeliu, konsolė yra geresnis žurnalas: užduočių puslapis rodo kiekvieną
+užduoties etapą su jo klaida, o DI sąnaudų puslapis --- kiekvieną įrašytą modelio iškvietimą su
+jo kaina (\cref{ch:console}).
+
+\paragraph{Dažnos nesėkmės.} \Cref{tab:ops:trouble} išvardija nesėkmes, su kuriomis operatorius
+greičiausiai susidurs, --- daugumą iš \file{docs/markdown/en/operations.md}, kiekvieną patikrintą pagal kodą,
+kuris sukuria pranešimą.
+
+\begin{xltabular}{\textwidth}{@{}L{43mm}YL{42mm}@{}}
+\caption{Dažnos nesėkmės, ką kiekviena reiškia ir ką daryti}\label{tab:ops:trouble}\\
+\toprule
+\hd{Kas matoma} & \hd{Ką tai reiškia} & \hd{Ką daryti} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Kas matoma} & \hd{Ką tai reiškia} & \hd{Ką daryti} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Įėjimas atsako 502 & Paslauga už to kelio neveikia arba dar pasileidžia --- atnaujinimo metu, kol ji grįžta. & \texttt{docker compose ps}, paskui paslaugos žurnalai. \\
+403 su tuščiu turiniu kiekvienai užklausai iš kitos svetainės & Įėjimas atmeta užklausą, kurios antraštė \code{Origin} nesibaigia serveriu, kuriam ji siųsta. & Taip ir turi būti. Priekyje stovintis tarpinis serveris turi perduoti naršyklės siųstą antraštę \code{Host}. \\
+Atnaujinimo scenarijus baigiasi migracijos klaida & Pirmo diegimo metu duomenų bazė dar įkėlinėjo pradinę išklotinę: nekenksminga. Kitaip --- nepavyko migracija, ir sistema veikia su sena schema. & API konteineryje dar kartą paleisti \texttt{manage.py migrate}. \\
+Užduoties etapas nepavyksta su \enquote{Prompt '…' has no active version} & Duomenų bazė nepradėta nuo pradinės išklotinės, ir \code{seed_prompts} niekada nepaleista. & Paleisti \code{seed_prompts}. \\
+Užduotys lieka eilėje & Neveikia joks užduočių vykdytojo ciklas: užduočių vykdytojo konteineris paleidžiamas iš naujo arba neveikia API konteineris. & Užduočių vykdytojo žurnalas; \file{/tmp/worker.pid} API konteineryje. \\
+Būklės patikra atsako 503 su priežastimi \code{database} & PostgreSQL neveikia, \code{DATABASE_URL} slaptažodis nėra rolės slaptažodis arba užimti visi ryšiai (\enquote{too many clients already} API žurnale). & Duomenų bazės konteinerio žurnalas; užimtus ryšius atlaisvina API konteinerio paleidimas iš naujo. \\
+Būklės patikra atsako 503 su priežastimi \code{uploads}; įkėlimai nepavyksta su \enquote{Permission denied} & \file{_DATA/django} failai priklauso root. & Atiduoti aplanką naudotojui 1000; tai daro atnaujinimo scenarijus. \\
+PostgreSQL vis paleidžiamas iš naujo, skųsdamasis duomenų katalogo savininku ar teisėmis & \file{_DATA/postgres} savininkas nėra naudotojas 1000 arba teisės nėra 700. & Pataisyti savininką ir teises. \\
+Pokalbis atsako 503 & Nėra DI tinklų sąsajos rakto arba aktyvios \prompt{chat.assistant} versijos. & Nustatyti \code{AI_GATEWAY_KEY}; paleisti \code{seed_prompts}. \\
+\code{AI_BUDGET_EXHAUSTED} pokalbyje; užduočių etapai nepavyksta su būsena 402 & Išnaudotas DI tinklų sąsajos komandos biudžetas. & Pasirūpinti, kad DI tinklų sąsajoje biudžetas būtų padidintas; tada nutrauktą darbą paleisti dar kartą. \\
+\code{BUDGET_EXCEEDED} (429) & Išnaudotas paties naudotojo dienos biudžetas. & Palaukti iki 00:00~UTC arba padidinti paskyros biudžetą naudotojų puslapyje. \\
+Pokalbis sako, kad asistentas paleidžiamas iš naujo (\code{SHUTTING_DOWN}) & Atnaujinimas iš naujo paleidžia asistento paslaugą. & Palaukti kelias sekundes. \\
+Teisės aktas nepavyksta su \enquote{Cannot reach <host> … is it on the egress allowlist?} & Išėjimas neturi to serverio sąraše arba API konteineris neturi jam prisegto adreso. & \Cref{sec:ops:secrets}. \\
+Prisijungimas atsako 429 \code{RATE_LIMITED} & Dešimt bandymų paskyrai per dešimt minučių arba pasiekta riba vienam adresui. & Palaukti tiek, kiek nurodo antraštė \code{Retry-After}. \\
+Pokalbio atsakymas ateina visas iš karto arba nutrūksta & Priekyje stovintis tarpinis serveris buferizuoja srautą arba jo skaitymo laiko riba per trumpa. & \Cref{sec:ops:runs}. \\
+Dokumentas lieka \ui{Teksto nėra} & Skenuotas PDF be teksto sluoksnio; sistema neturi OCR. & Įkelti PDF su tekstu arba DOCX. \\
+Ataskaita, kurios dokumentų rinkinys per didelis, kad būtų siunčiamas visas, niekur neranda įrodymų; teisės aktų bazės paieška randa tik tikslius žodžius & Teisės aktų bazė niekada nebuvo vektorizuota. & Vienas vektorių perskaičiavimas (\cref{sec:ops:install}). \\
+Dokumento indeksavimo užduotis sako, kad laukia dienos biudžeto & Įkėlėjo biudžetas išnaudotas; užduotis grįžta 00:05~UTC. & Nieko arba padidinti biudžetą. \\
+Pakeistas \file{endpoint/Caddyfile} ar \file{exit/Caddyfile} neveikia & Konteineris vis dar vykdo seną failą. & Paleisti tą konteinerį iš naujo. \\
+\end{xltabular}
+
+
+\section{Pavyzdinės įmonės scenarijus}\label{sec:ops:demo}
+
+\file{scripts/demo_1009.py} sukuria kurso pavyzdinę įmonę per viešą API, kaip naudotojas tai
+darytų per konsolę, todėl kartu patikrina, ar naujas diegimas veikia nuo prisijungimo iki į eilę
+įrašytos ataskaitos. Jis prisijungia su prisijungimo duomenimis, nurodytais \code{ADMIN_EMAIL} ir
+\code{ADMIN_PASSWORD}, o tada:
+
+\begin{enumerate}
+  \item tarp paskyros nuosavų įmonių suranda įmonę \enquote{1009 LTD (demo)} arba sukuria ją su
+    profiliu --- Lietuvos kriptoturto paslaugų teikėja, uždaroji akcinė bendrovė (UAB), kurioje
+    dirba 40 darbuotojų, --- ir įrašo jos MiCA licenciją kaip leidimą su būsena \code{claimed}, su
+    pastaba, kad politikos ją mini be numerio;
+  \item įkelia kiekvieną pavyzdžio aplanko --- pačios saugyklos kopijos
+    \file{django/compliance/prompts/evals/data/1009-ltd/documents} arba \code{MATERIALS} nurodyto
+    aplanko --- Markdown failą, kurio įmonė dar neturi,
+    kaip \code{policy} rūšies dokumentą (pavyzdyje jų 26: 13 apie informacijos saugumą ir 13 apie
+    finansines technologijas) ir iki 15 minučių laukia, kol užduočių vykdytojas juos suindeksuos;
+  \item su \code{--analyse} paprašo ataskaitos, apribotos septyniais teisės aktais, --- tais, kurių
+    trumpieji pavadinimai MiCA, DORA, TFR, AMLR, PPTFPĮ, KRĮ ir GDPR, --- kainos įverčio,
+    išspausdina jį ir pradeda tą ataskaitą lietuvių kalba.
+\end{enumerate}
+
+Scenarijų saugu paleisti dar kartą: jis pakartotinai naudoja įmonę ir praleidžia jau įkeltus
+failus. Jam reikia tik Python su biblioteka \code{requests}, kurią turi API atvaizdas; jo antraštėje
+nurodyta komanda, kuria jis paleidžiamas tame atvaizde. Numatytasis politikų aplankas yra
+pačios saugyklos pavyzdžio kopija: 26 failai aplanke
+\file{prompts/evals/data/1009-ltd/documents}. Indeksavimas
+kainuoja centus; ataskaita kainuoja tiek, kiek išspausdina įvertis, ir abu priskiriami paskyrai, su
+kuria scenarijus prisijungia (išmatuotus šios įmonės ataskaitos skaičius pateikia \cref{ch:report}).
+
+
+\section{Trumpai apie paslaptis ir išėjimo leidžiamų adresų sąrašą}\label{sec:ops:secrets}
+
+Kodėl paslaptys ir leidžiamų adresų sąrašas sutvarkyti taip, kaip sutvarkyti, paaiškina
+\cref{ch:security}. Operatoriaus darbas su jais trumpas.
+
+\paragraph{Paslapties keitimas.} Compose perskaito \file{.env} tik kurdamas konteinerį, todėl
+kiekvienas keitimas baigiamas komanda \texttt{docker compose up -d}, kuri iš naujo sukuria
+konteinerius, kurių reikšmės pasikeitė.
+
+\begin{table}[H]
+\caption{Paslaptys, kur kiekviena laikoma ir ką daro jos pakeitimas}\label{tab:ops:secrets}
+\begin{tabularx}{\textwidth}{@{}L{42mm}L{30mm}Y@{}}
+\toprule
+\hd{Paslaptis} & \hd{Kur laikoma} & \hd{Keitimas} \\
+\midrule
+\code{AI_GATEWAY_KEY} & \file{.env} & Redaguojama rankomis, kai DI tinklų sąsaja išdavė naują raktą; asistento paslauga sukuriama iš naujo ir jį naudoja. \\
+\code{ASSISTANT_INTERNAL_SECRET} & \file{.env} & Nauja atsitiktinė reikšmė; API ir asistento paslauga sukuriamos iš naujo kartu, o vidiniai iškvietimai tas kelias sekundes tarp jų nepavyksta. \\
+\code{DJANGO_SECRET_KEY} & \file{.env} & Nauja atsitiktinė reikšmė. Naudotojai nieko nepastebi: sesijos yra prieigos raktai, saugomi kaip maišos, ir šiuo raktu nieko nešifruojama. \\
+\code{DBGATE_PASSWORD} ir \code{DBGATE_AUTH_HEADER} & \file{.env} & Abi eilutės ištrinamos; kito paleidimo metu atnaujinimo scenarijus sugeneruoja naują porą. \\
+Duomenų bazės rolės slaptažodis & \file{docker-compose.yml} & Keičiamas PostgreSQL komanda \texttt{ALTER ROLE} ir trijose vietose, kuriose jį rašo Compose failas: \code{DATABASE_URL}, \code{POSTGRES_PASSWORD} ir duomenų bazės įrankio, kuris prisijungia ta pačia role, \code{PASSWORD_con1}. \file{docs/markdown/en/operations.md} pateikia komandas, kurios naują reikšmę perduoda per aplinką, niekada ne komandų eilute. \\
+Administratoriaus slaptažodis & Duomenų bazėje, maišos pavidalu & Keičiamas konsolėje; po užsirakinimo --- \texttt{create\_admin -{}-reset} (\cref{sec:ops:install}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Kaip leisti jungtis prie naujo serverio.} Izoliuoto tinklo konteineris išorinį serverį pasiekia
+tik tada, kai yra du dalykai: \file{exit/Caddyfile} blokas, kuris atpažįsta serverio vardą TLS
+pasisveikinime ir persiunčia į to serverio 443 prievadą, ir naudojančios paslaugos
+\code{extra_hosts} eilutė faile \file{docker-compose.yml}, nukreipianti vardą į išėjimo adresą
+172.28.10.30. Tada \texttt{docker compose up -d} iš naujo sukuria naudojančią paslaugą, o išėjimas
+paleidžiamas iš naujo, nes pasikeitė tik jo failas. Šiandien išėjimo sąraše keturi vardai: DI
+tinklų sąsaja ir trys teisės aktų šaltiniai. Konsolėje užregistruotam išoriniam MCP serveriui jo
+serverį reikia pridėti taip pat, kitaip jo ryšio patikra nepavyksta. Pagal
+\file{docs/markdown/en/operations.md}, dviejų šaltinių sąraše nėra sąmoningai: \code{eur-lex.europa.eu} ir
+\code{e-seimas.lrs.lt} į automatines užklausas atsako naršyklės patikra, kurios atsisiuntimo
+modulis įveikti negali.
+
+\paragraph{Kas paliekama operatoriui.} \file{docs/markdown/en/operations.md} baigiasi kontroliniu sąrašu
+to, ko nepadengia joks kodas, --- tarp jų kliento adresas, kurį perduoda išorinis tarpinis
+serveris, pačios prieglobos įrankiai, galintys skaityti projekto aplanką,
+perėjimas į gamybos režimą ir duomenų bazės įrankis. \Cref{ch:security} juos aptaria kaip
+likutines rizikas.

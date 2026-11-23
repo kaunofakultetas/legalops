@@ -1,0 +1,489 @@
+% ============================================================
+%  [*] preamble — the look and the vocabulary of the document
+%      (Lithuanian edition: the same preamble as docs/latex/en,
+%      with the language, the captions, the references and the
+%      printed labels in Lithuanian — see the block at the end)
+%
+%  Everything the chapters share: the page, the typefaces, the
+%  colours of the product, the inline macros, the boxes that
+%  mark who does what (the model, the code, a person), the
+%  listing styles and the drawing styles of the figures.
+%
+%  The chapters load no package and define no colour of their
+%  own: what a chapter needs is defined here, once, so that
+%  two chapters cannot draw the same thing two ways.
+%
+%  Engine: LuaLaTeX (Unicode text, OpenType fonts). Built by
+%  docs/buildDocs.sh in the TeX Live container.
+% ============================================================
+
+
+% ------------------------------------------------------------
+% Language, type and page
+% ------------------------------------------------------------
+\usepackage{etoolbox}
+\usepackage{fontspec}
+\usepackage[shorthands=off,british,lithuanian]{babel}
+\usepackage{microtype}
+% colon=literal: the inline code macros below are set in math
+% mode (the url package), where unicode-math would otherwise
+% turn ":" into the ratio sign U+2236, which the code face
+% lacks — "gateway:azure/…" would lose its colon.
+\usepackage[colon=literal]{unicode-math}
+
+% The product's own faces: the reports it prints are set in
+% Source Serif 4 and Source Sans 3 as well.
+\setmainfont{SourceSerif4}[
+  Extension      = .otf,
+  UprightFont    = *-Regular,
+  ItalicFont     = *-RegularIt,
+  BoldFont       = *-Semibold,
+  BoldItalicFont = *-SemiboldIt,
+  Numbers        = {Proportional, Lining}]
+\setsansfont{SourceSans3}[
+  Extension      = .otf,
+  UprightFont    = *-Regular,
+  ItalicFont     = *-RegularIt,
+  BoldFont       = *-Semibold,
+  BoldItalicFont = *-SemiboldIt,
+  Scale          = MatchLowercase]
+\setmonofont{SourceCodePro}[
+  Extension      = .otf,
+  UprightFont    = *-Regular,
+  ItalicFont     = *-RegularIt,
+  BoldFont       = *-Semibold,
+  BoldItalicFont = *-SemiboldIt,
+  Scale          = 0.86,
+  HyphenChar     = None]
+
+\usepackage[a4paper, left=30mm, right=30mm, top=27mm, bottom=30mm,
+            headheight=14pt, headsep=9mm, footskip=12mm]{geometry}
+\usepackage{setspace}
+\setstretch{1.08}
+\raggedbottom
+\emergencystretch=2em
+\clubpenalty=8000
+\widowpenalty=8000
+
+
+% ------------------------------------------------------------
+% Colours — the product's palette (vite/app/src/brand.js)
+% ------------------------------------------------------------
+\usepackage[table]{xcolor}
+\definecolor{ink}{HTML}{173A6E}        % the brand blue: headings, rules, links
+\definecolor{mid}{HTML}{3E6FB0}        % the mark's middle blue
+\definecolor{pale}{HTML}{8FB1E3}       % the mark's pale blue
+\definecolor{sun}{HTML}{FFD84A}        % the mark's yellow: wherever a model speaks
+\definecolor{tint}{HTML}{EEF3FB}       % a blue wash for panels
+\definecolor{suntint}{HTML}{FFF7D6}    % a yellow wash for the model's panels
+\definecolor{paper}{HTML}{FFFFFF}
+\definecolor{body}{HTML}{1B2330}       % running text
+\definecolor{muted}{HTML}{5B6676}      % captions, secondary text
+\definecolor{rule}{HTML}{D5DCE8}       % hairlines
+\definecolor{codebg}{HTML}{F6F8FB}     % behind listings
+% The four tones of a verdict, as the console shows them
+\definecolor{good}{HTML}{1E7B4E}
+\definecolor{goodbg}{HTML}{EDF6F0}
+\definecolor{info}{HTML}{1F6FB2}
+\definecolor{infobg}{HTML}{EBF2FA}
+\definecolor{warn}{HTML}{9A5400}
+\definecolor{warnbg}{HTML}{FCF3E5}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{badbg}{HTML}{FBEDEB}
+\color{body}
+
+
+% ------------------------------------------------------------
+% Headings, running heads, captions, lists
+% ------------------------------------------------------------
+\setkomafont{disposition}{\sffamily\bfseries\color{ink}}
+\setkomafont{chapter}{\sffamily\bfseries\Huge\color{ink}}
+\setkomafont{section}{\sffamily\bfseries\Large\color{ink}}
+\setkomafont{subsection}{\sffamily\bfseries\large\color{ink}}
+\setkomafont{subsubsection}{\sffamily\bfseries\normalsize\color{ink}}
+\setkomafont{paragraph}{\sffamily\bfseries\normalsize\color{body}}
+\setkomafont{part}{\sffamily\bfseries\Huge\color{ink}}
+\setkomafont{partnumber}{\sffamily\bfseries\LARGE\color{mid}}
+\setkomafont{descriptionlabel}{\sffamily\bfseries\color{ink}}
+\RedeclareSectionCommand[beforeskip=0pt, afterskip=1.6\baselineskip]{chapter}
+\RedeclareSectionCommand[beforeskip=1.5\baselineskip, afterskip=.5\baselineskip]{section}
+\RedeclareSectionCommand[beforeskip=1.1\baselineskip, afterskip=.3\baselineskip]{subsection}
+\RedeclareSectionCommand[beforeskip=.9\baselineskip, afterskip=.2\baselineskip]{subsubsection}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+\usepackage[automark, headsepline=.4pt]{scrlayer-scrpage}
+\clearpairofpagestyles
+\setkomafont{pageheadfoot}{\sffamily\footnotesize\color{muted}}
+\setkomafont{pagenumber}{\sffamily\footnotesize\bfseries\color{ink}}
+\setkomafont{headsepline}{\color{rule}}
+\ihead{\leftmark}
+\ohead{Atitikties asistentas}
+\ofoot*{\pagemark}
+\renewcommand*{\chaptermarkformat}{\thechapter\enskip}
+
+\usepackage{caption}
+\captionsetup{font={small,sf}, labelfont={bf,color=ink}, textfont={color=muted},
+              labelsep=quad, justification=raggedright, singlelinecheck=false,
+              skip=7pt}
+\captionsetup[table]{position=top}
+
+\usepackage{enumitem}
+\setlist{itemsep=.25\baselineskip, parsep=0pt, topsep=.4\baselineskip}
+\setlist[itemize,1]{label={\color{mid}\rule[.22ex]{.42em}{.42em}}, leftmargin=1.4em}
+\setlist[itemize,2]{label={\color{pale}\rule[.25ex]{.36em}{.36em}}, leftmargin=1.3em}
+\setlist[enumerate,1]{label={\sffamily\bfseries\color{ink}\arabic*.}, leftmargin=1.7em}
+\setlist[enumerate,2]{label={\sffamily\color{ink}\alph*)}, leftmargin=1.6em}
+\setlist[description]{font=\sffamily\bfseries\color{ink}, leftmargin=1.4em, style=nextline}
+
+
+% ------------------------------------------------------------
+% Tables
+% ------------------------------------------------------------
+\usepackage{array, booktabs, longtable, tabularx, xltabular, multirow, makecell}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{pdflscape}
+\renewcommand{\arraystretch}{1.22}
+\setlength{\heavyrulewidth}{.9pt}
+\setlength{\lightrulewidth}{.4pt}
+\arrayrulecolor{rule}
+% Column types: L{w} / C{w} / R{w} are ragged paragraphs of a
+% set width; Y is tabularx's X without justification.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+% A header cell: \hd{Text}
+\newcommand{\hd}[1]{\textcolor{ink}{\sffamily\bfseries #1}}
+% Tables are set a size smaller than the text
+\AtBeginEnvironment{tabular}{\small}
+\AtBeginEnvironment{tabularx}{\small}
+\AtBeginEnvironment{longtable}{\small}
+\AtBeginEnvironment{xltabular}{\small}
+
+
+% ------------------------------------------------------------
+% Figures: TikZ and plots
+% ------------------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc, fit, backgrounds, shapes.geometric,
+                shapes.misc, shapes.multipart, matrix, chains, decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+
+% One visual language for every diagram:
+%   svc    a service or a module of ours        (white, ink outline)
+%   store  a table or a file store              (cylinder)
+%   ext    something outside the system         (dashed outline)
+%   ai     a model call                         (yellow)
+%   chk    a check or a computation by code     (blue wash)
+%   man    a decision of a person               (ink, white text)
+%   data   a piece of data passed along         (grey, slanted)
+%   note   a remark beside the drawing
+%   flow   the main path        call   a request and its answer
+%   opt    a path taken only sometimes
+\tikzset{
+  every picture/.style={font=\sffamily\footnotesize, >={Stealth[length=5pt,width=4pt]}},
+  box/.style={draw=ink, line width=.6pt, rounded corners=2.5pt, fill=paper, text=body,
+              align=center, inner xsep=6pt, inner ysep=5pt, minimum height=8mm,
+              execute at begin node={\hyphenpenalty=10000 \exhyphenpenalty=10000}},
+  svc/.style={box},
+  ext/.style={box, dashed, draw=muted, text=muted},
+  ai/.style={box, draw=ink, fill=sun},
+  chk/.style={box, fill=tint},
+  man/.style={box, fill=ink, text=white, draw=ink,
+              execute at begin node={\hypersetup{linkcolor=white}}},
+  data/.style={box, draw=muted, fill=codebg, trapezium, trapezium left angle=78,
+               trapezium right angle=102, trapezium stretches=true, rounded corners=0pt},
+  store/.style={draw=ink, line width=.6pt, fill=paper, cylinder, shape border rotate=90,
+                aspect=.22, align=center, inner xsep=6pt, inner ysep=4pt, minimum height=9mm},
+  note/.style={text=muted, align=left, font=\sffamily\scriptsize, inner sep=2pt},
+  lane/.style={draw=rule, line width=.5pt, fill=tint!55, rounded corners=4pt, inner sep=7pt},
+  lanelabel/.style={text=mid, font=\sffamily\scriptsize\bfseries, inner sep=2pt},
+  flow/.style={->, draw=ink, line width=.7pt},
+  call/.style={->, draw=mid, line width=.6pt, dashed},
+  opt/.style={->, draw=muted, line width=.6pt, densely dotted},
+  lbl/.style={font=\sffamily\scriptsize, text=muted, fill=paper, inner sep=1.5pt},
+}
+% The legend of the three actors, for a figure that mixes them:
+%   \actorlegend   (place it under the picture, in the figure)
+\newcommand{\actorlegend}{%
+  \par\smallskip{\sffamily\scriptsize\color{muted}%
+  \tikz[baseline=-.6ex]\node[ai, minimum height=3mm, inner sep=2.5pt]{};~modelio iškvietimas\quad
+  \tikz[baseline=-.6ex]\node[chk, minimum height=3mm, inner sep=2.5pt]{};~kodas tikrina ar skaičiuoja\quad
+  \tikz[baseline=-.6ex]\node[man, minimum height=3mm, inner sep=2.5pt]{};~sprendžia žmogus\quad
+  \tikz[baseline=-.6ex]\node[svc, minimum height=3mm, inner sep=2.5pt]{};~žingsnis be modelio}}
+
+
+% ------------------------------------------------------------
+% Inline vocabulary
+% ------------------------------------------------------------
+% \code{run_prompt}      an identifier: function, constant, field, slug, value
+% \file{analysis/pipeline.py}   a path in the repository
+% \route{POST}{/api/reports}    an HTTP route
+% \prompt{report.gap_analysis}  a prompt by its slug
+% \model{gpt-6.1-sol}           a model by the name the gateway gives it
+% \ui{Veiksmai}                 a label as the console prints it
+% \lt{atitikties pareigūnas}    Lithuanian words inside English text
+% \term{finding}                a term where it is defined
+% \status{met}                  one of a finding's five statuses, as a chip
+% \chip[colour]{text}           any other small tag
+\usepackage[obeyspaces,spaces]{url}
+\urlstyle{tt}
+\Urlmuskip=0mu
+% Names of the code are set like URLs: any character may stand
+% in them, and a long one breaks after a slash, a dot or an
+% underscore instead of running into the margin. A model's
+% name is never broken. obeyspaces keeps a space inside the
+% argument (by default the url package drops it, so a command
+% or an SQL clause would print run together); spaces lets the
+% line break there.
+\DeclareUrlCommand\codeurl{\urlstyle{tt}}
+\DeclareUrlCommand\codeurlwhole{\urlstyle{tt}\def\UrlBreaks{}\def\UrlBigBreaks{}}
+\DeclareRobustCommand{\code}{\codeurl}
+\DeclareRobustCommand{\file}{\codeurl}
+\DeclareRobustCommand{\prompt}{\codeurl}
+\DeclareRobustCommand{\model}{\codeurlwhole}
+\DeclareRobustCommand{\route}[1]{\textcolor{mid}{\sffamily\footnotesize\bfseries #1}\,\codeurl}
+\DeclareRobustCommand{\ui}[1]{\textcolor{ink}{\sffamily #1}}
+\DeclareRobustCommand{\lt}[1]{#1}
+% An English term at its first use: (angl. \en{prompt injection})
+\DeclareRobustCommand{\en}[1]{\foreignlanguage{british}{\emph{#1}}}
+\DeclareRobustCommand{\term}[1]{\emph{#1}}
+
+\usepackage[most]{tcolorbox}
+\tcbset{boxrule=.5pt, arc=2pt, left=8pt, right=8pt, top=6pt, bottom=6pt}
+\newtcbox{\chip}[1][ink]{on line, arc=2pt, colback=#1!9, colframe=#1!45, boxrule=.35pt,
+  boxsep=0pt, left=3.2pt, right=3.2pt, top=1.4pt, bottom=1.4pt,
+  fontupper=\sffamily\scriptsize\bfseries\color{#1}}
+\DeclareRobustCommand{\status}[1]{%
+  \ifstrequal{#1}{met}{\chip[good]{Atitinka}}{%
+  \ifstrequal{#1}{partial}{\chip[warn]{Iš dalies}}{%
+  \ifstrequal{#1}{missing}{\chip[bad]{Neatitinka}}{%
+  \ifstrequal{#1}{unknown}{\chip[muted]{Neįrodyta}}{%
+  \chip[muted]{Netaikoma}}}}}}
+
+
+% ------------------------------------------------------------
+% Boxes that say who is acting
+% ------------------------------------------------------------
+% aibox      what a model is asked and what it answers
+% codebox    what the code checks or computes, with no model
+% humanbox   what only a person decides
+% lessonbox  a measurement or a failure, with its date, and what
+%            changed because of it
+% notebox    anything else worth setting apart
+% Each takes its title as the mandatory argument.
+\newtcolorbox{aibox}[1]{enhanced, breakable, colback=suntint, colframe=sun!70!warn!60,
+  borderline west={2.6pt}{0pt}{sun}, boxrule=0pt, frame hidden, sharp corners,
+  left=11pt, title={#1}, coltitle=body, fonttitle=\sffamily\bfseries\small,
+  attach title to upper={\par\smallskip}, before skip=10pt, after skip=10pt}
+\newtcolorbox{codebox}[1]{enhanced, breakable, colback=tint, colframe=mid,
+  borderline west={2.6pt}{0pt}{mid}, boxrule=0pt, frame hidden, sharp corners,
+  left=11pt, title={#1}, coltitle=ink, fonttitle=\sffamily\bfseries\small,
+  attach title to upper={\par\smallskip}, before skip=10pt, after skip=10pt}
+\newtcolorbox{humanbox}[1]{enhanced, breakable, colback=paper, colframe=ink,
+  boxrule=.6pt, leftrule=2.6pt, sharp corners,
+  left=11pt, title={#1}, coltitle=ink, fonttitle=\sffamily\bfseries\small,
+  attach title to upper={\par\smallskip}, before skip=10pt, after skip=10pt}
+\newtcolorbox{lessonbox}[1]{enhanced, breakable, colback=codebg, colframe=rule,
+  borderline west={2.6pt}{0pt}{pale}, boxrule=0pt, frame hidden, sharp corners,
+  left=11pt, title={#1}, coltitle=ink, fonttitle=\sffamily\bfseries\small,
+  attach title to upper={\par\smallskip}, before skip=10pt, after skip=10pt}
+\newtcolorbox{notebox}[1]{enhanced, breakable, colback=paper, colframe=rule,
+  boxrule=.5pt, title={#1}, coltitle=ink, fonttitle=\sffamily\bfseries\small,
+  attach title to upper={\par\smallskip}, before skip=10pt, after skip=10pt}
+
+% A breakable box may start so low on a page that only its title
+% fits there and its text goes on overleaf. Every box with a title
+% (these five, the path card, a titled code file and a prompt
+% excerpt) therefore asks for six lines of room before it begins;
+% with less left, it starts on the next page. In a table cell the
+% request does nothing.
+\usepackage{needspace}
+\newcommand{\keepboxtitle}{\par\needspace{6\baselineskip}}
+\AddToHook{env/aibox/before}{\keepboxtitle}
+\AddToHook{env/codebox/before}{\keepboxtitle}
+\AddToHook{env/humanbox/before}{\keepboxtitle}
+\AddToHook{env/lessonbox/before}{\keepboxtitle}
+\AddToHook{env/notebox/before}{\keepboxtitle}
+\AddToHook{env/pathcard/before}{\keepboxtitle}
+\AddToHook{env/codefile/before}{\keepboxtitle}
+\AddToHook{env/promptexcerpt/before}{\keepboxtitle}
+
+% The card of one AI path: the same ten questions for every
+% place where a model is called.
+%   \begin{pathcard}{Gap analysis}{report.gap_analysis}
+%     \pcrow{Trigger}{...}
+%     ...
+%   \end{pathcard}
+% The rows, in this order: Trigger, Input, Prompt and model,
+% Output, Checked by code, Stored, On failure, Cost, Human
+% control, Measured by.
+\newenvironment{pathcard}[2]{%
+  \begin{tcolorbox}[enhanced, breakable, colback=paper, colframe=ink, boxrule=.6pt, arc=2pt,
+    colbacktitle=ink, coltitle=white, fonttitle=\sffamily\bfseries\small,
+    title={#1\hfill{\mdseries\footnotesize\codeurlwhole{#2}}},
+    left=8pt, right=8pt, top=4pt, bottom=4pt, before skip=12pt, after skip=12pt]
+  \small
+  \begin{description}[style=multiline, leftmargin=31mm, labelwidth=29mm, labelsep=2mm,
+    font=\sffamily\bfseries\footnotesize\color{ink}, itemsep=3pt, topsep=1pt]}%
+  {\end{description}\end{tcolorbox}}
+% The ten rows keep their English keys in the source; the card prints
+% them in Lithuanian, so that every card in the book reads the same.
+\newcommand{\pcrowname}[1]{%
+  \ifstrequal{#1}{Trigger}{Paleidimas}{%
+  \ifstrequal{#1}{Input}{Įvestis}{%
+  \ifstrequal{#1}{Prompt and model}{Instrukcija ir modelis}{%
+  \ifstrequal{#1}{Output}{Išvestis}{%
+  \ifstrequal{#1}{Checked by code}{Kodo patikros}{%
+  \ifstrequal{#1}{Stored}{Saugoma}{%
+  \ifstrequal{#1}{On failure}{Nepavykus}{%
+  \ifstrequal{#1}{Cost}{Kaina}{%
+  \ifstrequal{#1}{Human control}{Žmogaus kontrolė}{%
+  \ifstrequal{#1}{Measured by}{Kaip matuojama}{#1}}}}}}}}}}}
+\newcommand{\pcrow}[2]{\item[\pcrowname{#1}] #2}
+
+
+% ------------------------------------------------------------
+% Code and prompt text, word for word
+% ------------------------------------------------------------
+% Set with fancyvrb (fvextra), not listings: listings moves
+% every non-ASCII character to the front of its word under a
+% Unicode engine, and the prompts and the data are full of
+% Lithuanian. Long lines wrap; nothing is highlighted.
+%
+%   \begin{codeblock}                    a piece of code or data
+%   \begin{codefile}{what it shows}      the same under a title line
+%   \begin{promptexcerpt}{report.gap_analysis}{what the passage is about}
+%                                        a passage of a prompt, word for word
+% The \begin line and the \end line stand alone on their lines.
+% None of the three takes an optional argument: looking ahead
+% for one would read the first line of the text as TeX.
+\usepackage{fvextra}
+\usepackage[style=german]{csquotes}     % after fvextra, as fvextra asks; „…“ as Lithuanian sets them
+\fvset{fontsize=\footnotesize, breaklines=true, breakafter={/,_}, breakaftersymbolpre={},
+       breaksymbolleft={\tiny\ensuremath{\hookrightarrow}}, breakindent=1.2em, tabsize=2,
+       formatcom=\color{body},
+       listparameters={\setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}\setlength{\parskip}{0pt}}}
+\tcbset{
+  codestyle/.style={enhanced, breakable, colback=codebg, boxrule=0pt, frame hidden,
+    sharp corners, borderline west={2pt}{0pt}{rule}, left=9pt, right=6pt, top=3pt, bottom=3pt,
+    before skip=9pt, after skip=9pt, coltitle=muted, fonttitle=\sffamily\footnotesize,
+    attach title to upper={\par\vspace{1pt}}},
+  promptstyle/.style={enhanced, breakable, colback=suntint, boxrule=0pt, frame hidden,
+    sharp corners, borderline west={2.6pt}{0pt}{sun}, left=11pt, right=8pt, top=4pt, bottom=4pt,
+    before skip=10pt, after skip=10pt, coltitle=body, fonttitle=\sffamily\footnotesize,
+    attach title to upper={\par\vspace{2pt}}}}
+\NewDocumentEnvironment{codeblock}{}{%
+  \VerbatimEnvironment
+  \begin{tcolorbox}[codestyle]%
+  \begin{Verbatim}}%
+  {\end{Verbatim}\end{tcolorbox}}
+\NewDocumentEnvironment{codefile}{m}{%
+  \VerbatimEnvironment
+  \begin{tcolorbox}[codestyle, title={#1}]%
+  \begin{Verbatim}}%
+  {\end{Verbatim}\end{tcolorbox}}
+\NewDocumentEnvironment{promptexcerpt}{m m}{%
+  \VerbatimEnvironment
+  \begin{tcolorbox}[promptstyle,
+    title={{\bfseries Iš instrukcijos} {\codeurlwhole{#1}}\quad{\color{muted}#2}}]%
+  \begin{Verbatim}[breaksymbolleft={}, breakindent=0pt, breakafter={}]}%
+  {\end{Verbatim}\end{tcolorbox}}
+
+
+% ------------------------------------------------------------
+% Links and references
+% ------------------------------------------------------------
+\usepackage[colorlinks=true, linkcolor=ink, urlcolor=mid, citecolor=ink,
+            bookmarksnumbered=true, pdfusetitle]{hyperref}
+\usepackage[nameinlink]{cleveref}
+\pdfstringdefDisableCommands{\def\code#1{\detokenize{#1}}\def\file#1{\detokenize{#1}}%
+  \def\prompt#1{\detokenize{#1}}\def\model#1{\detokenize{#1}}%
+  \def\route#1#2{#1 \detokenize{#2}}\def\ui#1{#1}\def\lt#1{#1}\def\term#1{#1}\def\status#1{#1}}
+% (the Lithuanian reference formats are set at the end)
+
+
+% ------------------------------------------------------------
+% Small conveniences
+% ------------------------------------------------------------
+\newcommand{\product}{Atitikties asistentas}
+\newcommand{\productlt}{Atitikties asistentas}
+\newcommand{\demo}{1009~LTD}
+\newcommand{\eg}{pvz.\ }
+\newcommand{\ie}{t.~y.\ }
+% The product's mark: four tiles, two of them quarter discs.
+% \mosaic{scale}
+\newcommand{\mosaic}[1]{%
+  \begin{tikzpicture}[x=#1, y=#1, baseline=0]
+    \fill[ink] (31,-31) -- (8,-31) arc[start angle=180, end angle=90, radius=23] -- cycle;
+    \fill[mid, rounded corners=4*#1] (33,-8) rectangle (56,-31);
+    \fill[mid, rounded corners=4*#1] (8,-33) rectangle (31,-56);
+    \fill[sun] (33,-33) -- (56,-33) arc[start angle=0, end angle=-90, radius=23] -- cycle;
+  \end{tikzpicture}}
+
+
+
+% ------------------------------------------------------------
+% Lithuanian captions, parts and references
+% ------------------------------------------------------------
+% A caption reads "3.2 pav. …" and "2.1 lentelė …", a part
+% "I dalis". A reference puts the number first and an
+% abbreviation after it, which reads right in every case of
+% the noun: (9 sk.), žr. 3.2 pav., 2.1 lent., 9.3 posk.
+% An appendix is named in full, "A priedas": refer to one in
+% parentheses, (\cref{app:prompts}).
+\renewcommand*{\figureformat}{\thefigure~\figurename}
+\renewcommand*{\tableformat}{\thetable~\tablename}
+\renewcommand*{\captionformat}{~~}
+\renewcommand*{\partformat}{\thepart~\partname}
+\addto\captionslithuanian{%
+  \renewcommand{\figurename}{pav.}%
+  \renewcommand{\tablename}{lentelė}%
+  \renewcommand{\partname}{dalis}%
+  \renewcommand{\contentsname}{Turinys}}
+% A sentence that ends on a reference ends on one dot: the
+% abbreviation keeps its dot, and \cref / \Cref swallow the full
+% stop that follows them ("žr. 9 sk." — never "9 sk..").
+\usepackage{letltxmacro}
+\makeatletter
+\newif\ifltabbr
+\newcommand{\ltabbrend}[1]{#1.\global\ltabbrtrue}
+% \futurelet, not \@ifnextchar: the space after a reference must stay
+\newcommand{\ltgobbledot}{\futurelet\ltnexttoken\ltgobbledotcheck}
+\newcommand{\ltgobbledotcheck}{\ifx\ltnexttoken.\expandafter\@gobble\fi}
+\AtBeginDocument{%
+  \LetLtxMacro\ltorigcref\cref \LetLtxMacro\ltorigCref\Cref
+  \DeclareRobustCommand{\cref}[1]{\global\ltabbrfalse\ltorigcref{#1}\ifltabbr\expandafter\ltgobbledot\fi}%
+  \DeclareRobustCommand{\Cref}[1]{\global\ltabbrfalse\ltorigCref{#1}\ifltabbr\expandafter\ltgobbledot\fi}}
+\makeatother
+\newcommand{\ltcref}[2]{%  type, abbreviation without its dot
+  \crefformat{#1}{##2##1##3~\ltabbrend{#2}}\Crefformat{#1}{##2##1##3~\ltabbrend{#2}}%
+  \crefrangeformat{#1}{##3##1##4--##5##2##6~\ltabbrend{#2}}\Crefrangeformat{#1}{##3##1##4--##5##2##6~\ltabbrend{#2}}%
+  \crefmultiformat{#1}{##2##1##3}{ ir~##2##1##3~\ltabbrend{#2}}{, ##2##1##3}{ ir~##2##1##3~\ltabbrend{#2}}%
+  \Crefmultiformat{#1}{##2##1##3}{ ir~##2##1##3~\ltabbrend{#2}}{, ##2##1##3}{ ir~##2##1##3~\ltabbrend{#2}}}
+\newcommand{\ltcrefword}[2]{%  type, a word in full
+  \crefformat{#1}{##2##1##3~#2}\Crefformat{#1}{##2##1##3~#2}%
+  \crefrangeformat{#1}{##3##1##4--##5##2##6~#2}\Crefrangeformat{#1}{##3##1##4--##5##2##6~#2}%
+  \crefmultiformat{#1}{##2##1##3}{ ir~##2##1##3~#2}{, ##2##1##3}{ ir~##2##1##3~#2}%
+  \Crefmultiformat{#1}{##2##1##3}{ ir~##2##1##3~#2}{, ##2##1##3}{ ir~##2##1##3~#2}}
+\ltcref{chapter}{sk}
+\ltcref{section}{posk}
+\ltcref{subsection}{posk}
+\ltcref{subsubsection}{posk}
+\ltcrefword{appendix}{priedas}
+\ltcref{subappendix}{posk}
+\ltcref{subsubappendix}{posk}
+\ltcref{figure}{pav}
+\ltcref{table}{lent}
+\ltcref{page}{p}
+\newcommand{\crefpairconjunction}{ ir~}
+\newcommand{\crefmiddleconjunction}{, }
+\newcommand{\creflastconjunction}{ ir~}
+\newcommand{\crefpairgroupconjunction}{ ir~}
+\newcommand{\crefmiddlegroupconjunction}{, }
+\newcommand{\creflastgroupconjunction}{ ir~}
+\newcommand{\crefrangeconjunction}{--}

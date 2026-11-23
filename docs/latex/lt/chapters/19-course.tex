@@ -1,0 +1,304 @@
+% STATUS: reviewed
+\chapter{Sistema ir kursas}\label{ch:course}
+
+\product{} buvo sukurtas kaip kurso projektas, o kurso metodas yra jo specifikacija. Šiame
+skyriuje abu palyginami greta: ko prašo trys kurso užduotys ir kur produkte yra kiekvienos
+atsakymas; kurios kurso sąvokos tapo kuriomis sistemos dalimis; kur sistema seka paties šaltinio
+tekstą, o ne jo santrauką; ir ko kursas moko, bet sistema nedaro.
+
+\section{Kursas ir jo pavyzdinė organizacija}\label{sec:course:course}
+
+Kursas --- \enquote{Finansų teisė ir finansų įstaigų veiklos atitikties valdymas} --- dėstomas
+Vilniaus universiteto Kauno fakulteto finansinių technologijų (FinTech) magistrantūros
+programoje 2026 m. rudenį. Jo paskaitos apima finansų rinkų struktūrą ir kiekvienos rūšies
+įstaigų licencijavimą, atitikties funkcijos vietą vidaus valdyme ir atitikties valdymo sistemos
+kūrimą, pinigų plovimo prevencijos ir skaitmeninio veiklos atsparumo reikalavimus, taip pat
+atsakomybę už pažeidimus. Savarankiškas darbas atliekamas su viena pavyzdine organizacija,
+\demo{}: tai imituotas kriptoturto paslaugų teikėjas, kuriame dirba apie keturiasdešimt žmonių,
+paskelbtas pagal \en{Creative Commons} licenciją su 26 politikomis --- trylika informacijos
+saugumo valdymo sistemos ir trylika jo finansinių technologijų verslo politikų
+(\cref{ch:company}).
+
+Kursas taip pat aprašo rolę: technologą, kuriantį įrankius teisiniam ir atitikties darbui. Šiai
+rolei priskirtos pareigos skamba kaip tokios sistemos kontrolinis sąrašas --- instrukcijos,
+kurių atsakymai susieti su schema, atsakymai, pagrįsti surastais šaltiniais, regresinių testų
+rinkiniai, kuriuose vienas modelis vertina kitą, saugomi etaloniniai atvejų rinkiniai ir audito
+sekos. Jas aptaria \cref{sec:course:duties}.
+
+\section{Trys kurso užduotys}\label{sec:course:assignments}
+
+Kiekvienoje kurso užduotyje studentas turi parengti dokumentų rinkinį apie \demo{}, pasitelkdamas
+kalbos modelį. Antrąją ir trečiąją užduotį sistema traktuoja kaip produktus: tai, kas sugeneruota
+iš pačios įmonės dokumentų, kodu patikrinta pagal užduoties nustatytą formą ir paliekama žmogui
+redaguoti ir patvirtinti; į pirmąją ji atsako pokalbyje ir išsaugo rezultatą įmonės duomenyse.
+\Cref{tab:course:assignments} pateikia atitiktį; po jos einančios pastraipos paaiškina, kokia
+yra forma ir kaip užtikrinama, kad jos būtų laikomasi.
+
+\begin{table}[H]
+\caption{Kurso užduotys ir kur produkte yra kiekviena}\label{tab:course:assignments}
+\begin{tabularx}{\textwidth}{@{}L{22mm}YY@{}}
+\toprule
+\hd{Kurso užduotis} & \hd{Ko ji prašo} & \hd{Kur ji yra produkte} \\
+\midrule
+1, pirmoji dalis & Klasifikuoti organizaciją: finansų rinka, kurioje ji veikia, ją
+  reglamentuojantys finansų teisės institutai ir jai reikalinga licencija ar įrašas į sąrašą. &
+  Pokalbis su pokalbių asistentu, kuris atsako iš teisės aktų bazės su nuorodomis ir savo
+  įrankiais įrašo rezultatą į įmonės profilį (\code{financial_market})
+  (\cref{ch:chat,ch:company}). \\
+1, antroji dalis & Rolės profilis --- pavyzdžiui, atitikties pareigūno --- parengtas pagal
+  pačios įmonės dokumentus. &
+  Įmonės rolė (\code{company_roles}); pokalbis gali ją pasirinkti, ir tada jos tekstas patenka
+  į pokalbio instrukciją kaip kintamasis \code{ROLE_CONTEXT} (\cref{ch:chat}). \\
+2 & Atitikties politika iš aštuonių dalių ir trūkstamų antrojo lygmens politikų bei trečiojo
+  lygmens procedūrų sąrašai; toliau --- dokumentuose rastos pareigybės, organizacinė
+  struktūra, atitikties procesas etapais ir atsakomybių matrica. &
+  Programos dokumentai \code{policy} ir \code{governance}, eksportuojami PDF formatu, o
+  politika --- ir Word formatu (\cref{ch:programme}). \\
+3 & Tikimybės ir poveikio kriterijai, $5 \times 5$ matrica su rizikos lygiais ir atsako į riziką būdais, ne
+  mažiau kaip penki rizikos scenarijai nustatyto pavidalo sakiniu ir teisinės rizikos registras. &
+  Programos dokumentas \code{risks}, eksportuojamas PDF ir Excel formatais
+  (\cref{ch:programme}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{2 kurso užduotis: politika.} Kursas moko atitikties politikos iš aštuonių dalių, ir
+produkto politika turi lygiai šias aštuonias dalis ta pačia tvarka: įvadą su tikslu, taikymo
+sritimi ir sąsaja su kitais dokumentais; vadovybės įsipareigojimą ir jo ryšį su įmonės
+vertybėmis; atitikties funkcijos įgaliojimus; įsipareigojimą laikytis reikalavimų ir nuolat
+tobulėti; roles ir atsakomybes; pagrindinius atitikties procesus; pranešimą apie pažeidimus; ir
+neatitikties pasekmes. Aplink politiką išsidėsto kurso mokoma dokumentų hierarchija ---
+pirmajame lygmenyje pati politika, antrajame teminės politikos, trečiajame procedūros --- ir
+produktas kiekvieną įmonės dokumentą priskiria lygmeniui bei išvardija trūkstamus antrojo ir
+trečiojo lygmens dokumentus, kiekvieną --- su teisiniu pagrindu, jei to dokumento reikalauja
+kuri nors nuostata. Kodas neleidžia patvirtinti politikos, kol kuri nors iš aštuonių
+dalių turi mažiau nei 150 simbolių arba joje nurodyto straipsnio nėra atitinkamame teisės akte.
+
+\paragraph{2 kurso užduotis: valdymo struktūra, procesas ir atsakomybių matrica.} Antroji
+užduoties pusė yra grandinė: dokumentuose įvardytos pareigybės, trūkstamos rolės, struktūra,
+procesas, matrica. Produktas šią grandinę įgyvendina viename programos dokumente ir kodu
+užtikrina pačios užduoties taisyklę matricai: \emph{kiekvienas etapas turi lygiai vieną
+atskaitingą rolę ir bent vieną atsakingą rolę}. Jis taip pat tikrina, ar struktūra atitinka
+kurso mokomas tris gynybos linijas --- antroji linija negali būti pavaldi pirmajai, o vidaus
+auditas atsiskaito tik valdymo organui, --- reikalauja, kad procesas turėtų bent penkis etapus,
+ir patikrina ISO~37301 punktus bei Lietuvos banko atitikties funkcijos gairių punktus, kuriais,
+kaip nurodyta etapuose, jie remiasi.
+
+\paragraph{3 kurso užduotis: rizikos registras.} Kursas kriterijus nustato tiksliai, ir
+produkto konstantos yra kurso konstantos: tikimybė penkiais lygiais pagal keturis aspektus
+(vidaus kontrolės būklė, teisės aiškumas ir priežiūros institucijos dėmesys, sandorio šalys,
+dažnumas), poveikis penkiais lygiais pagal keturis aspektus (finansai, priežiūra ir
+licencija, reputacija, mastas), balas kaip jų sandauga ir penki rizikos lygiai --- nuo 1 iki 3
+nereikšminga, nuo 4 iki 6 toleruotina, nuo 8 iki 12 vidutinė, 15 ir 16 didelė, nuo 20 iki 25
+kritinė, --- kiekvienas su jam leidžiamais atsako būdais. Scenarijus rašomas kurso sakiniu
+\enquote{Tikėtinas [įvykis], kylantis iš [šaltinis], gali sukelti [pasekmės], kurios paveiks
+[tikslas]} ir priskiriamas vienai iš šešių ISO~31022 A~priedo teisinės rizikos rūšių; produktas
+reikalauja bent penkių scenarijų, apimančių bent keturias iš šešių rūšių, kiekvieną susietą su
+įmonės padaliniu ir politika. Būtent skaičiuose produktas nesiremia vien modelio atsakymu:
+modelis pateikia aštuonis lygius ir jų pagrindimą, o tikimybę, poveikį, balą ir rizikos lygį
+apskaičiuoja kodas (\cref{ch:programme}). Registras eksportuojamas kurso nustatytais devyniais
+stulpeliais.
+
+\begin{humanbox}{Ko produktas už studentą nedaro}
+Jis netvirtina savo paties darbo. Kiekvienas iš trijų programos dokumentų pateikiamas kaip
+projektas, šalia išvardijant taisykles, kurias jis atitinka, ir taisykles, kurias pažeidžia;
+redaguoja žmogus ir tvirtina žmogus, o PDF viršelyje nurodyta, ar kas nors tai padarė. Todėl iš
+produkto pateikta kurso užduotis yra peržiūrėtas arba neperžiūrėtas projektas, ir joje pasakyta,
+kuris iš jų.
+\end{humanbox}
+
+\section{Kurso sąvokos sistemoje}\label{sec:course:concepts}
+
+Be užduočių, didžiąją sistemos formos dalį lėmė kurso paskaitos apie stebėseną ir technologo
+rolę. \Cref{tab:course:concepts} išvardija sąvokas ir jas įkūnijančias sistemos dalis.
+
+\begin{xltabular}{\textwidth}{@{}L{40mm}YL{20mm}@{}}
+\caption{Kurso mokomos sąvokos ir kiekvieną jų įkūnijanti sistemos dalis}\label{tab:course:concepts}\\
+\toprule
+\hd{Kursas moko} & \hd{Sistema daro} & \hd{Skyrius} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Kursas moko} & \hd{Sistema daro} & \hd{Skyrius} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+Išvadą sudaro keturios dalys: būklė, kriterijus, priežastis ir pasekmė. &
+  Ataskaitos išvada turi visas keturias. Būklė yra vertinimas ir jo būsena; kriterijus ---
+  pareiga ir ją pagrindžianti nuostata; pasekmę kodas prijungia iš paties teisės akto sankcijų
+  nuostatų; priežastis yra laukas, kurį pildo tik žmogus, nes dokumentai rodo, kad kažko
+  trūksta, bet niekada --- kodėl. & \cref{ch:report} \\
+Ataskaita atsako į tris klausimus: kas, kas iš to, ką daryti. &
+  Išvados sako kas; pasekmė ir pareigos reikšmingumas sako, kas iš to; veiksmų planas, apimantis
+  kiekvieną atvirą išvadą, sako ką daryti. PDF dokumentas išdėstytas nuo apibendrinimo žemyn. &
+  \cref{ch:report} \\
+Žmogus patvirtina darbo apimtį ir kiekvieno uždavinio rezultatą. &
+  Ataskaita sustoja nusprendusi, kurie teisės aktai taikomi, ir laukia, kol žmogus patvirtins
+  sąrašą, prieš pradėdama brangiąją dalį (žmogus gali leisti jai vykti iki galo, ir tada
+  ataskaitoje įrašoma, kad niekas jos apimties nepatvirtino); žmogus peržiūri išvadas ir
+  patvirtina baigtą ataskaitą. &
+  \cref{ch:report} \\
+Išvados ir veiksmai saugomi registre su būsenomis atviras, vykdomas, vėluojantis ir uždarytas,
+  o veiksmas uždaromas tik po pakartotinio patikrinimo. &
+  Veiksmų registras. Atsakingas asmuo gali pažymėti veiksmą atliktu, bet uždaro jį tik vėlesnė
+  patvirtinta ataskaita --- pakartotinis patikrinimas, --- kurioje jo pareigos įvertintos kaip atitinkančios, nebent
+  žmogus uždaro jį rankiniu būdu su pastaba, paaiškinančia kodėl. Vėlavimas nustatomas pagal
+  terminą, rankiniu būdu jis niekada nežymimas. &
+  \cref{ch:register} \\
+Kriterijai yra ne tik teisė, bet ir pačios įmonės taisyklės. &
+  Ataskaita gali vertinti, ar įmonės procedūros įgyvendina tai, ko reikalauja jos pačios
+  politikos, kaip atskirą išvadų grupę, skaičiuojamą atskirai nuo teisinių. & \cref{ch:report} \\
+Trys gynybos linijos. &
+  Valdymo struktūros programos dokumentas kiekvieną organą, funkciją ir padalinį priskiria
+  linijai ir neleidžia patvirtinti struktūros, kurioje antroji linija pavaldi pirmajai. &
+  \cref{ch:programme} \\
+Rizika yra tikimybės ir poveikio sandauga pagal nustatytus kriterijus. &
+  Rizikų programos dokumentas, kuriame balą ir rizikos lygį apskaičiuoja kodas. & \cref{ch:programme} \\
+\end{xltabular}
+
+\section{Penkios technologo pareigos}\label{sec:course:duties}
+
+Pirmojoje kurso paskaitoje DI ir atitikties sistemų teisinių operacijų technologas apibūdinamas
+kaip asmuo, kuris kuria, testuoja ir diegia instrukcijomis grįstus tikrinimo procesus ---
+procesus, kurie tikrina įmonės dokumentus pagal jos vidaus politikas ir pagal teisę, --- ir
+įvardijamos penkios jo pareigos. Tai tiesiausiai išreiškia, ko kursas tikisi iš tokios
+sistemos kaip ši. \Cref{tab:course:duties} sistemą palygina su kiekviena pareiga, nurodydama ir
+tai, kur ji nepasiekia tikslo.
+
+\begin{xltabular}{\textwidth}{@{}L{34mm}YY@{}}
+\caption{Penkios paskaitoje įvardytos technologo pareigos ir sistema}\label{tab:course:duties}\\
+\toprule
+\hd{Pareiga, kaip ją nusako paskaita} & \hd{Ką daro sistema} & \hd{Ko sistema nepadaro} \\
+\midrule
+\endfirsthead
+\toprule
+\hd{Pareiga, kaip ją nusako paskaita} & \hd{Ką daro sistema} & \hd{Ko sistema nepadaro} \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+\textbf{Instrukcijų inžinerija ir schemų laikymosi užtikrinimas:} tikslios, struktūrizuotos, JSON
+  schemomis apribotos instrukcijos, kurios tikrina įmonės dokumentus ir pažymi neatitinkančias
+  nuostatas ar faktų nenuoseklumus. &
+  Dvidešimt viena iš 23 instrukcijų atsako pagal griežtą JSON schemą, kurios laikytis prašomas
+  tiekėjas ir kurią asistento paslauga dar kartą patikrina (\cref{ch:models,ch:prompts}).
+  Atitikties spragų analizė kiekvienai pareigai priskiria būseną ir pažodžiui cituoja rastą
+  įrodymą; dokumento inventorius išvardija jo silpnąsias vietas ir nuorodas į teisę; nuorodų
+  patikra pažymi nuorodą į straipsnį, kuriame nėra to, ką teigia dokumentas
+  (\cref{ch:report,ch:company}). &
+  Dvi pokalbio instrukcijos atsako laisvu tekstu. \\
+\textbf{Pagrindimas šaltiniais ir konteksto tikrinimas:} paieška papildytos instrukcijos,
+  kurios dokumentus tiesiogiai lygina su vidaus politikų rinkiniais, standartinėmis veiklos
+  procedūromis ir taikytinais teisės aktais. &
+  Teisė imama iš teisės aktų bazės, ne iš modelio atminties, o nuostata, kurią modelis
+  nurodo iš atminties, --- programos dokumento teisinis pagrindas --- ten patikrinama: pokalbis
+  nuostatas suranda mišriąja paieška; ataskaita modeliui perduoda pačias nuostatas arba iš jų
+  išskirtas pareigas (\cref{ch:corpus}). Su kiekvienu atitikties spragų analizės iškvietimu
+  siunčiamas visas įmonės dokumentų rinkinys --- iš pradžių buvo naudojamos surastos ištraukos,
+  bet jų atsisakyta, nes jos praleisdavo dokumentuose esančius įrodymus (\cref{ch:report}).
+  Kriterijai gali būti ir pačios įmonės politikos. &
+  Paieška lieka atsarginiu sprendimu dokumentų rinkiniui, kuris per didelis, kad būtų siunčiamas visas, o
+  pokalbis ir toliau dirba su tuo, ką suranda. \\
+\textbf{Automatinis vertinimas ir apsauga nuo haliucinacijų:} regresinių testų rinkiniai ---
+  modelis kaip vertintojas, natūraliosios kalbos išvada (angl. \en{natural-language
+  inference}), vienetų testai, --- kurie nuolat matuoja instrukcijų patikimumą, nuorodų
+  tikslumą ir kraštutinių atvejų tvarkymą. &
+  Šeši atvejų rinkiniai, kurių atvejus 2026 m. lapkričio 12 d. pažymėjo DI modelis ir kurių dar
+  nepatvirtino joks žmogus, vykdomi su tikruoju modeliu per paties produkto funkcijas ir
+  lyginami su įrašytu baziniu rezultatu; trijose vietose vertina antrasis modelio
+  iškvietimas; apie 6\,100 testų vykdoma nekviečiant modelio (\cref{ch:control,ch:testing}).
+  Apsauga, nepriklausanti nuo jokio modelio: kiekviena citata, kuria remiasi išvada ar
+  programos dokumentas, surandama jos dokumente, kiekviena struktūrizuotame atsakyme nurodyta
+  nuostata patikrinama, kiekvienas balas apskaičiuojamas. &
+  Natūraliosios kalbos išvados modelis nenaudojamas. Rinkiniai matuoja šešias iš 23
+  instrukcijų ir vykdomi rankiniu būdu prieš keičiant instrukciją ar modelį ir po to, o ne
+  nuolat. \\
+\textbf{Bendradarbiavimas su ekspertais ir etaloniniai rinkiniai:} sudėtingų reguliavimo
+  reikalavimų pavertimas deterministinėmis instrukcijomis kartu su atitikties pareigūnais ir
+  teisininkais bei patikrintų etaloninių duomenų rinkinių saugojimas. &
+  Pareigų registras yra reikalavimai deterministine forma: kiekviena pareiga užrašyta vieną
+  kartą, susieta su savo nuostata, įvertinta ir peržiūrėta bei pakartotinai naudojama kiekvienoje
+  ataskaitoje (\cref{ch:obligations}). Kiekviena būsena ir verdiktas, kuriuos gali pateikti
+  instrukcija, apibrėžti pačioje instrukcijoje (\cref{ch:prompts}). Pažymėti atvejai saugomi
+  repozitorijoje, penkiuose iš šešių rinkinių --- su kiekvienos žymos priežastimi. &
+  Atvejus 2026 m. lapkričio 12 d. pažymėjo DI programavimo asistentas, kuriuo sistema buvo
+  kuriama (Claude), skaitydamas šaltinius; kartu pateikiamas registras peržiūrėtas mašininiu
+  būdu, įvertintas vertintojo ir žmogaus neperskaitytas įrašas po įrašo
+  (\cref{ch:obligations,ch:control}). Nei žymų, nei registro dar nepatvirtino joks atitikties
+  pareigūnas ar teisininkas. Abu parengti taip, kad žmogus galėtų pakeisti bet kurią žymą ar
+  įrašą. \\
+\textbf{Audituojamumas ir integracija:} tikrinimas, įdiegtas į esamas teisinių operacijų
+  sistemas --- dokumentų valdymo, sutarčių valdymo sistemas, procesų variklius, --- su visišku įvykių
+  registravimu ir audito sekomis. &
+  Kiekvienas bet kurio asmens pakeitimas yra veiksmų žurnale; kiekvienas atsakęs modelio
+  iškvietimas registruojamas su instrukcijos versija, žetonais ir kaina (išskyrus paieškos
+  užklausos vektorizavimą), o kiekvienas pokalbio ėjimas --- su stenograma; kiekviena
+  ataskaita įrašo instrukcijų ir teisės aktų redakcijas, iš kurių ji parengta
+  (\cref{ch:security,ch:models}). Visa sistema pasiekiama per JSON API (\cref{ch:api}). &
+  Nesukurta jokia jungtis su dokumentų ar sutarčių valdymo sistema: dokumentai įkeliami. \\
+\end{xltabular}
+
+\section{Kur sistema seka paties šaltinio tekstą}\label{sec:course:sources}
+
+Dviem atvejais sistemos elgsena kyla iš paties šaltinio formuluotės, ir skaitytojas, lyginantis
+ją su to šaltinio santrauka, gali tai pastebėti.
+
+\begin{itemize}
+  \item \textbf{Lietuvos banko atitikties funkcijos gairės} suformuluotos kaip rekomendacijos
+    (\enquote{turėtų}) ir skirtos jų trečiajame punkte išvardytų rūšių įstaigoms, tarp kurių
+    nėra kriptoturto paslaugų teikėjų. Kataloge jų apimtis nustatyta atitinkamai. Todėl tokiai
+    įmonei kaip \demo{} ataskaita jų savaime nevertina; žmogus apimties ekrane gali įtraukti
+    jas į ataskaitos apimtį, ir tada jos vertinamos kaip geroji praktika ir taip pažymimos
+    (\cref{ch:report}).
+  \item \textbf{ISO~37301 punktų numeriai.} Atitikties proceso etapai nurodo standarto punktus
+    taip, kaip juos numeruoja pats standartas: susirūpinimą keliančių klausimų iškėlimas yra
+    8.3~punktas, o tyrimo procesai --- 8.4~punktas. Etapą, kuris nenurodo nei standarte
+    esančio punkto, nei gairių punkto, paties produkto patikra pažymi įspėjimu
+    (\cref{ch:programme}).
+\end{itemize}
+
+\section{Ką sistema prideda prie kurso metodo}\label{sec:course:adds}
+
+Keturių sistemos dalykų neprašo jokia užduotis; jie kyla iš to, kad metodas rimtai įgyvendintas
+kaip programinė įranga.
+
+\begin{description}
+  \item[Teisė kaip prižiūrima teisės aktų bazė.] Užduotys leidžia modeliui kalbėti apie teisę.
+    Sistema atsisiunčia teisės aktus iš oficialių šaltinių, saugo jų redakcijas ir įrašo, ką
+    pakeitė kiekviena nauja redakcija, --- kad galėtų pasakyti, kurios išvados remiasi nuo to
+    laiko pasikeitusia nuostata (\cref{ch:corpus,ch:register}).
+  \item[Pareigų registras.] Tarp teisės ir ataskaitos yra peržiūrėtas sąrašas, ką nustato
+    kiekvienas teisės aktas, išskirtas vieną kartą ir pakartotinai naudojamas kiekvienoje
+    ataskaitoje. Būtent jis daro dviejų įmonių ataskaitas palyginamas ir suteikia žmogui vieną
+    vietą, kur pataisyti teisės skaitymą (\cref{ch:obligations}).
+  \item[Teisės aktų nuorodų patikra.] Pavyzdinės organizacijos apžvalginis dokumentas kai kuriuos
+    reglamento dėl kriptoturto rinkų straipsnius nurodo neteisingais numeriais. Sistema
+    kiekvieną dokumente nurodytą straipsnį patikrina pagal teisės aktų bazę ir pagal tai, ką,
+    dokumento teigimu, tas straipsnis apima (\cref{ch:company}).
+  \item[Kaina kaip projektavimo apribojimas.] Kiekvienas sistemos įrašomas iškvietimas
+    įkainojamas; ataskaita prieš pradėdama parodo savo kainos įvertį; brangioji dalis laukia
+    žmogaus, nebent vykdymas pradėtas be apimties peržiūros; vienkartinis darbas su teise
+    atskirtas nuo darbo kiekvienai įmonei (\cref{ch:models,ch:control}).
+\end{description}
+
+\section{Ko kursas moko, bet sistema nedaro}\label{sec:course:not}
+
+\begin{itemize}
+  \item \textbf{Metinė atitikties ataskaita ir stebėsenos programa.} Kursas abi laiko atitikties
+    funkcijos produktais. Sistema turi joms reikalingą medžiagą --- ataskaitas, veiksmų
+    registrą, kiekvienos pareigos istoriją, --- bet nė vienos jų nerengia.
+  \item \textbf{Atitikties valdymo sistemos brandos vertinimas} nėra sistemos produktas.
+  \item \textbf{Patys ISO standartai.} Sistema gali suskaidyti standartą į punktus ir išskirti
+    jo reikalavimus (\cref{ch:corpus,ch:obligations}), o įmonė gali jį taikyti ir būti pagal jį
+    vertinama. Kurso turimos ISO standartų kopijos yra nuskenuoti vaizdai, naudojami pagal
+    mokymo licenciją: sistema neskaito skenuotų dokumentų, o licencija neapima jų įkėlimo.
+    Įdiegtoje teisės aktų bazėje nėra nė vieno standarto.
+  \item \textbf{Veikimo efektyvumas.} Kursas skiria kontrolės priemonės dizainą nuo jos
+    veikimo. Ataskaita vertina dizainą pagal dokumentus; ji pažymi, kur reikėtų patikrinti
+    veikimą, ir patį patikrinimą palieka žmogui.
+  \item \textbf{Išvados priežastis.} Sąmoningai palikta peržiūrėtojui.
+\end{itemize}
+
+Pačių DI kelių apribojimai --- kas nematuojama, ko vertintojas negali nustatyti, kaip buvo
+peržiūrėtas kartu pateikiamas pareigų registras --- surinkti \cref{ch:control}.

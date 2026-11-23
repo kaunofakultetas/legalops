@@ -1,0 +1,94 @@
+% STATUS: reviewed
+% ============================================================
+%  [*] About this document — what it covers and how to read it
+% ============================================================
+\chapter*{Apie šį dokumentą}
+\addcontentsline{toc}{chapter}{Apie šį dokumentą}
+\markboth{Apie šį dokumentą}{Apie šį dokumentą}
+
+Šiame dokumente aprašomas \product{} toks, koks jis buvo įdiegtas \docdate: ką daro kiekviena
+jo dalis, kodėl ji sukurta būtent taip ir kaip dalys dera tarpusavyje. Dokumentas skirtas skaitytojui,
+kuris išmano atitikties darbą ir finansų reguliavimą ir nori suprasti sistemą --- visų pirma
+tai, kaip ji naudoja dirbtinį intelektą, --- neskaitydamas kodo. Pakeliui nurodomi failai ir
+funkcijos, kad kodą atsivertęs skaitytojas rastų reikiamą vietą.
+
+\section*{Kaip dokumentas sudarytas}
+
+\begin{description}[style=nextline]
+  \item[I dalis --- Sistemos apžvalga] Kam sistema skirta, kokios paslaugos ją sudaro ir
+    kokius duomenis ji saugo (\cref{ch:intro,ch:arch,ch:data}).
+  \item[II dalis --- Dirbtinis intelektas sistemoje] Ilgiausia dalis. Ji seka duomenis nuo
+    teisės iki ataskaitos: kaip apskritai pasiekiamas modelis ir kiek kainuoja iškvietimas
+    (\cref{ch:models}), kaip saugomos ir keičiamos instrukcijos (\cref{ch:prompts}), kaip
+    teisės aktų tekstai tampa teisės aktų baze, kurioje galima ieškoti (\cref{ch:corpus}), ir
+    pareigų registru (\cref{ch:obligations}), kas išskaitoma iš įmonės dokumentų
+    (\cref{ch:company}), kaip rengiama atitikties ataskaita (\cref{ch:report}) ir kas su ja
+    vyksta toliau (\cref{ch:register}), kaip rengiami atitikties programos dokumentų projektai
+    (\cref{ch:programme}) ir kaip veikia pokalbių asistentas (\cref{ch:chat}). Po to
+    \cref{ch:control} sutelkia tai, kas visa tai daro patikima: patikras, vertinimą,
+    sprendžiančius žmones ir kainą.
+  \item[III dalis --- Sistemos naudojimas ir eksploatavimas] Konsolė puslapis po puslapio
+    (\cref{ch:console}), API (\cref{ch:api}), sauga (\cref{ch:security}), diegimas ir
+    eksploatavimas (\cref{ch:ops}), testai (\cref{ch:testing}) ir tai, kaip sistema atliepia
+    kursą, kuriam ji sukurta (\cref{ch:course}).
+  \item[Žinynas] Visos instrukcijos (\cref{app:prompts}), visi pokalbio įrankiai
+    (\cref{app:tools}), visi katalogo teisės aktai (\cref{app:acts}), parametrai
+    (\cref{app:config}) ir terminų žodynėlis (\cref{app:glossary}).
+\end{description}
+
+\section*{Kas ką daro}
+
+Kalbos modelius naudojančia sistema galima pasitikėti tik tiek, kiek aiški jos brėžiama riba
+tarp to, ką parašė modelis, ką patikrino kodas ir ką nusprendė žmogus. Dokumentas šią ribą
+visur žymi vienodai.
+
+\begin{aibox}{Klausiama modelio}
+Geltonas skydelis aprašo kalbos modelio iškvietimą: kas modeliui pateikiama, kas jam nurodoma
+ir ką jis turi atsakyti. Paveiksluose geltonas stačiakampis yra modelio iškvietimas.
+\end{aibox}
+
+\begin{codebox}{Tikrina arba skaičiuoja kodas}
+Mėlynas skydelis aprašo tai, kas atliekama be modelio: citata surandama jos dokumente,
+nuostata randama teisės aktų bazėje, apskaičiuojamas balas, užtikrinamas taisyklės laikymasis.
+Niekas tokiame skydelyje nepriklauso nuo to, ką modelis tąkart atsakė.
+\end{codebox}
+
+\begin{humanbox}{Sprendžia žmogus}
+Rėmeliu apvestas skydelis žymi sprendimą, kurio sistema niekada nepriima pati: ataskaitos
+apimties patvirtinimą, pareigos patvirtinimą, išvados būsenos pakeitimą, ataskaitos
+patvirtinimą, parengto politikos projekto patvirtinimą.
+\end{humanbox}
+
+\begin{lessonbox}{Išmatuota}
+Pilkame skydelyje pateikiamas matavimas arba nesėkmė, nurodant datą ir tai, kas dėl to buvo
+pakeista. Šių skydelių skaičiai --- tai nurodytą dieną kurso pavyzdinės įmonės atveju atlikti
+stebėjimai; tai nėra pažadai dėl kitų įmonių ar kitų dienų.
+\end{lessonbox}
+
+Kiekviena vieta, kurioje kviečiamas modelis, taip pat turi \emph{kelio kortelę}: lentelę su
+tomis pačiomis dešimčia eilučių --- \emph{Paleidimas}, \emph{Įvestis}, \emph{Instrukcija ir
+modelis}, \emph{Išvestis}, \emph{Kodo patikros}, \emph{Saugoma}, \emph{Nepavykus},
+\emph{Kaina}, \emph{Žmogaus kontrolė} ir \emph{Kaip matuojama}. Jose nurodoma, kas kelią
+paleidžia, ką modelis gauna, kokia instrukcija ir koks modelis naudojami, ką jis grąžina, ką
+tikrina kodas, kas išsaugoma, kas nutinka nepavykus, kiek tai kainuoja, kur sprendžia žmogus ir
+kaip kelias matuojamas. Kortelės išvardytos \cref{ch:control}.
+
+\section*{Žymėjimas}
+
+\begin{tabularx}{\textwidth}{@{}L{44mm}Y@{}}
+  \toprule
+  \hd{Užrašyta taip} & \hd{Reiškia} \\
+  \midrule
+  \file{analysis/pipeline.py} & Failas. API keliai nurodomi nuo \file{django/compliance/}, asistento paslaugos --- nuo \file{assistant/app/}, konsolės --- nuo \file{vite/app/src/}; visi kiti keliai nurodomi nuo repozitorijos šaknies. \\
+  \code{run_prompt} & Pavadinimas kode: funkcija, konstanta, laukas, reikšmė. \\
+  \prompt{report.gap_analysis} & Instrukcija pagal pavadinimą, kuriuo ji saugoma. \\
+  \model{gpt-6.1-sol} & Modelis pagal pavadinimą, kurį jam suteikia DI tinklų sąsaja. \\
+  \route{POST}{/api/reports} & API maršrutas. \\
+  \ui{Veiksmai} & Užrašas taip, kaip jį rodo konsolė. \\
+  instrukcijų injekcija (angl. \en{prompt injection}) & Pagrindinis DI terminas: pirmą kartą jį pavartojus skyriuje, nurodomas ir angliškas atitikmuo. \\
+  9~sk., 9.3~posk., 3.2~pav., 2.1~lent. & Nuoroda į kitą dokumento vietą: pirmiausia numeris, po jo santrumpa; priedas nurodomas visu žodžiu, pvz., A~priedas. \\
+  \status{met} \status{partial} \status{missing} \status{unknown} \status{na} & Penkios išvados būsenos: atitinka, iš dalies, neatitinka, neįrodyta, netaikoma. \\
+  \bottomrule
+\end{tabularx}
+
+Sumos nurodomos JAV doleriais, pvz., 13,20~\$, nes taip sąnaudas skaičiuoja DI tinklų sąsaja. Laikas nurodomas pagal UTC. Pagrindinė produkto kalba --- lietuvių; jis veikia ir anglų kalba.
