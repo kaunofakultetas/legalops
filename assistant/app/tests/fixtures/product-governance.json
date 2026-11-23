@@ -1,0 +1,480 @@
+{
+ "id": "48f50032-6279-44b1-b45f-b7228d2c507c",
+ "companyId": "3eaf7c00-90cd-4add-b838-1ef67f4eaa44",
+ "companyName": "1009 LTD (demo)",
+ "kind": "governance",
+ "version": 2,
+ "language": "lt",
+ "status": "draft",
+ "title": "1009 LTD (demo) atsakomybių ir atitikties valdymo struktūra",
+ "checks": [
+  {
+   "ok": true,
+   "rule": "structure",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "independence",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "process",
+   "detail": "14",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "raci_accountable",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "raci_responsible",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": false,
+   "rule": "raci_everywhere",
+   "detail": "Atitikties pareigūnas",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "raci_heavy",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "process_basis",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "quotes",
+   "detail": "",
+   "blocking": false
+  }
+ ],
+ "basis": {
+  "products": {
+   "policy": {
+    "id": "3853d9a0-255f-4ffb-adda-b12cffcee2f6",
+    "status": "draft",
+    "version": 2
+   }
+  },
+  "reportId": "174fa845-7ae0-499a-8c7e-6cb336dd9580",
+  "documents": [
+   {
+    "id": "4c067279-e9dd-429a-a9d3-29a5ac991434",
+    "title": "00-company-profile.md",
+    "sha256": "5e4c602e3125881998743ff3b1562b9ff4969411dfb2cd2d15efe392388e00a1"
+   },
+   {
+    "id": "53db90ff-3998-4b85-b132-28f103499c0e",
+    "title": "01-access-control.md",
+    "sha256": "990aeb42151fc2b8ce1c0c4156c14dd892aa7d2c75bf1387e91cfb4eaf5b5032"
+   },
+   {
+    "id": "a29e5609-d006-4bb9-af43-da2efe821399",
+    "title": "02-backup.md",
+    "sha256": "0e16cc2b2de03a654f096078934f7f98c609654d821ba04b4d714f6ae270fb32"
+   },
+   {
+    "id": "205c4189-52fa-4f42-9b30-edc7143a3e7f",
+    "title": "03-human-resource.md",
+    "sha256": "cc85a27ef8f399f1f49b1c049f18861bb30e7131edc5ad70b43f43f4cb323b56"
+   },
+   {
+    "id": "75787134-4234-4269-a342-cd85b8b58c7c",
+    "title": "04-asset-management.md",
+    "sha256": "581fe8239ab219fd506e69712e7ae2b9caa2214019e6f6f8baef261c37b4f50f"
+   },
+   {
+    "id": "da2c7a5a-d750-4b02-8105-207ff8a15c5b",
+    "title": "05-business-continuity.md",
+    "sha256": "aae32607cd429a7dd770f5491f3464f58916fcb24c560f5930e952ba1524624f"
+   },
+   {
+    "id": "943b357a-21bc-40c3-857b-1463bd56e0ae",
+    "title": "06-operations-management.md",
+    "sha256": "bcb5f0c9d10c258959593f478c581e4d00b11e4bbe7907940dcada82152fa021"
+   }
+  ]
+ },
+ "stats": {
+  "tokens": 144191,
+  "costUsd": 0.392819,
+  "provenance": {
+   "models": [
+    "gateway:azure/gpt-6.1-sol"
+   ],
+   "prompts": [
+    {
+     "slug": "programme.raci",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 1
+    },
+    {
+     "slug": "programme.structure",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 2
+    }
+   ]
+  }
+ },
+ "error": null,
+ "jobId": "027cc861-7a59-4dd3-ba69-ed114d8761fe",
+ "createdBy": "bb20a10e-e401-4418-8d50-a7e567e3e193",
+ "createdAt": "2026-11-12T16:08:01.415793+00:00",
+ "startedAt": "2026-11-12T16:08:01.430981+00:00",
+ "finishedAt": "2026-11-12T16:13:31.576254+00:00",
+ "editedByName": null,
+ "editedAt": null,
+ "approvedBy": null,
+ "approvedByName": null,
+ "approvedAt": null,
+ "approvalNote": "",
+ "progress": {},
+ "jobStatus": "done",
+ "content": {
+  "gaps": [
+   {
+    "why": "„08-information-security.md“ įvardija valdybą, o „F01-governance-accountability.md“ aprašo valdymo organo priežiūros funkciją, bet neparodo atskiros stebėtojų tarybos ar konkretaus priežiūros įgaliojimų paskirstymo. Reikia įstatuose ir valdybos darbo reglamente patvirtinti faktinę organų sudėtį, nusišalinimą ir nepriklausomą vykdomosios vadovybės sprendimų vertinimą; atskiros stebėtojų tarybos vien dėl bendrovės dydžio siūlyti nereikia.",
+    "line": "governing",
+    "role": "Valdybos sudėtis ir priežiūros įgaliojimai"
+   },
+   {
+    "why": "„F01-governance-accountability.md“ jau nustato nepriklausomą atitikties funkciją ir tiesioginę atskaitomybę, todėl jos nebuvimo spragos nėra, tačiau nepatvirtintame Atitikties politikos 2 versijos projekte palikti skyrimo, atleidimo ir biudžeto sprendimų laukai. Valdyba turi patvirtinti mandatą, informacijos gavimo teisę, savarankišką išteklių ir atlygio tvirtinimą bei apsaugą nuo tikrinamų padalinių nurodymų ir nepagrįsto atleidimo.",
+    "line": "second",
+    "role": "Atitikties funkcijos įgaliojimų ir išteklių garantijos"
+   },
+   {
+    "why": "„F00-fintech-overview.md“ ir teminės politikos paskirsto sektorines užduotis, tačiau Atitikties politikos 2 versijos projekte nepatvirtinti bendro rizikos vertinimo, stebėsenos ir ataskaitų periodiškumai bei procedūros. Atsižvelgiant į 2026-11-11 ataskaitos 68 trūkstamus ir 269 nežinomus reikalavimus, reikia bent metinio visos bendrovės rizikos vertinimo ir rizika pagrįsto stebėsenos plano, ketvirtinės bendros ataskaitos bei trūkumų registro su vykdytojais ir terminais.",
+    "line": "second",
+    "role": "Bendros atitikties stebėsenos ir ataskaitų funkcija"
+   },
+   {
+    "why": "„09-risk-management.md“ daugiausia apima IRT, „05-business-continuity.md“ įvardija CRO, o „F01-governance-accountability.md“ – rizikos pareigūną, nepatvirtindami, ar tai ta pati pareigybė. Reikia vieno suderinto mandato, apimančio ir klientų turto, likvidumo, kapitalo, veiklos bei tiekėjų riziką, tiesioginės atskaitomybės valdybai ir dokumentuotų skyrimo, atlygio bei išteklių garantijų; atskiro rizikos departamento nereikia.",
+    "line": "second",
+    "role": "Bendros rizikos funkcijos mandatas"
+   }
+  ],
+  "raci": [
+   {
+    "value": "AR",
+    "roleId": "n3",
+    "stepId": "s1"
+   },
+   {
+    "value": "I",
+    "roleId": "n2",
+    "stepId": "s1"
+   },
+   {
+    "value": "R",
+    "roleId": "n3",
+    "stepId": "s2"
+   },
+   {
+    "value": "A",
+    "roleId": "n2",
+    "stepId": "s2"
+   },
+   {
+    "value": "C",
+    "roleId": "n4",
+    "stepId": "s2"
+   },
+   {
+    "value": "A",
+    "roleId": "n1",
+    "stepId": "s3"
+   },
+   {
+    "value": "R",
+    "roleId": "n3",
+    "stepId": "s3"
+   },
+   {
+    "value": "C",
+    "roleId": "n2",
+    "stepId": "s3"
+   },
+   {
+    "value": "C",
+    "roleId": "n12",
+    "stepId": "s3"
+   },
+   {
+    "value": "A",
+    "roleId": "n1",
+    "stepId": "s13"
+   },
+   {
+    "value": "R",
+    "roleId": "n8",
+    "stepId": "s13"
+   },
+   {
+    "value": "C",
+    "roleId": "n3",
+    "stepId": "s13"
+   },
+   {
+    "value": "I",
+    "roleId": "n2",
+    "stepId": "s13"
+   }
+  ],
+  "title": "1009 LTD (demo) atsakomybių ir atitikties valdymo struktūra",
+  "process": [
+   {
+    "id": "s1",
+    "name": "Atitikties prievolių nustatymas ir teisės aktų pokyčių stebėjimas",
+    "basis": [
+     {
+      "ref": "4.5",
+      "source": "ISO 37301"
+     },
+     {
+      "ref": "7.5",
+      "source": "ISO 37301"
+     }
+    ],
+    "frequency": "Nuolat; registras apibendrinamas kas ketvirtį ir atnaujinamas pasikeitus teisės aktams, leidimo apimčiai, paslaugoms ar veiklos teritorijai.",
+    "description": "Pagal faktines 1009 LTD (demo) paslaugas sudaromas atitikties prievolių registras: patikrinamas deklaruojamo MiCA veiklos leidimo galiojimas ir apimtis, suderinamas „00-company-profile.md“ su kriptoturto veikla ir patikslinamos „F00-fintech-overview.md“ teisės aktų nuorodos. Atskirai žymimi galiojantys reikalavimai, vėliau taikytinos AMLR prievolės ir sąlyginiai reikalavimai, įskaitant priklausančius nuo faktinio dirbtinio intelekto naudojimo; 2026-11-11 ataskaitos neįrodytos prievolės nelaikomos savaime nustatytais pažeidimais. Atitikties prievolių registro ir teisės aktų pokyčių valdymo tvarka dar turi būti parengta, nustatant kiekvienos prievolės taikymo pagrindą, įsigaliojimą, veiklos savininką ir įrodymus."
+   },
+   {
+    "id": "s2",
+    "name": "Visos bendrovės atitikties rizikos vertinimas",
+    "basis": [
+     {
+      "ref": "4.6",
+      "source": "ISO 37301"
+     },
+     {
+      "ref": "53",
+      "source": "LB gairės"
+     }
+    ],
+    "frequency": "Bent kartą per metus metų pradžioje; papildomai prieš reikšmingą veiklos pakeitimą ir po reikšmingo pažeidimo, incidento ar priežiūros institucijos išvados.",
+    "description": "Naudojant prievolių registrą, paslaugų ir klientų duomenis bei 2026-11-11 ataskaitą vertinama reikalavimų nevykdymo tikimybė, poveikis klientams ir bendrovei, kontrolės priemonių veiksmingumas bei likutinė rizika. Pirmenybė teikiama pinigų plovimo prevencijai, duomenų apsaugai, prekybos skaidrumui, atskaitomybei ir klientų turto apsaugai, atskiriant įrodymų stoką nuo patvirtinto reikalavimo nevykdymo. Visos bendrovės atitikties rizikos vertinimo procedūra dar turi būti parengta, susiejant ją su teminiais vertinimais pagal „09-risk-management.md“ ir „F10-aml-travel-rule.md“; rezultatas – prioritetinis rizikos registras."
+   },
+   {
+    "id": "s3",
+    "name": "Atitikties politikos, atsakomybių ir metinės programos tvirtinimas",
+    "basis": [
+     {
+      "ref": "5.3",
+      "source": "ISO 37301"
+     },
+     {
+      "ref": "6.2",
+      "source": "ISO 37301"
+     }
+    ],
+    "frequency": "Kasmet, patvirtinus rizikos vertinimą; pirmą kartą – nedelsiant po šio proceso patvirtinimo, papildomai pasikeitus mandatui, struktūrai ar reikšmingai padidėjus rizikai.",
+    "description": "Pagal rizikos vertinimą valdybai pateikiama tvirtinti Atitikties politikos 2 versija, kuri šiuo metu yra tik projektas, ir metinė atitikties programa su tikslais, rodikliais, patikrinimais, mokymais bei išteklių poreikiu. Prieš tvirtinimą išsprendžiami projekte palikti pareigūno skyrimo ir atleidimo garantijų, biudžeto, vertinimų, stebėsenos ir ataskaitų periodiškumo klausimai, suderinant „F01-governance-accountability.md“ ir „08-information-security.md“: CISO vykdo nepriklausomą priežiūrą, o technologijų ir saugumo padaliniai – kontrolės priemones. Metinės atitikties programos rengimo tvarka dar turi būti parengta; šiame procese siūlomas periodiškumas tampa vidaus reikalavimu tik jį patvirtinus valdybai."
+   },
+   {
+    "id": "s13",
+    "name": "Nepriklausomo atitikties sistemos audito atlikimas",
+    "basis": [
+     {
+      "ref": "9.2",
+      "source": "ISO 37301"
+     }
+    ],
+    "frequency": "Bent kartą per metus pagal rizika pagrįstą planą; papildomai valdybai pavedus po reikšmingo pažeidimo ar esminio sistemos pakeitimo.",
+    "description": "Pagal valdybos patvirtintą rizika pagrįstą audito planą vidaus auditas nepriklausomai vertina visos atitikties sistemos valdymą, funkcijos nepriklausomumą, prievolių ir rizikos vertinimą, kontrolės veikimą bei ataskaitų patikimumą. „F01-governance-accountability.md“ ir „08-information-security.md“ audito nuostatos papildomos bendros atitikties sistemos audito apimtimi, neapsiribojant IRT; auditorius neturi dalyvauti projektuojant ar vykdant vėliau audituojamas kontrolės priemones. Rezultatas – tiesiogiai valdybai pateikta nepriklausoma audito ataskaita, kurios rekomendacijų įgyvendinimas perduodamas pirmosios linijos savininkams, o audito išvadų užbaigimą auditas patvirtina nepriklausomai."
+   }
+  ],
+  "positions": [
+   {
+    "line": "governing",
+    "name": "Valdyba",
+    "unit": "",
+    "duties": "Tvirtina strategiją, rizikos apetitą ir politikas, užtikrina kontrolės funkcijų išteklius bei prisiima galutinę neperleidžiamą atsakomybę už MiCA ir DORA atitiktį.",
+    "sources": [
+     {
+      "quote": "10.1. Company, along with designated personnel responsible for overseeing this Policy's implementation, ensures ongoing monitoring to uphold all measures outlined in the Information Security Policy. Regular updates to the Policy or any related process are coordinated with CEO and approved by the Management Board. The Policy is reviewed at least annually to integrate evolving regulatory requirements and industry wide standards.",
+      "start": 14892,
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     },
+     {
+      "quote": "3.1. The management body bears **ultimate and full** responsibility for the Company's compliance with MiCA and DORA. This responsibility is non-delegable and includes, at minimum, the duties set out in this Section 3.",
+      "start": 2300,
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     }
+    ]
+   },
+   {
+    "line": "governing",
+    "name": "Priežiūros funkciją vykdančio valdymo organo pirmininkas",
+    "unit": "Priežiūros funkciją vykdantis valdymo organas",
+    "duties": "Gauna atitikties pareigūno eskaluojamus reikšmingus susirūpinimus dėl interesų deklaracijų.",
+    "sources": [
+     {
+      "quote": "8.2. Declarations are reviewed by the Compliance Officer. Material concerns are escalated to the Chair of the management body in its supervisory function.",
+      "start": 6446,
+      "document": "F04-conflict-of-interest.md",
+      "documentId": "fc74e272-7ed3-40a6-b5b3-de05e9115310"
+     }
+    ]
+   },
+   {
+    "line": "governing",
+    "name": "Įtraukimo į prekybą komitetas",
+    "unit": "",
+    "duties": "Turi nepriklausomai vertinti su bendrove susijusių emitentų kriptoturto įtraukimą į prekybą, užtikrinant rašytinį pagrindimą ir konflikto atskleidimą.",
+    "sources": [
+     {
+      "quote": "| Listing of an issuer related to the Company on a trading platform | Operation of a trading platform | Listing committee independence; written rationale; disclosure |",
+      "start": 1906,
+      "document": "F04-conflict-of-interest.md",
+      "documentId": "fc74e272-7ed3-40a6-b5b3-de05e9115310"
+     }
+    ]
+   },
+   {
+    "line": "first",
+    "name": "Generalinis direktorius (CEO)",
+    "unit": "",
+    "duties": "Atsako už kasdienio valdymo sprendimus, informacijos saugumo įgyvendinimą ir bendrą incidentų valdymo kontrolę bei dalyvauja tvirtinant avarinę prieigą.",
+    "sources": [
+     {
+      "quote": "- **CEO** holds the ultimate responsibility for information security within the Company, ensuring alignment with strategic business objectives and regulatory requirements.",
+      "start": 4268,
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "quote": "CTO is ultimately responsible for ensuring that incident management activities are performed, while CISO ensures that the activities are in line and follows outlined Company's information security policies and business continuity plans. CEO is ultimately responsible for the decision making and overall control of incident management within 1009.",
+      "start": 3912,
+      "document": "07-incident-management.md",
+      "documentId": "e210a2a6-4be2-44c7-b9a1-5c18d207a437"
+     }
+    ]
+   },
+   {
+    "line": "first",
+    "name": "Vyresnioji vadovybė",
+    "unit": "",
+    "duties": "Užtikrina saugumo politikos įgyvendinimo išteklius, peržiūri valdymo struktūrą ir gauna rizikos bei incidentų informaciją.",
+    "sources": [
+     {
+      "quote": "3.1. 1009's Senior Management shall provide oversight, sponsorship, and dedicated resources to ensure the effective implementation of the Policy and alignment with operational resilience objectives, regulatory requirements and best practices.",
+      "start": 3970,
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     },
+     {
+      "quote": "3.16. Senior management bears the overall responsibility for setting and approving the digital operational resilience strategy, including the determination of the appropriate risk tolerance level of IT risk of the Company.",
+      "start": 7517,
+      "document": "09-risk-management.md",
+      "documentId": "c05bcc2e-bb84-4a2a-8a39-67384e60a71b"
+     }
+    ]
+   },
+   {
+    "line": "first",
+    "name": "Technologijų padalinys",
+    "unit": "",
+    "duties": "Valdo IT infrastruktūrą ir programinę įrangą bei optimizuoja sistemas.",
+    "sources": [
+     {
+      "quote": "- **Technology Division (12 employees).** Handles IT infrastructure, software management, and system optimization.",
+      "start": 648,
+      "document": "00-company-profile.md",
+      "documentId": "4c067279-e9dd-429a-a9d3-29a5ac991434"
+     }
+    ]
+   }
+  ],
+  "structure": [
+   {
+    "id": "n1",
+    "kind": "body",
+    "line": "governing",
+    "name": "Valdyba",
+    "note": "Atskira stebėtojų taryba neįrodyta, todėl valdybai priskiriama priežiūra, kontrolės funkcijų skyrimas ir ištekliai bei rizikos apetito ir reikšmingų išimčių tvirtinimas.",
+    "parentId": null,
+    "proposed": false
+   },
+   {
+    "id": "n2",
+    "kind": "function",
+    "line": "first",
+    "name": "Generalinis direktorius (CEO)",
+    "note": "Atsako už veiklos įgyvendinimą, nepakeisdamas valdybos galutinės atsakomybės ir nefiltruodamas nepriklausomų kontrolės išvadų.",
+    "parentId": "n1",
+    "proposed": false
+   },
+   {
+    "id": "n3",
+    "kind": "function",
+    "line": "second",
+    "name": "Atitikties pareigūnas",
+    "note": "Išlaikoma tiesioginė atskaitomybė valdybai ir teisė būti išklausytam be tikrinamo vadovo, patvirtinant bendros stebėsenos mandatą ir nepriklausomus išteklius.",
+    "parentId": "n1",
+    "proposed": false
+   },
+   {
+    "id": "n4",
+    "kind": "function",
+    "line": "second",
+    "name": "Rizikos pareigūnas",
+    "note": "Mandatas išplečiamas visai reikšmingai bendrovės rizikai, pavedant nepriklausomą klientų turto suderinimų ir prudencinių skaičiavimų peržiūrą bei užtikrinant tiesioginę prieigą prie valdybos.",
+    "parentId": "n1",
+    "proposed": false
+   },
+   {
+    "id": "n8",
+    "kind": "function",
+    "line": "third",
+    "name": "Vidaus auditas",
+    "note": "Funkciškai pavaldus tik valdybai ir gali būti vykdomas nepriklausomo išorinio paslaugų teikėjo, kurio planą bei išteklius tvirtina valdyba, o ne CEO ar CISO.",
+    "parentId": "n1",
+    "proposed": false
+   },
+   {
+    "id": "n12",
+    "kind": "function",
+    "line": "first",
+    "name": "Vyriausiasis technologijų vadovas (CTO)",
+    "note": "Prieigos ir techninės peržiūros laikomos pirmosios linijos kontrolėmis, o ne nepriklausomu vidaus auditu.",
+    "parentId": "n2",
+    "proposed": false
+   },
+   {
+    "id": "n13",
+    "kind": "unit",
+    "line": "first",
+    "name": "Technologijų padalinys",
+    "note": "",
+    "parentId": "n12",
+    "proposed": false
+   },
+   {
+    "id": "n20",
+    "kind": "function",
+    "line": "first",
+    "name": "Finansų apskaitos funkcija",
+    "note": "Pridedamas apskaitos ir prudencinių skaičiavimų rengėjas, kuriam pakanka paskirto asmens arba išorinio paslaugų teikėjo, rizikos pareigūnui paliekant nepriklausomą patikrą.",
+    "parentId": "n2",
+    "proposed": true
+   }
+  ]
+ }
+}

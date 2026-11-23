@@ -1,0 +1,551 @@
+{
+ "id": "3853d9a0-255f-4ffb-adda-b12cffcee2f6",
+ "companyId": "3eaf7c00-90cd-4add-b838-1ef67f4eaa44",
+ "companyName": "1009 LTD (demo)",
+ "kind": "policy",
+ "version": 2,
+ "language": "lt",
+ "status": "draft",
+ "title": "1009 LTD (demo) atitikties politika",
+ "checks": [
+  {
+   "ok": true,
+   "rule": "parts",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": false,
+   "rule": "provisions",
+   "detail": "Lietuvos Respublikos darbo kodeksas 58",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "provision_subjects",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "quotes",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "hierarchy",
+   "detail": "",
+   "blocking": false
+  }
+ ],
+ "basis": {
+  "products": {},
+  "reportId": "174fa845-7ae0-499a-8c7e-6cb336dd9580",
+  "documents": [
+   {
+    "id": "4c067279-e9dd-429a-a9d3-29a5ac991434",
+    "title": "00-company-profile.md",
+    "sha256": "5e4c602e3125881998743ff3b1562b9ff4969411dfb2cd2d15efe392388e00a1"
+   },
+   {
+    "id": "53db90ff-3998-4b85-b132-28f103499c0e",
+    "title": "01-access-control.md",
+    "sha256": "990aeb42151fc2b8ce1c0c4156c14dd892aa7d2c75bf1387e91cfb4eaf5b5032"
+   },
+   {
+    "id": "205c4189-52fa-4f42-9b30-edc7143a3e7f",
+    "title": "03-human-resource.md",
+    "sha256": "cc85a27ef8f399f1f49b1c049f18861bb30e7131edc5ad70b43f43f4cb323b56"
+   },
+   {
+    "id": "4d13f97a-5bdb-490c-be11-81a37cb75593",
+    "title": "08-information-security.md",
+    "sha256": "01d7e32997d1a1fd50dc1d0d422b6f5a6580c56e3fd7ae803d23ec293c1f4910"
+   },
+   {
+    "id": "9fbae52a-540b-4639-989b-b0e4292d4d74",
+    "title": "F00-fintech-overview.md",
+    "sha256": "d232c395d323cbe43a8cf7c37f0fa23afc09cf1cfb179aed52d286a680f5bc02"
+   },
+   {
+    "id": "4350ef5c-94d3-43df-ace2-e95569dd2309",
+    "title": "F01-governance-accountability.md",
+    "sha256": "65a72c832a7ee3babb8914427769efc0c5a175519eeb880778c1086dbcaf8ae5"
+   },
+   {
+    "id": "12f5b6dc-2734-488b-a888-983c3e04ae9c",
+    "title": "F05-complaints-handling.md",
+    "sha256": "4e88410d5247c89d02d02f29bc141b04ec26ea1d7b360607a37669cb673fbd0c"
+   }
+  ]
+ },
+ "stats": {
+  "tokens": 162067,
+  "costUsd": 0.541427,
+  "provenance": {
+   "models": [
+    "gateway:azure/gpt-6.1-sol"
+   ],
+   "prompts": [
+    {
+     "slug": "corpus.check_citations",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 4
+    },
+    {
+     "slug": "programme.documents",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 2
+    },
+    {
+     "slug": "programme.policy",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 2
+    }
+   ]
+  }
+ },
+ "error": null,
+ "jobId": "8fbafaf8-d2b7-4fe3-a5b7-03e63ca09136",
+ "createdBy": "bb20a10e-e401-4418-8d50-a7e567e3e193",
+ "createdAt": "2026-11-12T15:50:15.896463+00:00",
+ "startedAt": "2026-11-12T15:50:15.911122+00:00",
+ "finishedAt": "2026-11-12T15:56:21.298836+00:00",
+ "editedByName": null,
+ "editedAt": null,
+ "approvedBy": null,
+ "approvedByName": null,
+ "approvedAt": null,
+ "approvalNote": "",
+ "progress": {},
+ "jobStatus": "done",
+ "content": {
+  "parts": [
+   {
+    "key": "mandate",
+    "text": "Atitikties pareigūnas yra nepriklausomos kontrolės funkcijos vykdytojas ir tiesiogiai atsiskaito valdymo organui, be vykdomosios vadovybės tarpininkavimo, kaip nustatyta „F01-governance-accountability.md“. Jis turi teisę tiesiogiai kreiptis į valdymo organą, pateikti nesutarimus ir būti išklausytas nedalyvaujant tikrinamo padalinio vadovui. Atitikties pareigūno skyrimo ir atleidimo kompetencija nustatoma taip: [Valdyba nusprendžia: kuris organas skiria ir atleidžia atitikties pareigūną ir kokios garantijos apsaugo nuo nepagrįsto atleidimo].\n\nŠia politika suteikiama teisė laiku gauti visą pareigoms reikalingą informaciją, dokumentus, sistemų duomenis ir darbuotojų paaiškinimus, taip pat pradėti galimų pažeidimų tyrimą. Prieiga įgyvendinama laikantis konfidencialumo ir asmens duomenų apsaugos reikalavimų; tikrinamas padalinys negali jos nepagrįstai riboti.\n\nAtitikties funkcija nepriima tikrinamų padalinių nurodymų dėl išvadų, tyrimo apimties ar pranešimo valdymo organui. Jai nepavedama vykdyti veiklos, kurios atitiktį ji vėliau tikrintų; konsultavimas nepakeičia veiklos vadovo atsakomybės.\n\nValdymo organas užtikrina pakankamus darbuotojų, žinių, laiko ir techninius išteklius, išklausęs atitikties pareigūno poreikių vertinimą. Išteklių tvirtinimo taisyklė nustatoma taip: [Valdyba nusprendžia: kaip tvirtinamas atitikties funkcijos biudžetas ir nagrinėjami papildomų išteklių prašymai].",
+    "heading": "Atitikties funkcijos įgaliojimai (mandatas)",
+    "sources": [
+     {
+      "quote": "5.2. The Compliance Officer, Risk Officer, AML/CFT Officer and Internal Audit functions are organisationally separated from each other and from operational/revenue-generating units. The Compliance and AML/CFT functions report to the management body without filter through executive management.",
+      "start": 5990,
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     },
+     {
+      "quote": "- Sufficient budgetary and human resources are allocated to ICT risk management, compliance, and the internal audit function.",
+      "start": 3598,
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     }
+    ],
+    "decisions": [
+     "[Valdyba nusprendžia: kuris organas skiria ir atleidžia atitikties pareigūną ir kokios garantijos apsaugo nuo nepagrįsto atleidimo]",
+     "[Valdyba nusprendžia: kaip tvirtinamas atitikties funkcijos biudžetas ir nagrinėjami papildomų išteklių prašymai]"
+    ],
+    "legalBasis": [
+     {
+      "act": "MiCA",
+      "why": "Effective governance, controls and adequate personnel.",
+      "path": "68 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "68",
+      "paragraph": "",
+      "shortTitle": "MiCA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1114#art_68"
+     },
+     {
+      "act": "DORA",
+      "why": "Independence and segregation of control functions.",
+      "path": "6 str. 4 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "6",
+      "paragraph": "4",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_6"
+     }
+    ]
+   },
+   {
+    "key": "processes",
+    "text": "Šia politika nustatomi bendrą atitiktį apimantys rizikos vertinimo, stebėsenos, konsultavimo ir ataskaitų teikimo procesai. Jie neapsiriboja informacijos saugumu.\n\nAtitikties rizikos vertinimas skirtas nustatyti reikalavimų nevykdymo tikimybę, poveikį klientams ir bendrovei bei kontrolės spragas. Jis atliekamas pasikeitus paslaugoms, veiklos teritorijai ar reikalavimams ir po reikšmingų pažeidimų. Mažiausias periodiškumas nustatomas taip: [Valdyba nusprendžia: kaip dažnai privalomai vertinama visos bendrovės atitikties rizika]. Bendro vertinimo procedūra turi būti parengta; teminiai vertinimai nustatyti „09-risk-management.md“ ir „F10-aml-travel-rule.md“.\n\nStebėsena ir kontrolė skirtos įsitikinti, kad reikalavimai vykdomi, o trūkumai pašalinti. Atitikties pareigūnas bent kas ketvirtį peržiūri interesų konfliktų ir skundų informaciją pagal „F04-conflict-of-interest.md“ ir „F05-complaints-handling.md“. Bendros stebėsenos planavimo ir patikrinimų procedūra turi būti parengta: [Valdyba nusprendžia: koks mažiausias bendros atitikties stebėsenos ir kontrolės periodiškumas].\n\nKonsultacijos teikiamos darbuotojams ir vadovams, o prieš kiekvieną naują paslaugą, produktą ar reikšmingą pakeitimą vertinama atitiktis. Rinkodaros ir paslaugų perdavimo vertinimą detalizuoja „F12-marketing-disclosures.md“ ir „F06-ict-third-party-risk.md“; bendro konsultavimo procedūra turi būti parengta.\n\nAtaskaitos leidžia valdymo organui ir vadovams spręsti dėl rizikos, išteklių ir taisomųjų veiksmų. Teminės ketvirtinės ataskaitos teikiamos pagal esamus dokumentus. Bendros ataskaitos procedūra turi būti parengta: [Valdyba nusprendžia: kaip dažnai teikiama bendra atitikties ataskaita]. Apie reikšmingus pažeidimus pranešama nedelsiant.",
+    "heading": "Pagrindiniai atitikties procesai",
+    "sources": [
+     {
+      "quote": "7.2. The Register is reviewed by the Compliance Officer at minimum quarterly and reported in summary form to the management body in its supervisory function.",
+      "start": 5800,
+      "document": "F04-conflict-of-interest.md",
+      "documentId": "fc74e272-7ed3-40a6-b5b3-de05e9115310"
+     },
+     {
+      "quote": "8.2. The Register is reviewed at minimum quarterly by the Compliance Officer for root-cause patterns. Material issues are escalated to the management body and feed back into product, training and control improvements.",
+      "start": 4990,
+      "document": "F05-complaints-handling.md",
+      "documentId": "12f5b6dc-2734-488b-a888-983c3e04ae9c"
+     },
+     {
+      "quote": "4.2. Where the function is critical or important, the Compliance Officer issues an opinion on regulatory compatibility, and the management body in its supervisory function approves the engagement.",
+      "start": 3912,
+      "document": "F06-ict-third-party-risk.md",
+      "documentId": "eecdb888-a802-425c-99da-7e5a6a36f31f"
+     }
+    ],
+    "decisions": [
+     "[Valdyba nusprendžia: kaip dažnai privalomai vertinama visos bendrovės atitikties rizika]",
+     "[Valdyba nusprendžia: koks mažiausias bendros atitikties stebėsenos ir kontrolės periodiškumas]",
+     "[Valdyba nusprendžia: kaip dažnai teikiama bendra atitikties ataskaita]"
+    ],
+    "legalBasis": [
+     {
+      "act": "MiCA",
+      "why": "Compliance policies, monitoring and internal controls.",
+      "path": "68 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "68",
+      "paragraph": "",
+      "shortTitle": "MiCA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1114#art_68"
+     },
+     {
+      "act": "DORA",
+      "why": "Risk assessment, control and framework review.",
+      "path": "6 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "6",
+      "paragraph": "",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_6"
+     },
+     {
+      "act": "DORA",
+      "why": "Pre-contractual assessment of third-party arrangements.",
+      "path": "28 str. 4 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "28",
+      "paragraph": "4",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_28"
+     }
+    ]
+   },
+   {
+    "key": "consequences",
+    "text": "Šios politikos ir kitų bendrovei privalomų reikalavimų laikomasi nepriklausomai nuo asmens pareigų, įtakos, darbo rezultatų ar santykių su bendrove. Vienodi vertinimo principai taikomi darbuotojams, vadovams ir valdymo organo nariams; teisinės poveikio priemonės parenkamos pagal jų santykių su bendrove pobūdį.\n\nPažeidimai nagrinėjami nešališkai, suteikiant susijusiam asmeniui galimybę paaiškinti aplinkybes. Pagal „03-human-resource.md“ ir taikytinus teisės aktus skiriamos pažeidimo sunkumą atitinkančios poveikio priemonės, įskaitant darbo sutarties nutraukimą įstatyme nustatytais pagrindais. Paslaugų teikėjams taikomos sutartyse ir teisės aktuose nustatytos priemonės, įskaitant sutarties nutraukimą, kai tam yra pagrindas. Civilinės, administracinės ar baudžiamosios atsakomybės klausimus sprendžia tam kompetentingi subjektai.\n\nŠia politika nustatoma, kad savanoriškas ir savalaikis pranešimas apie savo klaidą, bendradarbiavimas bei pastangos sumažinti žalą vertinami asmens naudai. Tai savaime nepanaikina atsakomybės ar pareigos atlyginti žalą. Problemos slėpimas ir trukdymas tyrimui vertinami nepalankiai. Sąžiningas pranešimas apie įtarimą nelaikomas pažeidimu vien todėl, kad įtarimas nepasitvirtino. Atsakomybės taikymas nepakeičia pareigos pašalinti pažeidimo priežastis.",
+    "heading": "Pasekmės už neatitikimą",
+    "sources": [
+     {
+      "quote": "All employees, contractors and third-party providers shall be required to use Company's information and IT assets only for the execution of their business role and accordance to Company's policies. Violations are subject to disciplinary action, including dismissal and potential civil or criminal penalties.",
+      "start": 6647,
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "quote": "Established disciplinary and grievance procedures address any 1009's policy violations. Non-compliance with Company policies may result in disciplinary actions proportionate to the severity of the violation.",
+      "start": 6956,
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "quote": "9.13. 1009 shall establish procedures for disciplinary action and grievances, any violations of information security procedures may be addressed through these procedures. If an individual does not adhere to the information security requirements, the company may take disciplinary action based on the nature and severity of the violation.",
+      "start": 14009,
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     }
+    ],
+    "decisions": [],
+    "legalBasis": [
+     {
+      "act": "Lietuvos Respublikos darbo kodeksas",
+      "why": "Termination for employee fault and proportionality.",
+      "path": "",
+      "found": false,
+      "match": null,
+      "status": "act_not_in_corpus",
+      "article": "58",
+      "paragraph": "",
+      "shortTitle": "Lietuvos Respublikos darbo kodeksas",
+      "citationUrl": ""
+     },
+     {
+      "act": "PAĮ",
+      "why": "Protection against adverse measures for reporting.",
+      "path": "10 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "10",
+      "paragraph": "",
+      "shortTitle": "PAĮ",
+      "citationUrl": ""
+     }
+    ]
+   }
+  ],
+  "title": "1009 LTD (demo) atitikties politika",
+  "missing": [
+   {
+    "level": 3,
+    "title": "Vidaus pažeidimų tyrimo ir poveikio priemonių taikymo tvarka",
+    "purpose": "Turi nustatyti nešališko tyrimo inicijavimą, tyrėjo parinkimą, paaiškinimų gavimą, įrodymų vertinimą, sprendimo kompetenciją ir proporcingas teisėtas priemones darbuotojams, vadovams bei paslaugų teikėjams. „03-human-resource.md“ ir „08-information-security.md“ pasekmes įvardija, tačiau nepaaiškina jų nustatymo proceso ir apsaugos nuo atsakomųjų veiksmų.",
+    "priority": "medium",
+    "supports": "consequences",
+    "legalBasis": [],
+    "partlyCoveredBy": [
+     {
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     }
+    ]
+   },
+   {
+    "level": 3,
+    "title": "Bendrasis atitikties mokymų planas ir apskaitos forma",
+    "purpose": "Turi sujungti esamus teminius mokymų reikalavimus į pareigybėmis grįstą kalendorių, paskirti vykdytojus ir nustatyti dalyvavimo, žinių patikrinimo bei pakartotinių mokymų apskaitą. Naujos teminės mokymo pareigos nekuriamos: „03-human-resource.md“, „F04-conflict-of-interest.md“, „F09-market-abuse-prevention.md“ ir „F10-aml-travel-rule.md“ jau nustato didžiąją jų dalį.",
+    "priority": "low",
+    "supports": "commitment",
+    "legalBasis": [],
+    "partlyCoveredBy": [
+     {
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     },
+     {
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     },
+     {
+      "document": "F04-conflict-of-interest.md",
+      "documentId": "fc74e272-7ed3-40a6-b5b3-de05e9115310"
+     },
+     {
+      "document": "F06-ict-third-party-risk.md",
+      "documentId": "eecdb888-a802-425c-99da-7e5a6a36f31f"
+     },
+     {
+      "document": "F09-market-abuse-prevention.md",
+      "documentId": "49c32116-21fd-42bd-9bf4-d7ac1e6c15c2"
+     },
+     {
+      "document": "F10-aml-travel-rule.md",
+      "documentId": "33db11f6-0d5d-49b4-b28c-ca368201ab13"
+     }
+    ]
+   },
+   {
+    "level": 3,
+    "title": "Atitikties rizikos vertinimo, stebėsenos ir atskaitomybės tvarka",
+    "purpose": "Turi nustatyti visų taikomų reikalavimų inventorizavimą, atitikties rizikos vertinimo kriterijus ir periodiškumą, rizika grįstą patikrų programą, įrodymų saugojimą, trūkumų eskalavimą ir ataskaitas valdymo organui. „09-risk-management.md“ apima tik IRT riziką, o „F01-governance-accountability.md“ nesuteikia bendrosios atitikties patikrų vykdymo metodo.",
+    "priority": "high",
+    "supports": "processes",
+    "legalBasis": [
+     {
+      "act": "MiCA",
+      "why": "Effective compliance policies and procedures",
+      "path": "68 str. 4 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "68",
+      "paragraph": "4",
+      "shortTitle": "MiCA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1114#art_68"
+     }
+    ],
+    "partlyCoveredBy": [
+     {
+      "document": "09-risk-management.md",
+      "documentId": "c05bcc2e-bb84-4a2a-8a39-67384e60a71b"
+     },
+     {
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     },
+     {
+      "document": "F05-complaints-handling.md",
+      "documentId": "12f5b6dc-2734-488b-a888-983c3e04ae9c"
+     },
+     {
+      "document": "F07-resilience-testing.md",
+      "documentId": "a41b2107-a1d7-421d-8922-d1cd3b8464e7"
+     },
+     {
+      "document": "F11-own-funds.md",
+      "documentId": "b478632b-0dfa-4e1a-9a76-d7b0dcc83606"
+     }
+    ]
+   },
+   {
+    "level": 2,
+    "title": "Asmens duomenų apsaugos politika",
+    "purpose": "Turi nustatyti duomenų tvarkymo tikslus ir teisinius pagrindus, duomenų kiekio bei saugojimo ribojimą, atsakomybes, tiesioginės rinkodaros ir darbuotojų patikrinimų ribas, duomenų tvarkytojų bei perdavimo už EEE ribų sąlygas. „08-information-security.md“ nustato saugumo reikalavimus, tačiau ne visą asmens duomenų tvarkymo teisėtumo sistemą.",
+    "priority": "high",
+    "supports": "compliance",
+    "legalBasis": [
+     {
+      "act": "GDPR",
+      "why": "Proportionate data protection policies",
+      "path": "24 str. 2 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "24",
+      "paragraph": "2",
+      "shortTitle": "GDPR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32016R0679#art_24"
+     },
+     {
+      "act": "GDPR",
+      "why": "Purpose limitation and data minimisation",
+      "path": "5 str. 1 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "5",
+      "paragraph": "1",
+      "shortTitle": "GDPR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32016R0679#art_5"
+     },
+     {
+      "act": "TFR",
+      "why": "Restricted use of transfer personal data",
+      "path": "25 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "25",
+      "paragraph": "",
+      "shortTitle": "TFR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1113#art_25"
+     }
+    ],
+    "partlyCoveredBy": [
+     {
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "document": "06-operations-management.md",
+      "documentId": "943b357a-21bc-40c3-857b-1463bd56e0ae"
+     },
+     {
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     },
+     {
+      "document": "F06-ict-third-party-risk.md",
+      "documentId": "eecdb888-a802-425c-99da-7e5a6a36f31f"
+     },
+     {
+      "document": "F10-aml-travel-rule.md",
+      "documentId": "33db11f6-0d5d-49b4-b28c-ca368201ab13"
+     },
+     {
+      "document": "F12-marketing-disclosures.md",
+      "documentId": "b83e9cdc-2131-4df7-85db-922414f8280e"
+     }
+    ]
+   },
+   {
+    "level": 3,
+    "title": "Svarbių IRT tiekėjų pasitraukimo ir paslaugų perkėlimo planų rengimo tvarka",
+    "purpose": "Turi nustatyti konkrečių alternatyvų parinkimą, perkėlimo seką, duomenų grąžinimo ar ištrynimo patikrą, pereinamojo laikotarpio išteklius ir kiekvieno svarbaus susitarimo pasitraukimo plano testavimą. „F06-ict-third-party-risk.md“ jau nustato pasitraukimo strategijos reikalavimą, tačiau nepateikia vykdomų tiekėjams pritaikytų planų ir jų rengimo bei patvirtinimo darbo eigos.",
+    "priority": "medium",
+    "supports": "processes",
+    "legalBasis": [
+     {
+      "act": "DORA",
+      "why": "Documented tested exit plans",
+      "path": "28 str. 8 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "28",
+      "paragraph": "8",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_28"
+     }
+    ],
+    "partlyCoveredBy": [
+     {
+      "document": "05-business-continuity.md",
+      "documentId": "da2c7a5a-d750-4b02-8105-207ff8a15c5b"
+     },
+     {
+      "document": "F06-ict-third-party-risk.md",
+      "documentId": "eecdb888-a802-425c-99da-7e5a6a36f31f"
+     }
+    ]
+   }
+  ],
+  "hierarchy": [
+   {
+    "note": "Aprašoma IT paslaugų bendrovė, todėl profilį reikia suderinti su deklaruojama kriptoturto paslaugų veikla.",
+    "level": 0,
+    "topic": "Bendrovės veiklos aprašymas",
+    "document": "00-company-profile.md",
+    "documentId": "4c067279-e9dd-429a-a9d3-29a5ac991434"
+   },
+   {
+    "note": "Dokumentas jungia prieigos principus su konkrečiais suteikimo, peržiūros ir panaikinimo veiksmais, o bendrų paskyrų draudimas prieštarauja „12-identity-management.md“ numatytoms išimtims.",
+    "level": 3,
+    "topic": "Prieigos teisių valdymas",
+    "document": "01-access-control.md",
+    "documentId": "53db90ff-3998-4b85-b132-28f103499c0e"
+   },
+   {
+    "note": "Politika apima priėmimo ir išėjimo veiksmus, bet pranešimų kanalo ir pažeidimų nagrinėjimo procedūras tik deklaruoja.",
+    "level": 2,
+    "topic": "Personalo informacinis saugumas",
+    "document": "03-human-resource.md",
+    "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+   },
+   {
+    "note": "Tai teminė saugumo politika, o ne bendroji pirmojo lygmens atitikties politika.",
+    "level": 2,
+    "topic": "Informacijos saugumo valdymas",
+    "document": "08-information-security.md",
+    "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+   },
+   {
+    "note": "Daugiausia pateikiamas dokumentų žemėlapis su papildomomis peržiūros taisyklėmis, o kriptoturto paslaugų susiejimą su MiCA straipsniais reikia patikslinti.",
+    "level": 0,
+    "topic": "Atitikties dokumentų apžvalga",
+    "document": "F00-fintech-overview.md",
+    "documentId": "9fbae52a-540b-4639-989b-b0e4292d4d74"
+   },
+   {
+    "note": "Tai teminė valdymo politika, kurios informacijos saugumo funkcijos priskyrimą operacinei veiklai reikia suderinti su „08-information-security.md“ nustatyta antrąja kontrolės linija.",
+    "level": 2,
+    "topic": "Valdymas ir kontrolės funkcijos",
+    "document": "F01-governance-accountability.md",
+    "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+   },
+   {
+    "note": "",
+    "level": 3,
+    "topic": "Klientų skundų nagrinėjimas",
+    "document": "F05-complaints-handling.md",
+    "documentId": "12f5b6dc-2734-488b-a888-983c3e04ae9c"
+   }
+  ]
+ }
+}

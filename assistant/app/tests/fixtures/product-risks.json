@@ -1,0 +1,759 @@
+{
+ "id": "afb2fa9b-b2d7-4df5-8ce1-6f1175665c24",
+ "companyId": "3eaf7c00-90cd-4add-b838-1ef67f4eaa44",
+ "companyName": "1009 LTD (demo)",
+ "kind": "risks",
+ "version": 1,
+ "language": "lt",
+ "status": "draft",
+ "title": "1009 LTD (demo) teisinės rizikos registras – 2026-11-12",
+ "checks": [
+  {
+   "ok": true,
+   "rule": "criteria",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "scenarios",
+   "detail": "10",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "categories",
+   "detail": "1, 2, 3, 4, 5, 6",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "sentence",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "ties",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "scores",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "provisions",
+   "detail": "",
+   "blocking": true
+  },
+  {
+   "ok": true,
+   "rule": "provisions_unverified",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": false,
+   "rule": "provision_subjects",
+   "detail": "GDPR 83 str. 5 d., MiCA 81 str. 4 d.",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "owners",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "response_fit",
+   "detail": "",
+   "blocking": false
+  },
+  {
+   "ok": true,
+   "rule": "sentence_form",
+   "detail": "",
+   "blocking": false
+  }
+ ],
+ "basis": {
+  "products": {
+   "policy": {
+    "id": "3853d9a0-255f-4ffb-adda-b12cffcee2f6",
+    "status": "draft",
+    "version": 2
+   },
+   "governance": {
+    "id": "48f50032-6279-44b1-b45f-b7228d2c507c",
+    "status": "draft",
+    "version": 2
+   }
+  },
+  "reportId": "174fa845-7ae0-499a-8c7e-6cb336dd9580",
+  "documents": [
+   {
+    "id": "4c067279-e9dd-429a-a9d3-29a5ac991434",
+    "title": "00-company-profile.md",
+    "sha256": "5e4c602e3125881998743ff3b1562b9ff4969411dfb2cd2d15efe392388e00a1"
+   },
+   {
+    "id": "53db90ff-3998-4b85-b132-28f103499c0e",
+    "title": "01-access-control.md",
+    "sha256": "990aeb42151fc2b8ce1c0c4156c14dd892aa7d2c75bf1387e91cfb4eaf5b5032"
+   },
+   {
+    "id": "a29e5609-d006-4bb9-af43-da2efe821399",
+    "title": "02-backup.md",
+    "sha256": "0e16cc2b2de03a654f096078934f7f98c609654d821ba04b4d714f6ae270fb32"
+   },
+   {
+    "id": "205c4189-52fa-4f42-9b30-edc7143a3e7f",
+    "title": "03-human-resource.md",
+    "sha256": "cc85a27ef8f399f1f49b1c049f18861bb30e7131edc5ad70b43f43f4cb323b56"
+   },
+   {
+    "id": "75787134-4234-4269-a342-cd85b8b58c7c",
+    "title": "04-asset-management.md",
+    "sha256": "581fe8239ab219fd506e69712e7ae2b9caa2214019e6f6f8baef261c37b4f50f"
+   },
+   {
+    "id": "da2c7a5a-d750-4b02-8105-207ff8a15c5b",
+    "title": "05-business-continuity.md",
+    "sha256": "aae32607cd429a7dd770f5491f3464f58916fcb24c560f5930e952ba1524624f"
+   },
+   {
+    "id": "943b357a-21bc-40c3-857b-1463bd56e0ae",
+    "title": "06-operations-management.md",
+    "sha256": "bcb5f0c9d10c258959593f478c581e4d00b11e4bbe7907940dcada82152fa021"
+   }
+  ]
+ },
+ "stats": {
+  "tokens": 136525,
+  "costUsd": 0.456823,
+  "provenance": {
+   "models": [
+    "gateway:azure/gpt-6.1-sol"
+   ],
+   "prompts": [
+    {
+     "slug": "corpus.check_citations",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 4
+    },
+    {
+     "slug": "programme.risk_criteria",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 1
+    },
+    {
+     "slug": "programme.risk_scenarios",
+     "model": "gateway:azure/gpt-6.1-sol",
+     "version": 1
+    }
+   ]
+  }
+ },
+ "error": null,
+ "jobId": "0c1edd78-acc5-4e49-bf0e-7dc3502b6104",
+ "createdBy": "bb20a10e-e401-4418-8d50-a7e567e3e193",
+ "createdAt": "2026-11-12T16:13:34.146437+00:00",
+ "startedAt": "2026-11-12T16:13:34.161239+00:00",
+ "finishedAt": "2026-11-12T16:18:00.870696+00:00",
+ "editedByName": null,
+ "editedAt": null,
+ "approvedBy": null,
+ "approvedByName": null,
+ "approvedAt": null,
+ "approvalNote": "",
+ "progress": {},
+ "jobStatus": "done",
+ "content": {
+  "title": "1009 LTD (demo) teisinės rizikos registras – 2026-11-12",
+  "appetite": [
+   {
+    "to": 3,
+    "band": "negligible",
+    "from": 1,
+    "name": "Nereikšminga",
+    "comment": "Nereikšminga rizika, 1–3 balai: priimtina nedidelė likutinė teisėtos veiklos rizika, kai papildomos neprivalomos kontrolės sąnaudos neproporcingos naudai. Rizikos prisiėmimas ar didinimas nesuteikia teisės nevykdyti privalomų reikalavimų.",
+    "decision": "Padalinio vadovas priima riziką ir įrašo pagrindimą į rizikos registrą; atitikties pareigūnas informuojamas, peržiūra atliekama bent kasmet ir pasikeitus aplinkybėms.",
+    "responses": [
+     "accept",
+     "increase"
+    ]
+   },
+   {
+    "to": 6,
+    "band": "tolerable",
+    "from": 4,
+    "name": "Toleruotina",
+    "comment": "Toleruotina rizika, 4–6 balai: galima priimti ribotą likutinę riziką arba ją mažinti proporcingomis priemonėmis. Privalomų teisinių reikalavimų trūkumai taisomi nepriklausomai nuo balo.",
+    "decision": "Padalinio vadovas priima riziką arba patvirtina mažinimo priemones, gavęs dokumentuotą atitikties pareigūno išvadą; rizikos valdymo pareigūnas registruoja atsakingą asmenį, terminus ir ketvirtinę stebėseną.",
+    "responses": [
+     "accept",
+     "mitigate"
+    ]
+   },
+   {
+    "to": 12,
+    "band": "medium",
+    "from": 8,
+    "name": "Vidutinė",
+    "comment": "Vidutinė rizika, 8–12 balų: be mažinimo priemonių nepriimtina, ypač klientų turto apsaugos, duomenų apsaugos ir pinigų plovimo prevencijos srityse. Draudimu ar sutartimi galima perduoti finansines pasekmes, bet ne bendrovės teisinę atsakomybę.",
+    "decision": "Bendrovės vadovas (CEO), gavęs atitikties ir rizikos valdymo pareigūnų išvadas, patvirtina mažinimo arba perdavimo planą, biudžetą ir terminus; pažanga vertinama kas mėnesį, valdymo organui teikiama ketvirtinė ataskaita, o kritinių ar svarbių funkcijų perdavimą tvirtina valdymo organas, vykdantis pr",
+    "responses": [
+     "mitigate",
+     "transfer"
+    ]
+   },
+   {
+    "to": 16,
+    "band": "high",
+    "from": 15,
+    "name": "Didelė",
+    "comment": "Didelė rizika, 15–16 balų: įprastas rizikos priėmimas negalimas; būtina nedelsiant ją mažinti arba atsisakyti riziką sukeliančios veiklos. Komercinė nauda nepateisina klientų turto apsaugos, prudencinių ar kitų privalomų reikalavimų pažeidimo.",
+    "decision": "Valdymo organas, gavęs atitikties ir rizikos valdymo pareigūnų išvadas, protokoluotu sprendimu patvirtina skubų mažinimą arba veiklos atsisakymą; CEO sustabdo neteisėtą veiklą nelaukdamas posėdžio, pažanga tikrinama kas savaitę, priežiūros institucija informuojama, kai privaloma.",
+    "responses": [
+     "mitigate",
+     "avoid"
+    ]
+   },
+   {
+    "to": 25,
+    "band": "critical",
+    "from": 20,
+    "name": "Kritinė",
+    "comment": "Kritinė rizika, 20–25 balai: riziką sukeliančios veiklos būtina vengti arba ją nutraukti. Su teise ir etika nesuderinamas elgesys netoleruojamas už jokią kainą.",
+    "decision": "CEO nedelsdamas sustabdo riziką sukeliančią veiklą ir informuoja valdymo organą; rizikos valdymo pareigūnas sušaukia krizių valdymo komandą, atitikties pareigūnas koordinuoja privalomus pranešimus, o valdymo organas protokoluoja veiklos atsisakymą ir klientų turto apsaugos veiksmus; atnaujinimas gal",
+    "responses": [
+     "avoid"
+    ]
+   }
+  ],
+  "criteria": {
+   "impact": [
+    {
+     "name": "Nereikšmingas",
+     "level": 1,
+     "reach": "Paveiktas vienas atvejis Lietuvos veiklos vietoje; pasekmės neplinta į kitus klientus ar procesus.",
+     "financial": "Tiesioginis nuostolis, bauda ar sąnaudos iki 0,5 % metinių pajamų imtinai; preliminariai 0–10 000 EUR.",
+     "regulatory": "Trūkumas pašalinamas bendrovės viduje; nėra išorinių teisinių pasekmių, priežiūros priemonių ar ginčo.",
+     "reputation": "Poveikio pasitikėjimui nėra arba jis nereikšmingas; nėra viešinimo, partnerių reakcijos ar pasikartojančių skundų."
+    },
+    {
+     "name": "Mažas",
+     "level": 2,
+     "reach": "Paveiktas vienas procesas arba padalinys iki vienos darbo dienos; kiti procesai ir padaliniai nepaveikti.",
+     "financial": "Tiesioginis nuostolis, bauda ar sąnaudos virš 0,5 %, iki 2,5 % metinių pajamų; preliminariai >10 000–50 000 EUR.",
+     "regulatory": "Gaunamas oficialus įspėjimas arba su konkrečiu trūkumu susijęs prašymas pateikti paaiškinimus; veikla neribojama.",
+     "reputation": "Klientų nepasitenkinimas išnyksta per 30 dienų; profesinėje spaudoje neviešinama, reikšmingi partneriai nenutraukia santykių."
+    },
+    {
+     "name": "Vidutinis",
+     "level": 3,
+     "reach": "Pasekmės trunka ilgiau nei vieną darbo dieną arba apima kelis padalinius; kritinės paslaugos nenutrūksta grandiniškai.",
+     "financial": "Tiesioginis nuostolis, bauda ar sąnaudos virš 2,5 %, iki 5 % metinių pajamų; preliminariai >50 000–100 000 EUR.",
+     "regulatory": "Skiriami privalomi nurodymai, piniginė bauda arba pradedamas teisminis ginčas; leidimas ir veikla neribojami.",
+     "reputation": "Reikšmingas pasitikėjimo sumažėjimas paviešinamas profesinėje spaudoje arba nepasitenkinimas tęsiasi ilgiau nei 30 dienų."
+    },
+    {
+     "name": "Didelis",
+     "level": 4,
+     "reach": "Grandininis sutrikimas apima bent dvi kritines paslaugas arba sutrikdo klientų aptarnavimą bent dviejose valstybėse.",
+     "financial": "Tiesioginis nuostolis, bauda ar sąnaudos virš 5 %, iki 25 % metinių pajamų; preliminariai >100 000–500 000 EUR.",
+     "regulatory": "Priežiūros institucija apriboja arba sustabdo bent vienos kriptoturto paslaugos teikimą; veiklos leidimas nepanaikinamas.",
+     "reputation": "Dėl nepasitikėjimo pasitraukia bent 10 % aktyvių klientų arba santykius nutraukia kritinei paslaugai būtinas partneris."
+    },
+    {
+     "name": "Katastrofinis",
+     "level": 5,
+     "reach": "Sistemiškai žlunga bendrovės veikla; nebeįmanoma tęsti pagrindinių paslaugų ar tvarkingai grąžinti klientų turto.",
+     "financial": "Tiesioginis nuostolis, bauda ar sąnaudos viršija 25 % metinių pajamų; preliminariai daugiau nei 500 000 EUR.",
+     "regulatory": "Panaikinamas kriptoturto paslaugų teikėjo veiklos leidimas arba kyla bendrovės ar atsakingų asmenų baudžiamoji atsakomybė.",
+     "reputation": "Reputacija žlunga: dėl nepasitikėjimo prarandama daugiau nei pusė aktyvių klientų arba nebeįmanomi būtini partnerystės santykiai."
+    }
+   ],
+   "likelihood": [
+    {
+     "name": "Labai mažai tikėtina",
+     "level": 1,
+     "clarity": "Taikoma norma aiški; paskelbta nusistovėjusi priežiūros praktika patvirtina veiklos teisėtumą, prieštaringų išaiškinimų nėra.",
+     "control": "Kontrolės suprojektuotos, įdiegtos ir patikrintos nustatytais terminais; visi atsakingi darbuotojai apmokyti, veiksmingumas įrodytas.",
+     "frequency": "Veikla vykdoma kasmet arba rečiau; įvykio tikimybė mažesnė nei 1 % per 5–10 metų.",
+     "counterparty": "Partnerio patikimumas patikrintas, sutartiniai įsipareigojimai išsamūs; stebėsena vykdoma laiku, nepašalintų trūkumų nėra."
+    },
+    {
+     "name": "Mažai tikėtina",
+     "level": 2,
+     "clarity": "Norma aiški, tačiau konkrečiam veiklos modeliui trūksta paskelbtos praktikos; teisėtumą pagrindžia dokumentuota teisinė išvada.",
+     "control": "Kontrolės įdiegtos, darbuotojai apmokyti; nustatyti tik nekritiniai dokumentavimo trūkumai, kontrolės veiksmingumo nesumažinantys.",
+     "frequency": "Veikla vykdoma maždaug kas ketvirtį; įvykio tikimybė 5–10 % per 3–5 metus.",
+     "counterparty": "Partneris įvertintas ir sutartimi įpareigotas; nustatyti nekritiniai trūkumai šalinami sutartais, nepradelstais terminais."
+    },
+    {
+     "name": "Vidutiniškai tikėtina",
+     "level": 3,
+     "clarity": "Reikalavimas naujai taikomas arba keičiamas; praktika nenusistovėjusi, taikymo klausimai dokumentuoti ir vertinami.",
+     "control": "Kontrolės įdiegtos iš dalies arba įgyvendinimas neįrodytas; spragos užregistruotos, paskirti atsakingi asmenys.",
+     "frequency": "Veikla vykdoma maždaug kas mėnesį; įvykio tikimybė 20–30 % per 2–3 metus.",
+     "counterparty": "Partneris įvertintas tik iš dalies; trūksta aktualių patikimumo įrodymų arba privalomų sutartinių nuostatų."
+    },
+    {
+     "name": "Tikėtina",
+     "level": 4,
+     "clarity": "Yra prieštaringų oficialių išaiškinimų arba rašytinis priežiūros institucijos perspėjimas dėl pasirinkto veiklos modelio.",
+     "control": "Patikrinimas nustatė neveikiančią kritinę kontrolę arba kompetencijos trūkumą; veikla tęsiama taikant laikinas priemones.",
+     "frequency": "Veikla vykdoma maždaug kas savaitę; įvykio tikimybė viršija 50 % per 1–2 metus.",
+     "counterparty": "Partneris pakartotinai pažeidžia sutartinius reikalavimus; taisymo terminai pradelsti, patikima pakeitimo galimybė neįrodyta."
+    },
+    {
+     "name": "Beveik neabejotina",
+     "level": 5,
+     "clarity": "Veikla prieštarauja taikomai teisės normai arba paskelbti priežiūros veiksmai nukreipti į būtent tokį elgesį.",
+     "control": "Privalomos procedūros nėra arba ji faktiškai netaikoma; veiksmingos kompensuojamosios kontrolės nėra.",
+     "frequency": "Veikla vykdoma kasdien; įvykio tikimybė viršija 90 % per vienus metus.",
+     "counterparty": "Partnerio tapatybė nežinoma, patikimumas nevertintas arba jis jau nevykdo veiklai būtinų įsipareigojimų."
+    }
+   ],
+   "calibration": "2026-11-12 kriterijai pagal ISO 31022 pritaikyti mažai, 40 darbuotojų bendrovei, deklaruojančiai MiCA leidimą ir saugojimo bei prekybos platformos paslaugas, dėl kurių preliminariai laikoma taikytina MiCA III paslaugų klasė; leidimo galiojimas, apimtis ir faktinis paslaugų teikimas nepatikrinti, o D1 aprašyta IT veikla nesutampa su deklaruojamu kriptoturto paslaugų profiliu, todėl šiuos duomenis būtina patvirtinti. Kadangi metinės pajamos ir nuosavos lėšos nepateiktos, vien preliminariems eurų intervalams daroma 2 000 000 EUR metinių pajamų prielaida, išlaikant D10 piniginių ribų orientyrus: procentinės ribos yra pagrindinės, eurų intervalai pakeičiami sužinojus faktines metines pajamas, o nuostolis apima bendrovei tenkančias baudas, kompensacijas ir tiesiogines atkūrimo bei teisines sąnaudas, nelaikant klientų turto bendrovės pajamomis. 2026-11-11 ataskaitoje nurodyti 157 įvykdyti, 250 iš dalies įvykdytų, 68 trūkstami ir 269 neįrodyti reikalavimai, todėl vien politikos buvimas neįrodo kontrolės veiksmingumo: neįrodytas taikomos kontrolės įgyvendinimas vertinamas bent 3 lygiu, nustatytas jos nebuvimas ar netaikymas – 5 lygiu, o vėliau taikytino AMLR pasirengimo spragos nelaikomos dabartiniu pažeidimu ir nežinomas DI naudojimas nelaikomas patvirtintu. Valdymo organui siūloma patvirtinti konservatyvią vienodo vertinimo taisyklę: kiekviena dimensija vertinama pagal dokumentuotus scenarijaus įrodymus, tikimybė ir poveikis nustatomi pagal aukščiausią atitinkamų dimensijų lygį, alt"
+  },
+  "scenarios": [
+   {
+    "id": "LR-01",
+    "area": "Pavedimų perdavimas ir portfelio valdymas",
+    "band": "medium",
+    "unit": "Operacijų padalinys",
+    "event": "draudžiamo išorinio atlygio priėmimas už klientų pavedimų nukreipimą arba jo pasilikimas teikiant portfelio valdymo paslaugas",
+    "score": 9,
+    "impact": {
+     "why": "Vertinamas privalomų nurodymų ar baudos scenarijus, apimantis dvi deklaruotas paslaugas ir jų kontrolės funkcijas. Pajamos, atlygio sumos ir klientų reakcija nežinomos, todėl finansinis ir reputacinis vertinimai preliminarūs; veiklos apribojimas ar klientų pasitraukimas nepreziumuojami.",
+     "level": 3,
+     "reach": 3,
+     "financial": 2,
+     "regulatory": 3,
+     "reputation": 2
+    },
+    "owners": [
+     "Operacijų padalinio vadovas",
+     "Atitikties pareigūnas"
+    ],
+    "source": "bendrojo paskatų leidimo be paslaugoms taikomų draudimų",
+    "actions": [
+     "Įtvirtinami atskiri draudimai gauti naudą už pavedimų nukreipimą ir priimti bei pasilikti išorinę naudą teikiant portfelio valdymo paslaugas.",
+     "Patikrinami esami atlygio susitarimai ir apskaitos įrašai, o nustatyti draudžiami mokėjimai sustabdomi.",
+     "Įdiegiama paskatų patikra prieš sudarant susitarimą ir dokumentuojamas jos vykdymo testas."
+    ],
+    "deadline": "2027 Q1",
+    "policies": [
+     {
+      "document": "F04-conflict-of-interest.md",
+      "documentId": "fc74e272-7ed3-40a6-b5b3-de05e9115310"
+     },
+     {
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     }
+    ],
+    "response": "mitigate",
+    "sentence": "Tikėtinas draudžiamo išorinio atlygio priėmimas už klientų pavedimų nukreipimą arba jo pasilikimas teikiant portfelio valdymo paslaugas, kylantis iš bendrojo paskatų leidimo be paslaugoms taikomų draudimų, gali sukelti privalomus nurodymus ir pinigines baudas pagal MiCA, kurios paveiks bendrovės teisinę atitiktį ir teisę teikti kriptoturto paslaugas.",
+    "objective": "bendrovės teisinę atitiktį ir teisę teikti kriptoturto paslaugas",
+    "categories": [
+     2,
+     6
+    ],
+    "legalBasis": [
+     {
+      "act": "MiCA",
+      "why": "Prohibits remuneration for routing client orders.",
+      "path": "80 str. 2 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "80",
+      "paragraph": "2",
+      "shortTitle": "MiCA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1114#art_80"
+     },
+     {
+      "act": "MiCA",
+      "why": "Prohibits retaining third-party benefits for portfolio management.",
+      "path": "81 str. 4 d.",
+      "found": true,
+      "match": "mismatch",
+      "status": "found",
+      "article": "81",
+      "paragraph": "4",
+      "shortTitle": "MiCA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32023R1114#art_81"
+     }
+    ],
+    "likelihood": {
+     "why": "Privalomų paskatų draudimų nėra, o MiCA draudimai aiškūs; ataskaitoje nenustatyta normų aiškinimo prieštaravimų. Atlygio mokėtojai ir jo gavimo periodiškumas neatskleisti, todėl partnerio ir dažnumo 3 lygiai yra laikini vertinimai, o ne nustatyti faktai.",
+     "level": 3,
+     "clarity": 1,
+     "control": 5,
+     "frequency": 3,
+     "counterparty": 3
+    },
+    "sourceType": 6,
+    "consequences": "privalomus nurodymus ir pinigines baudas pagal MiCA",
+    "objectiveType": 1,
+    "consequenceType": 2,
+    "externalConclusion": "",
+    "internalConclusion": "Dokumento „F04-conflict-of-interest.md“ 6 skyrius leidžia išorines paskatas, jeigu jos gerina paslaugų kokybę, nekenkia klientų interesams ir yra atskleidžiamos. Ataskaitos atviri MiCA 80 ir 81 straipsnių trūkumai nurodo, kad pavedimų nukreipimo ir portfelio valdymo draudimų išimtys neįtvirtintos; faktinis tokio atlygio gavimas nepateiktais duomenimis nepatvirtintas."
+   },
+   {
+    "id": "LR-03",
+    "area": "Klientų patikrinimas ir sąskaitų atidarymas",
+    "band": "medium",
+    "unit": "Operacijų padalinys",
+    "event": "dalykinių santykių pradėjimas arba sandorio vykdymas neįvykdžius privalomų kliento tapatybės nustatymo reikalavimų",
+    "score": 9,
+    "impact": {
+     "why": "Bendras klientų patikrinimo trūkumas gali apimti klientų priėmimą, sandorių vykdymą ir PPTFP kontrolę, todėl aprėptis vertinama kelių funkcijų lygiu. Vertinami nurodymai ir baudos; baudžiamoji atsakomybė, leidimo panaikinimas ir konkretūs nuostolių dydžiai iš pateiktų faktų nenustatomi.",
+     "level": 3,
+     "reach": 3,
+     "financial": 2,
+     "regulatory": 3,
+     "reputation": 2
+    },
+    "owners": [
+     "Operacijų padalinio vadovas",
+     "AML/CFT pareigūnas"
+    ],
+    "source": "neįtvirtinto bendrojo draudimo aptarnauti nepatikrintą klientą",
+    "actions": [
+     "Patvirtinama nesėkmingo kliento ir naudos gavėjo patikrinimo procedūra su santykių nepradėjimo, sandorių nevykdymo ir santykių nutraukimo sprendimais.",
+     "Susiejamas kliento patikrinimo statusas su sąskaitos aktyvavimu ir visų atitinkamų sandorių leidimu.",
+     "Atliekami neigiamų patikrinimo rezultatų testai ir dokumentuojami sprendimai dėl pranešimo FNTT."
+    ],
+    "deadline": "2027 Q1",
+    "policies": [
+     {
+      "document": "F10-aml-travel-rule.md",
+      "documentId": "33db11f6-0d5d-49b4-b28c-ca368201ab13"
+     },
+     {
+      "document": "12-identity-management.md",
+      "documentId": "6f7ba4da-40c2-41df-938f-3c9f7f0e5e5d"
+     }
+    ],
+    "response": "mitigate",
+    "sentence": "Tikėtinas dalykinių santykių pradėjimas arba sandorio vykdymas neįvykdžius privalomų kliento tapatybės nustatymo reikalavimų, kylantis iš neįtvirtinto bendrojo draudimo aptarnauti nepatikrintą klientą, gali sukelti privalomus nurodymus ir pinigines baudas pagal PPTFPĮ, kurios paveiks bendrovės teisinę atitiktį ir veiklos leidimo apsaugą.",
+    "objective": "bendrovės teisinę atitiktį ir veiklos leidimo apsaugą",
+    "categories": [
+     2
+    ],
+    "legalBasis": [
+     {
+      "act": "PPTFPĮ",
+      "why": "Requires identification and restricts service where identification fails.",
+      "path": "9 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "9",
+      "paragraph": "",
+      "shortTitle": "PPTFPĮ",
+      "citationUrl": ""
+     }
+    ],
+    "likelihood": {
+     "why": "Tapatybės patikrinimo kontrolė aprašyta, tačiau jos įgyvendinimas ir visų nesėkmingo patikrinimo atvejų blokavimas neįrodyti; teisinė pareiga aiški. Klientų patikimumo įrodymai nepateikti, o deklaruotos sąskaitų ir sandorių paslaugos vertinamos kaip kasdienė veikla, ne kaip kasdieniai pažeidimai.",
+     "level": 3,
+     "clarity": 1,
+     "control": 3,
+     "frequency": 5,
+     "counterparty": 3
+    },
+    "sourceType": 6,
+    "consequences": "privalomus nurodymus ir pinigines baudas pagal PPTFPĮ",
+    "objectiveType": 1,
+    "consequenceType": 2,
+    "externalConclusion": "",
+    "internalConclusion": "Dokumentas „F10-aml-travel-rule.md“ reikalauja nustatyti klientą ir naudos gavėją bei draudžia pervedimus, kuriems trūksta lydinčios informacijos. Ataskaitos atviri PPTFPĮ 9 straipsnio trūkumai nurodo, kad nenustatytas bendras draudimas pradėti ar tęsti santykius ir vykdyti sandorius nepavykus nustatyti tapatybės, o kliento patikrinimo procedūros nepateiktos."
+   },
+   {
+    "id": "LR-05",
+    "area": "Personalo patikros ir vadovų tinkamumas",
+    "band": "tolerable",
+    "unit": "Personalo funkcija",
+    "event": "duomenų apie kandidatų ar vadovų apkaltinamuosius nuosprendžius ir nusikalstamas veikas tvarkymas be reikiamo teisinio leidimo ir apsaugos priemonių",
+    "score": 6,
+    "impact": {
+     "why": "Galimi VDAI nurodymai, bauda ir žalos atlyginimo ginčas, apimantis personalo, valdymo bei duomenų apsaugos funkcijas. Duomenų subjektų skaičius ir žala nežinomi, todėl finansinis bei reputacinis lygiai preliminarūs ir nesiejami su maksimaliomis GDPR baudomis.",
+     "level": 3,
+     "reach": 3,
+     "financial": 2,
+     "regulatory": 3,
+     "reputation": 2
+    },
+    "owners": [
+     "Personalo funkcijos vadovas",
+     "Duomenų apsaugos pareigūnas (DPO)"
+    ],
+    "source": "bendrųjų patikrų reikalavimų be specialios šių duomenų tvarkymo kontrolės",
+    "actions": [
+     "Inventorizuojami faktiškai renkami teistumo duomenys ir kiekvienai patikrai dokumentuojamas GDPR 10 straipsnį atitinkantis teisinis leidimas.",
+     "Sustabdomas teistumo duomenų rinkimas tais atvejais, kuriems reikiamas teisinis leidimas nepagrįstas.",
+     "Nustatomi patikrų apimties, prieigos, saugojimo ir ištrynimo reikalavimai bei patikrinamas jų vykdymas."
+    ],
+    "deadline": "2027 Q1",
+    "policies": [
+     {
+      "document": "03-human-resource.md",
+      "documentId": "205c4189-52fa-4f42-9b30-edc7143a3e7f"
+     },
+     {
+      "document": "F01-governance-accountability.md",
+      "documentId": "4350ef5c-94d3-43df-ace2-e95569dd2309"
+     },
+     {
+      "document": "08-information-security.md",
+      "documentId": "4d13f97a-5bdb-490c-be11-81a37cb75593"
+     }
+    ],
+    "response": "mitigate",
+    "sentence": "Tikėtinas duomenų apie kandidatų ar vadovų apkaltinamuosius nuosprendžius ir nusikalstamas veikas tvarkymas be reikiamo teisinio leidimo ir apsaugos priemonių, kylantis iš bendrųjų patikrų reikalavimų be specialios šių duomenų tvarkymo kontrolės, gali sukelti administracinę baudą pagal GDPR ir pagrįstus duomenų subjektų reikalavimus atlyginti žalą, kurie paveiks bendrovės reputaciją ir darbuotojų bei kandidatų pasitikėjimą.",
+    "objective": "bendrovės reputaciją ir darbuotojų bei kandidatų pasitikėjimą",
+    "categories": [
+     2,
+     4
+    ],
+    "legalBasis": [
+     {
+      "act": "GDPR",
+      "why": "Requires official control or legal authorisation with safeguards.",
+      "path": "10 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "10",
+      "paragraph": "",
+      "shortTitle": "GDPR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32016R0679#art_10"
+     },
+     {
+      "act": "GDPR",
+      "why": "Provides compensation for damage caused by infringement.",
+      "path": "82 str. 1 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "82",
+      "paragraph": "1",
+      "shortTitle": "GDPR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32016R0679#art_82"
+     },
+     {
+      "act": "GDPR",
+      "why": "Sets administrative fine tier for Article 10 infringements.",
+      "path": "83 str. 5 d.",
+      "found": true,
+      "match": "mismatch",
+      "status": "found",
+      "article": "83",
+      "paragraph": "5",
+      "shortTitle": "GDPR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32016R0679#art_83"
+     }
+    ],
+    "likelihood": {
+     "why": "Patikrų procesas ir bendros saugumo priemonės aprašyti, tačiau specialios tvarkymo sąlygos neįrodytos; konkrečių kandidatų ir vadovų patikrų teisiniai pagrindai turi būti atskirai įvertinti. Išorinis patikrų teikėjas nenurodytas, todėl partnerio lygis neutralus; ketvirtinis dažnumas laikinas, nes įdarbinimų statistikos nėra.",
+     "level": 2,
+     "clarity": 3,
+     "control": 3,
+     "frequency": 2,
+     "counterparty": 1
+    },
+    "sourceType": 6,
+    "consequences": "administracinę baudą pagal GDPR ir pagrįstus duomenų subjektų reikalavimus atlyginti žalą",
+    "objectiveType": 5,
+    "consequenceType": 1,
+    "externalConclusion": "",
+    "internalConclusion": "Dokumentas „03-human-resource.md“ reikalauja patikrų prieš įdarbinimą, o „F01-governance-accountability.md“ numato vadovų reputacijos ir teistumo vertinimą. Ataskaitos atviras GDPR 10 straipsnio trūkumas nurodo, kad nenustatyta speciali teisėto šių duomenų tvarkymo kontrolė; pateikti dokumentai neįrodo konkretaus neteisėto duomenų rinkimo atvejo."
+   },
+   {
+    "id": "LR-06",
+    "area": "Pasirengimas naujiems PPTFP reikalavimams",
+    "band": "medium",
+    "unit": "Operacijų padalinys",
+    "event": "nuo 2027 m. liepos 10 d. taikytino anoniminių kriptoturto sąskaitų ir sandorių anonimiškumą didinančių sąskaitų draudimo pažeidimas",
+    "score": 12,
+    "impact": {
+     "why": "Numatomas sąskaitų funkcijų, klientų patikrinimo ir stebėsenos procesų keitimas bei galimos priežiūros priemonės po reikalavimo taikymo pradžios. Sankcijų dydžiai, paveiktų klientų skaičius ir faktinės pertvarkymo sąnaudos nežinomi, todėl finansinis ir reputacinis lygiai preliminarūs.",
+     "level": 3,
+     "reach": 3,
+     "financial": 2,
+     "regulatory": 3,
+     "reputation": 2
+    },
+    "owners": [
+     "Operacijų padalinio vadovas",
+     "AML/CFT pareigūnas"
+    ],
+    "source": "nepakankamo pasirengimo naujam AMLR reikalavimui ir anoniminimo funkcijų vertinimo vien kaip rizikos",
+    "actions": [
+     "Inventorizuojamos teikiamų sąskaitų ir sandorių funkcijos bei nustatoma, kurioms taikomas AMLR 79 straipsnio draudimas.",
+     "Patvirtinamas pasirengimo planas, apimantis kartu ataskaitoje nurodytus AMLR 18, 21, 39 ir 80 straipsnių taikymo klausimus.",
+     "Iki taikymo pradžios pakeičiamos draudžiamos funkcijos, klientų priėmimo taisyklės ir susiję sisteminiai blokavimai."
+    ],
+    "deadline": "2027 Q2",
+    "policies": [
+     {
+      "document": "F10-aml-travel-rule.md",
+      "documentId": "33db11f6-0d5d-49b4-b28c-ca368201ab13"
+     },
+     {
+      "document": "F09-market-abuse-prevention.md",
+      "documentId": "49c32116-21fd-42bd-9bf4-d7ac1e6c15c2"
+     },
+     {
+      "document": "F00-fintech-overview.md",
+      "documentId": "9fbae52a-540b-4639-989b-b0e4292d4d74"
+     }
+    ],
+    "response": "mitigate",
+    "sentence": "Tikėtinas nuo 2027 m. liepos 10 d. taikytino anoniminių kriptoturto sąskaitų ir sandorių anonimiškumą didinančių sąskaitų draudimo pažeidimas, kylantis iš nepakankamo pasirengimo naujam AMLR reikalavimui ir anoniminimo funkcijų vertinimo vien kaip rizikos, gali sukelti privalomus nurodymus bei sankcijas pagal AMLR įgyvendinančią nacionalinę teisę, kurie paveiks bendrovės teisinę atitiktį ir kriptoturto paslaugų modelio teisėtumą.",
+    "objective": "bendrovės teisinę atitiktį ir kriptoturto paslaugų modelio teisėtumą",
+    "categories": [
+     1,
+     2
+    ],
+    "legalBasis": [
+     {
+      "act": "Reglamentas (ES) 2024/1624",
+      "why": "Prohibits anonymous and anonymity-enhancing crypto-asset accounts.",
+      "path": "79 str. 1 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "79",
+      "paragraph": "1",
+      "shortTitle": "AMLR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32024R1624#art_79"
+     },
+     {
+      "act": "Reglamentas (ES) 2024/1624",
+      "why": "Establishes application from 10 July 2027.",
+      "path": "90 str.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "90",
+      "paragraph": "",
+      "shortTitle": "AMLR",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32024R1624#art_90"
+     }
+    ],
+    "likelihood": {
+     "why": "Identifikavimo ir stebėsenos kontrolės aprašytos, bet pasirengimas naujam specialiam draudimui neįrodytas; reikalavimas bus naujai taikomas. Klientų ir naudojamų sąskaitų funkcijų duomenys nepateikti, o dažnumas grindžiamas kasdiene sąskaitų naudojimo paskirtimi, ne draudžiamų sąskaitų paplitimu.",
+     "level": 4,
+     "clarity": 3,
+     "control": 3,
+     "frequency": 5,
+     "counterparty": 3
+    },
+    "sourceType": 1,
+    "consequences": "privalomus nurodymus bei sankcijas pagal AMLR įgyvendinančią nacionalinę teisę",
+    "objectiveType": 1,
+    "consequenceType": 2,
+    "externalConclusion": "",
+    "internalConclusion": "Dokumentas „F10-aml-travel-rule.md“ reikalauja klientų identifikavimo, o anonimiškumą didinančias funkcijas ir maišymo paslaugas įtraukia į rizikos vertinimą bei stebėseną. Ataskaitos atviras AMLR 79 straipsnio trūkumas susijęs su pasirengimu būsimam draudimui, todėl 2026-11-12 jis nelaikomas jau padarytu šio reglamento pažeidimu; faktinis draudžiamų sąskaitų teikimas nepatvirtintas."
+   },
+   {
+    "id": "LR-08",
+    "area": "IRT tiekėjų sutarčių valdymas",
+    "band": "tolerable",
+    "unit": "Pirkimų funkcija",
+    "event": "nepasinaudojimas teise nutraukti IRT paslaugų sutartį atsiradus jos nutraukimo pagrindui",
+    "score": 6,
+    "impact": {
+     "why": "Nepasitraukimas gali padidinti atkūrimo sąnaudas ir paveikti pirkimų, technologijų bei operacijų funkcijas. Kritinių paslaugų grandininis nutrūkimas ar būtino partnerio praradimas neįrodytas; finansinis ir reputacinis lygiai preliminarūs, o priežiūros poveikis vertinamas paaiškinimų ir konkretaus trūkumo taisymo lygiu.",
+     "level": 3,
+     "reach": 3,
+     "financial": 2,
+     "regulatory": 2,
+     "reputation": 2
+    },
+    "owners": [
+     "Pirkimų funkcijos vadovas",
+     "Rizikos pareigūnas"
+    ],
+    "source": "neįrodyto stebėsenos rezultatų susiejimo su sprendimu pasitraukti ir pasitraukimo plano patikrinimu",
+    "actions": [
+     "Patikrinamos faktiškai sudarytų IRT sutarčių nutraukimo teisės ir jų įgyvendinimo terminai.",
+     "Nustatomi stebėsenos signalai, kurie inicijuoja dokumentuotą sprendimą pasinaudoti nutraukimo teise.",
+     "Išbandomas svarbiausių IRT susitarimų pasitraukimas, patikrinant duomenų grąžinimą ir alternatyvaus teikimo galimybę."
+    ],
+    "deadline": "2027 Q2",
+    "policies": [
+     {
+      "document": "F06-ict-third-party-risk.md",
+      "documentId": "eecdb888-a802-425c-99da-7e5a6a36f31f"
+     },
+     {
+      "document": "05-business-continuity.md",
+      "documentId": "da2c7a5a-d750-4b02-8105-207ff8a15c5b"
+     },
+     {
+      "document": "11-network-security.md",
+      "documentId": "2a9c1737-190c-4369-a73d-ca23f56bba7a"
+     }
+    ],
+    "response": "mitigate",
+    "sentence": "Tikėtinas nepasinaudojimas teise nutraukti IRT paslaugų sutartį atsiradus jos nutraukimo pagrindui, kylantis iš neįrodyto stebėsenos rezultatų susiejimo su sprendimu pasitraukti ir pasitraukimo plano patikrinimu, gali sukelti papildomas atkūrimo sąnaudas ir priežiūros nurodymus pagal DORA, kurie paveiks bendrovės veiklos atsparumą ir tęstinumą.",
+    "objective": "bendrovės veiklos atsparumą ir tęstinumą",
+    "categories": [
+     5
+    ],
+    "legalBasis": [
+     {
+      "act": "DORA",
+      "why": "Requires termination rights for specified supplier failures.",
+      "path": "28 str. 7 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "28",
+      "paragraph": "7",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_28"
+     },
+     {
+      "act": "DORA",
+      "why": "Requires documented and sufficiently tested exit strategies.",
+      "path": "28 str. 8 d.",
+      "found": true,
+      "match": "match",
+      "status": "found",
+      "article": "28",
+      "paragraph": "8",
+      "shortTitle": "DORA",
+      "citationUrl": "https://eur-lex.europa.eu/legal-content/LT/TXT/?uri=CELEX:32022R2554#art_28"
+     }
+    ],
+    "likelihood": {
+     "why": "Nutraukimo ir pasitraukimo kontrolės suprojektuotos, bet jų vykdymas neįrodytas; DORA pagrindai aiškūs. Tiekėjų patikimumo ir sutarčių įrodymai nepateikti, todėl partnerio lygis 3; nutraukimo pagrindų dažnumui taikomas laikinas reto įvykio 1 lygis.",
+     "level": 2,
+     "clarity": 1,
+     "control": 3,
+     "frequency": 1,
+     "counterparty": 3
+    },
+    "sourceType": 6,
+    "consequences": "papildomas atkūrimo sąnaudas ir priežiūros nurodymus pagal DORA",
+    "objectiveType": 4,
+    "consequenceType": 4,
+    "externalConclusion": "",
+    "internalConclusion": "Dokumentas „F06-ict-third-party-risk.md“ numato nutraukimo teises, tiekėjų stebėseną ir realistiškas, patikrintas pasitraukimo strategijas. Dokumentai neapima konkrečių sutarčių, sprendimų dėl nutraukimo ar pasitraukimo bandymų rezultatų; ataskaitoje atskiro DORA 28 straipsnio pažeidimo nenurodyta, todėl tai neįrodyto kontrolės įgyvendinimo, o ne nustatyto partnerio nevykdymo rizika."
+   }
+  ]
+ }
+}
