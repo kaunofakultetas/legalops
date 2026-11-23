@@ -1,0 +1,58 @@
+# The scope reading (prompt corpus.scope), act by act.
+#
+# Each case names an act of the catalogue by its slug and the institution
+# types its own scope provisions must name (`must`) or must not (`must_not`);
+# a reading of "all" satisfies every `must` and breaks every `must_not`. The
+# suite reads the act's provisions from the corpus of the installation it
+# runs on. Labelled by the assistant (Claude) on 2026-11-12 from the
+# provisions named in `why`. Overrule a label by editing it here.
+cases:
+  - id: fii-covers-crypto-providers
+    act: finansu-istaigu-istatymas
+    must: [casp, crowdfunding, bank, payment_institution]
+    why: >-
+      Art. 1(2) applies the law to whoever provides the services of Art. 3;
+      Art. 3(1) lists crypto-asset services (24), crowdfunding (21), deposits
+      (1) and payment services (4).
+  - id: mica-covers-crypto-providers
+    act: mica
+    must: [casp]
+    must_not: [insurance, consumer_credit]
+    why: Arts. 1–2 cover issuers, offerors and crypto-asset service providers.
+  - id: kri-covers-token-issuers
+    act: kriptoturto-rinku-istatymas
+    must: [casp, bank, emi]
+    why: >-
+      Art. 2(1) puts crypto-asset service providers and the issuers of
+      e-money tokens and asset-referenced tokens — banks and e-money
+      institutions — under supervision.
+  - id: gdpr-binds-everyone
+    act: gdpr
+    must: [casp, bank, insurance]
+    why: Arts. 2–3 reach every controller and processor, whatever its trade.
+  - id: bank-law-is-for-banks
+    act: banku-istatymas
+    must: [bank]
+    must_not: [casp, crowdfunding, insurance]
+    why: The law regulates the licensing and operation of banks.
+  - id: crowdfunding-regulation
+    act: ecsp
+    must: [crowdfunding]
+    must_not: [casp, insurance]
+    why: Art. 1 covers crowdfunding service providers.
+  - id: payment-institutions-law
+    act: mokejimo-istaigu-istatymas
+    must: [payment_institution, credit_union]
+    must_not: [casp, insurance]
+    why: >-
+      Art. 1(2): payment institutions, and Art. 13 applies mutatis mutandis
+      to credit unions.
+  - id: emoney-law-names-the-issuers
+    act: epei-istatymas
+    must: [emi, bank]
+    must_not: [insurance]
+    why: Art. 1(1) names who may issue electronic money; banks may.
+  - id: whistleblower-law-binds-everyone
+    act: praneseju-apsaugos-istatymas
+    must: [casp, bank]
+    why: The law binds institutions of every kind that receive reports.

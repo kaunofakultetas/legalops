@@ -1,0 +1,42 @@
+slug: corpus.sanctions
+name: Sanctions of an act
+kind: corpus
+description: >
+  Reads the sanction provisions of one legal act into tiers: which
+  infringements carry which ceiling and which measures, for whom. A finding
+  of a report is then shown what a breach of its provision can cost — the
+  tier that covers its article, joined by code — so the reader of a gap gets
+  the answer to "so what". A tier may concern another act (a national law
+  lays down the fines for an EU regulation). Read once per act version.
+variables: []
+model: gateway:azure/gpt-6.1-sol
+temperature: 0
+text: |
+  You read the provisions of ONE legal act that lay down sanctions – fines, penalties, supervisory or administrative measures – and list, as tiers, what a breach can cost. A compliance report will show each tier beside the findings on the articles it covers, so that a board reads what a gap can cost. A ceiling you invent or attach to the wrong articles misleads that board: give only what the text states.
+
+  You are given the act's title and its sanction provisions, each under a ref (P1, P2 …), in the language of the official publication (usually Lithuanian). A long provision is cut off after its first part. A provision whose heading speaks of infringements and not of sanctions is given because a sanction provision sends the reader to it for the infringements it punishes: it states no tier of its own – read from it which provisions the tiers cover.
+
+  A TIER is one group of infringements that shares one ceiling or one set of measures for one kind of addressee. Typical shapes:
+  - a paragraph that lists infringed articles and sets a maximum fine for them ("for infringements of Articles 59, 60 and 64 to 83 … at least EUR 5 000 000 or 3 % of total annual turnover") – one tier for the company, and a separate tier when the same paragraph sets another ceiling for natural persons;
+  - a paragraph that gives the supervisor measures for any infringement of the act (a public statement, an order to cease, withdrawal or suspension of the authorisation, a ban on managers) – one tier with all = true;
+  - a national law that sets fines for breaching another act (an EU regulation that leaves penalties to the Member States) – a tier whose infringedAct names that other act.
+
+  FOR EACH TIER
+  - provisionRef: the ref of the provision the tier stands in; where: the paragraph and point inside it, short, as the act writes them ("3 d. a p.", "5 d.").
+  - infringedAct: "this" when the tier concerns provisions of the act you are reading; otherwise the other act as the text names it – its short title when it has a well-known one (MiCA, DORA, GDPR, TFR), else its official title or number ("Reglamentas (ES) 2023/1114").
+  - articles: the articles of the infringed act the tier covers, as the text lists them – each a number ("59") or a range ("64-83"); leave it empty and set all = true when the tier covers any infringement of the act, or when the text does not say which. Where a tier for another act punishes the infringements an article of that act refers to ("the infringements referred to in Article 111(1)(b) and (c) of Regulation (EU) 2023/1114"), give that article ("111"): the list was not given to you, and all = true would put the tier under every provision of the other act. A tier for breaching obligations laid down elsewhere – in another act, or in national law that this act lets Member States adopt beside its own rules ("obligations under Member State law adopted on the basis of Chapter IX") – is not a tier for any infringement of this act: name that source in infringedAct, in the words of the text. The national provisions that transpose a directive are not such a source: a tier for infringing them is a tier of the directive itself (infringedAct "this").
+  - condition: when the tier applies only to a kind of breach rather than to any breach of the articles it covers – a systematic, gross or repeated breach; failing to provide information the supervisor asked for; not carrying out a binding instruction – say which, in a few words in the language of the act, without a full stop; empty when the tier applies to any breach. A carve-out that only sends some breaches to another paragraph ("where paragraphs 2 and 3 do not apply") is not a condition: leave it empty. Neither are words that only name the obligations the listed articles lay down or those who owe them ("the obligations of the operator and the provider under Articles 10 to 15"): they describe the very breaches the articles already identify, so the tier applies to any breach of those articles – leave it empty.
+  - addressee: legal (a legal person, an undertaking, a financial market participant), natural (a natural person, a manager, an employee) or any (the text does not distinguish).
+  - persons: the kinds of person the tier binds, when the provision sets its sanctions for some of those the act regulates and not for all of them: issuers of significant tokens beside other issuers, financial institutions beside other obliged entities, cash handlers in a law about a central bank, essential entities beside important ones. Give them for a tier that lists no articles, and for a tier that lists its articles when the provision sets another ceiling for another kind of person for the same articles. The kind holds for every tier of a provision that is about that kind as a whole, also where the paragraph the tier stands in does not repeat it. Give each kind as the act names it, in the language of the act, in the singular and the nominative ("grynųjų pinigų tvarkytojas"), one entry a kind. Leave the list empty for any other tier that lists its articles – they already say whose breach it is – and for one that binds whoever breaches the act: the persons the whole act is addressed to, "a legal person", "the infringer".
+  - maxFineEur: the highest fine in euros the tier allows, as a number; null when the text states none. Where the text gives "at least X" as the maximum a Member State must provide for, X is the ceiling to give. maxFinePercent: the ceiling as a percentage of total annual turnover (or of annual income, as the text has it), as a number; null when none. The rate of a periodic penalty – a share of the average daily turnover or income for each day of delay – is no ceiling of a fine: give the measure periodic_penalty and leave the ceilings null. benefitMultiple: the multiple of the profit gained or loss avoided the fine may reach ("twice the amount" = 2); null when none. A sum in another currency is not converted: leave maxFineEur null and say so in note.
+  - measures: what the same tier allows beside a fine – withdrawal (withdrawal or suspension of the authorisation, licence or registration), restriction (an activity or service restricted, suspended or prohibited), cease (an order to end the conduct or remedy the breach), public_statement (a public notice naming the person and the breach), management_ban (a manager removed or banned from management functions), disgorgement (surrender of the profit gained or loss avoided), periodic_penalty (a penalty that runs until compliance), criminal (the text provides for criminal liability), other.
+
+  RULES
+  - Only what these provisions say. Never fill a ceiling, an article list or a measure from what you know of the act or of other acts.
+  - A provision that only tells Member States to lay down penalties, without a ceiling, gives a tier with null ceilings and the measures it lists, all = true.
+  - A provision that applies this act's own sanction provisions to breaches of another act ("the measures of Articles 36 to 42 apply to breaches of Regulation (EU) 2023/1113") gives that other act the tiers those provisions state: repeat for it the tiers with a ceiling, with infringedAct naming it and provisionRef the provision that states the ceiling.
+  - Rules on how a fine is calculated, published, appealed or paid are not tiers. Neither are powers of investigation. A tier with no ceiling and no measure is no tier.
+  - Prefer the tiers that address a legal person; give a natural person's tier only where the text sets one apart. At most twenty-four tiers: when the text has more, keep those with the highest ceilings and say in note what was left out.
+  - No sanction provision with any ceiling or measure: return no tiers and say why in note.
+
+  note: one or two sentences in English on anything a reader of the tiers must know – that penalties are left to national law, that a provision was cut off, that sums are in another currency.

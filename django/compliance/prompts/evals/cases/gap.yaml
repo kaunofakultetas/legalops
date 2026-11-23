@@ -1,0 +1,1780 @@
+# The gap analysis (prompt report.gap_analysis), obligation by obligation.
+#
+# Each case is one obligation of the register as the report of 2026-11-11 put
+# it to the model for the sample company (data/1009-ltd), and the status a
+# careful reader of the company's 26 documents gives it under the rules of
+# the gap-analysis prompt. `accept` names a second status where two readers
+# of those rules differ; a case passes on either.
+#
+# How the labels were made (2026-11-12): 72 findings of that report were
+# drawn, spread over the acts and over the model's own statuses. Two
+# independent reviewers (Claude, each reading the whole library and the
+# rules, half of the cases each) labelled them without the model's answers;
+# every quote they relied on was checked word for word. The reviewers could
+# see the order the cases were drawn in, which hints at the model's status —
+# a flaw of the method: they agreed with the model on 52 cases, named its
+# answer as a defensible alternative on 14 and differed outright on 6, so
+# neither followed it. Where reviewer and model agreed the label is theirs;
+# where the reviewer named the model's status as defensible both are
+# accepted; the six outright differences were read against the rules by the
+# assistant (Claude) — `adjudicated` — and one was dropped (pai-69: a rule on the burden of proof in a dispute, not a duty a company arranges for in advance).
+# Overrule a label by editing it here.
+cases:
+  - id: adtai-71
+    act: "ADTAĮ"
+    expect: unknown
+    accept: [partial]
+    why: >-
+      A data-protection duty with no privacy or employee-data documents
+      provided: the HR policy only says that background screening is done and
+      tailored to the role, without saying whether conviction data are
+      processed, on what basis or with which safeguards. Partial is arguable
+      because screening is addressed but its limits for conviction data are
+      not.
+    obligation:
+      provisions: "5 str."
+      category: data_protection
+      title: "Riboti kandidatų ir darbuotojų duomenų apie nusikalstamas veikas tvarkymą"
+      text: >-
+        Duomenų valdytojas kandidato arba darbuotojo asmens duomenis apie
+        apkaltinamuosius nuosprendžius ir nusikalstamas veikas gali tvarkyti
+        tik tiek, kiek tai būtina vykdant jam taikomą teisinę prievolę
+        patikrinti atitiktį teisės aktuose nustatytiems pareigų ar darbo
+        funkcijų reikalavimams arba siekiant teisėtų darbdavio interesų, kurių
+        nenusveria duomenų subjekto interesai arba pagrindinės teisės ir
+        laisvės, ypač kai duomenų subjektas yra vaikas. Remiantis teisėtais
+        darbdavio interesais, turi būti laikomasi Reglamento (ES) 2016/679
+        reikalavimų ir 5 straipsnio 2 dalyje nustatytų apsaugos priemonių. Šie
+        apribojimai taip pat taikomi asmenims, dirbantiems Užimtumo įstatyme
+        nurodytais darbo santykiams prilygintų teisinių santykių pagrindais,
+        ir kandidatams dirbti šiais pagrindais.
+      addressee: "duomenų valdytojas; darbdavys"
+      appliesWhen: "Tvarkomi kandidato ar darbuotojo duomenys apie apkaltinamuosius nuosprendžius ir nusikalstamas veikas."
+      expectedEvidence: "Taikomos teisinės prievolės dokumentai arba teisėtų interesų vertinimas; tvarkomų duomenų apimties pagrindimas."
+      deadline: ""
+  - id: adtai-72
+    act: "ADTAĮ"
+    expect: unknown
+    accept: [missing]
+    adjudicated: true
+    why: >-
+      No privacy document was provided; the marketing policy governs the
+      content and approval of communications, not which personal data are
+      used.
+    obligation:
+      provisions: "3 str."
+      category: data_protection
+      title: "Netvarkyti asmens kodo tiesioginės rinkodaros tikslais"
+      text: >-
+        Juridiniai ir fiziniai asmenys privalo netvarkyti asmens kodo
+        tiesioginės rinkodaros tikslais.
+      addressee: "juridiniai ir fiziniai asmenys"
+      appliesWhen: "Vykdoma tiesioginė rinkodara."
+      expectedEvidence: "Tiesioginės rinkodaros duomenų rinkinių ir naudojamų laukų patikros, patvirtinančios, kad asmens kodas šiais tikslais netvarkomas."
+      deadline: ""
+  - id: dora-19
+    act: "DORA"
+    expect: met
+    accept: [partial]
+    why: >-
+      Design: the risk and information security policies set up a three-lines-
+      of-defence model (operations, risk management, internal audit) and the
+      governance policy makes the Risk Officer and Internal Audit
+      organisationally separate and independently reporting to the management
+      body. Partial is arguable because internal audits of information
+      security are 'coordinated by CISO', the second line.
+    obligation:
+      provisions: "6 str."
+      category: governance
+      title: "Atskirti IRT rizikos valdymo, kontrolės ir audito funkcijas"
+      text: >-
+        Finansų sektoriaus subjektai turi užtikrinti tinkamą IRT rizikos
+        valdymo funkcijų, kontrolės funkcijų ir vidaus audito funkcijų
+        atskyrimą bei nepriklausomumą pagal trijų gynybos linijų modelį arba
+        vidaus rizikos valdymo ir kontrolės modelį.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: ""
+      expectedEvidence: "Funkcijų ir atsakomybių paskirstymas, organizacinė struktūra ir vidaus kontrolės modelis."
+      deadline: ""
+  - id: dora-20
+    act: "DORA"
+    expect: met
+    why: >-
+      Conduct (b): the incident policies say that on a major ICT incident
+      affecting clients' interests the company informs clients without undue
+      delay about the incident and the mitigating measures, name the channels
+      (direct email, status page) and the responsible roles.
+    obligation:
+      provisions: "19 str., 23 str."
+      category: customer_protection
+      title: "Informuoti klientus apie jų finansinius interesus paveikusį incidentą"
+      text: >-
+        Kai didelis su IRT susijęs incidentas daro poveikį klientų
+        finansiniams interesams, finansų sektoriaus subjektai turi nepagrįstai
+        nedelsdami, iš karto sužinoję apie incidentą, informuoti savo klientus
+        apie incidentą ir priemones, kurių imtasi jo neigiamam poveikiui
+        sumažinti. Kredito įstaigoms, mokėjimo įstaigoms, informavimo apie
+        sąskaitas paslaugų teikėjams ir elektroninių pinigų įstaigoms ši
+        pareiga taip pat taikoma dideliems su mokėjimais susijusiems
+        operaciniams arba saugumo incidentams.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Didelis incidentas daro poveikį klientų finansiniams interesams."
+      expectedEvidence: "Klientams išsiųsti pranešimai, išsiuntimo laiko duomenys ir informacija apie poveikio mažinimo priemones."
+      deadline: "Nepagrįstai nedelsiant, iš karto sužinojus apie incidentą."
+  - id: dora-21
+    act: "DORA"
+    expect: met
+    why: >-
+      The governance policy makes the management body ultimately responsible
+      and has it approve the digital operational resilience strategy and set
+      the ICT risk tolerance level; the risk policy repeats that overall
+      responsibility.
+    obligation:
+      provisions: "5 str."
+      category: governance
+      title: "Nustatyti ir patvirtinti skaitmeninės veiklos atsparumo strategiją"
+      text: >-
+        Finansų sektoriaus subjekto valdymo organas turi prisiimti bendrą
+        atsakomybę už 6 straipsnio 8 dalyje nurodytos skaitmeninės veiklos
+        atsparumo strategijos nustatymą ir patvirtinimą, įskaitant atitinkamo
+        subjektui priimtino IRT rizikos lygmens nustatymą pagal 6 straipsnio 8
+        dalies b punktą.
+      addressee: "finansų sektoriaus subjekto valdymo organas"
+      appliesWhen: ""
+      expectedEvidence: "Valdymo organo patvirtinta skaitmeninės veiklos atsparumo strategija ir nustatytas priimtinas IRT rizikos lygmuo."
+      deadline: ""
+  - id: dora-22
+    act: "DORA"
+    expect: met
+    why: >-
+      Arrangement (a): with 40 employees the company is not a microenterprise,
+      and the governance policy assigns operation and oversight of the ICT
+      risk framework to a Risk Officer control function that reports
+      independently to the management body and is separated from operational
+      units; the three-lines model is also set.
+    obligation:
+      provisions: "6 str."
+      category: governance
+      title: "Priskirti IRT rizikos priežiūrą nepriklausomai kontrolės funkcijai"
+      text: >-
+        Finansų sektoriaus subjektai, išskyrus labai mažas įmones, turi
+        priskirti atsakomybę už IRT rizikos valdymą ir priežiūrą kontrolės
+        funkcijai ir užtikrinti tinkamą jos nepriklausomumo lygį, kad būtų
+        išvengta interesų konfliktų.
+      addressee: "finansų sektoriaus subjektai, išskyrus labai mažas įmones"
+      appliesWhen: "Subjektas nėra labai maža įmonė."
+      expectedEvidence: "Organizacinė struktūra, kontrolės funkcijos įgaliojimai ir nepriklausomumo užtikrinimo priemonės."
+      deadline: ""
+  - id: dora-23
+    act: "DORA"
+    expect: partial
+    accept: [met]
+    why: >-
+      The ICT third-party policy requires pre-contract due diligence on the
+      'geographic location of data processing and applicable legal regime',
+      but nothing requires, for a third-country provider of a critical or
+      important function, an assessment of compliance with Union data
+      protection rules and of effective law enforcement there - a content item
+      of the assessment is absent. Met is arguable if 'applicable legal
+      regime' is read as covering the substance.
+    obligation:
+      provisions: "29 str."
+      category: data_protection
+      title: "Įvertinti trečiosios valstybės duomenų apsaugą ir teisės vykdymą"
+      text: >-
+        Sudarydami susitarimus dėl IRT paslaugų, palaikančių ypatingos svarbos
+        arba svarbias funkcijas, su trečiojoje valstybėje įsisteigusiu
+        teikėju, finansų sektoriaus subjektai, be nemokumo teisės ir duomenų
+        atkūrimo aspektų, privalo atsižvelgti į Sąjungos duomenų apsaugos
+        taisyklių laikymąsi ir veiksmingą teisės aktų vykdymo užtikrinimą toje
+        valstybėje.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Susitarimas dėl ypatingos svarbos arba svarbias funkcijas palaikančių IRT paslaugų sudaromas su trečiojoje valstybėje įsisteigusiu teikėju."
+      expectedEvidence: "Sąjungos duomenų apsaugos taisyklių laikymosi ir trečiosios valstybės teisės vykdymo vertinimas."
+      deadline: "Sudarant sutartimi įformintą susitarimą."
+  - id: dora-24
+    act: "DORA"
+    expect: partial
+    accept: [met]
+    why: >-
+      Post-incident reviews after major incidents are established and the CTO
+      prepares post-incident reports for the Bank of Lithuania, but no rule
+      provides that the changes implemented after those reviews are
+      communicated to the competent authority on its request. Met is arguable
+      if the post-incident reports are read as covering the substance.
+    obligation:
+      provisions: "13 str."
+      category: reporting
+      title: "Pranešti apie po incidentų peržiūrų įgyvendintus pakeitimus"
+      text: >-
+        Finansų sektoriaus subjektai, išskyrus labai mažas įmones,
+        kompetentingų institucijų prašymu turi joms pranešti apie pakeitimus,
+        įgyvendintus atlikus peržiūras po didelių su IRT susijusių incidentų,
+        sutrikdžiusių pagrindinę veiklą.
+      addressee: "Finansų sektoriaus subjektai, išskyrus labai mažas įmones"
+      appliesWhen: "Kompetentingos institucijos prašymas; netaikoma 16 straipsnio 1 dalyje nurodytiems subjektams."
+      expectedEvidence: "Kompetentingai institucijai pateiktas pranešimas apie įgyvendintus pakeitimus."
+      deadline: ""
+  - id: dora-25
+    act: "DORA"
+    expect: met
+    accept: [partial]
+    why: >-
+      The Network Security Management Policy assigns roles for network
+      management and establishes risk-based segmentation (DMZ, production,
+      development), isolation of asset groups, deny-by-default firewalls and
+      periodic reviews, so the network is designed to be segmented. Partial is
+      arguable because no explicit capability or procedure for instantly
+      severing a segment during an incident is described.
+    obligation:
+      provisions: "9 str."
+      category: ict_security
+      title: "Užtikrinti patikimą ir atjungiamą tinklų infrastruktūrą"
+      text: >-
+        Finansų sektoriaus subjektai, taikydami rizika grindžiamą požiūrį,
+        turi nustatyti patikimą tinklų ir infrastruktūros valdymo struktūrą,
+        naudodamiesi tinkamais būdais, metodais ir protokolais. Tinklų ryšio
+        infrastruktūra turi būti kuriama taip, kad ją būtų galima skubiai
+        atjungti ar segmentuoti, siekiant kuo labiau sumažinti plintantį
+        neigiamą poveikį ir užkirsti jam kelią, ypač tarpusavyje susijusių
+        finansinių procesų atveju.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: ""
+      expectedEvidence: "Tinklų valdymo dokumentai, infrastruktūros schemos ir atjungimo arba segmentavimo galimybių testai."
+      deadline: ""
+  - id: dora-26
+    act: "DORA"
+    expect: met
+    accept: [partial]
+    why: >-
+      The documents establish, in their own words, monitoring of the
+      effectiveness of ICT risk and security measures, monitoring of changes
+      in the ICT risk landscape, dated incident logging and analysis of
+      incident patterns, with quarterly reporting to the management body.
+      Partial is arguable because monitoring of the resilience strategy itself
+      and a chronological record of ICT risk are not spelled out.
+    obligation:
+      provisions: "13 str."
+      category: risk_management
+      title: "Stebėti atsparumo strategijos veiksmingumą ir IRT rizikos pokyčius"
+      text: >-
+        Finansų sektoriaus subjektai turi stebėti savo skaitmeninės veiklos
+        atsparumo strategijos įgyvendinimo veiksmingumą, chronologiškai
+        fiksuoti IRT rizikos pokyčius ir analizuoti su IRT susijusių
+        incidentų, visų pirma kibernetinių išpuolių ir jų modelių, dažnumą,
+        rūšis, mastą ir pokyčius, kad suprastų gresiančios IRT rizikos mastą,
+        ypač ypatingos svarbos arba svarbioms funkcijoms, ir sustiprintų
+        kibernetinę brandą bei parengtį.
+      addressee: "Finansų sektoriaus subjektai"
+      appliesWhen: "Netaikoma 16 straipsnio 1 dalyje nurodytiems subjektams."
+      expectedEvidence: "Strategijos įgyvendinimo stebėsenos ataskaitos, chronologiniai IRT rizikos įrašai ir incidentų tendencijų analizės."
+      deadline: ""
+  - id: dora-27
+    act: "DORA"
+    expect: missing
+    accept: [partial]
+    why: >-
+      Conduct when negotiating ICT contracts: the ICT Third-Party Risk
+      Management Policy, the document dedicated to ICT contracting, lists the
+      required contract contents but is silent on considering standard
+      contractual clauses developed by public authorities. Partial is arguable
+      since the policy does regulate the contractual phase.
+    obligation:
+      provisions: "30 str."
+      category: procedure
+      title: "Apsvarstyti valdžios institucijų parengtas standartines sutarčių sąlygas"
+      text: >-
+        Derėdamiesi dėl sutartimi įformintų susitarimų, finansų sektoriaus
+        subjektai ir IRT paslaugas teikiančios trečiosios šalys turi
+        apsvarstyti galimybę taikyti valdžios institucijų konkrečioms
+        paslaugoms parengtas standartines sutarčių sąlygas.
+      addressee: "Finansų sektoriaus subjektai ir IRT paslaugas teikiančios trečiosios šalys"
+      appliesWhen: "Derantis dėl sutartimi įformintų susitarimų."
+      expectedEvidence: "Derybų protokolai arba sutarčių vertinimo dokumentai, rodantys standartinių sąlygų taikymo galimybės apsvarstymą."
+      deadline: "Derantis dėl sutartimi įformintų susitarimų."
+  - id: dora-28
+    act: "DORA"
+    expect: missing
+    accept: [partial]
+    why: >-
+      The ICT third-party policy, the document whose subject this is, lists
+      the pre-contractual steps (criticality, risks, due diligence,
+      concentration) and is silent on identifying and assessing conflicts of
+      interest the arrangement may cause; the conflicts policy concerns client
+      conflicts only. Partial is arguable if the conflict check is seen as one
+      missing item of an otherwise established pre-contract assessment.
+    obligation:
+      provisions: "28 str."
+      category: governance
+      title: "Prieš IRT susitarimą įvertinti interesų konfliktus"
+      text: >-
+        Prieš sudarydami sutartimi įformintą susitarimą dėl IRT paslaugų
+        naudojimo, finansų sektoriaus subjektai privalo nustatyti ir įvertinti
+        interesų konfliktus, galinčius atsirasti dėl susitarimo.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Numatoma sudaryti susitarimą dėl IRT paslaugų naudojimo."
+      expectedEvidence: "Interesų konfliktų vertinimas ir susijusios deklaracijos."
+      deadline: "Prieš sudarant sutartimi įformintą susitarimą."
+  - id: dora-29
+    act: "DORA"
+    expect: unknown
+    accept: [met]
+    why: >-
+      The obligation asks for the ICT response and recovery plans themselves;
+      the Business Continuity, Backup and Incident Management policies require
+      such plans but refer for their content to the 'IT Business Continuity
+      and Response Plans' and the incident response plan, which were not
+      provided. Met is arguable because the policies fix activation criteria,
+      recovery timeframes and annual testing.
+    obligation:
+      provisions: "11 str."
+      category: procedure
+      title: "Įgyvendinti IRT reagavimo ir veiklos atkūrimo planus"
+      text: >-
+        Finansų sektoriaus subjektai pagal savo IRT rizikos valdymo sistemą
+        turi įgyvendinti susijusius IRT reagavimo ir veiklos atkūrimo planus.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: ""
+      expectedEvidence: "IRT reagavimo ir veiklos atkūrimo planai ir jų įgyvendinimo įrodymai."
+      deadline: ""
+  - id: dora-30
+    act: "DORA"
+    expect: partial
+    accept: [unknown]
+    why: >-
+      Recovery time and point objectives are set from the business impact
+      analysis by criticality, measured as impact on the company, and
+      restoration is to meet accepted service levels; the potential overall
+      impact on market efficiency is not a criterion. Unknown is arguable
+      because the policy refers for recovery objectives to the IT Business
+      Continuity and Response Plans, which were not provided.
+    obligation:
+      provisions: "12 str."
+      category: risk_management
+      title: "Nustatyti funkcijų atkūrimo laiko ir taško tikslus"
+      text: >-
+        Finansų sektoriaus subjektai, nustatydami kiekvienos funkcijos
+        atkūrimo laiko ir taško tikslus, turi atsižvelgti į tai, ar funkcija
+        yra ypatingos svarbos arba svarbi, ir į galimą bendrą poveikį rinkos
+        veiksmingumui. Atkūrimo laiko tikslai turi užtikrinti sutartus
+        paslaugų lygius ekstremaliais atvejais.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Nustatomi kiekvienos funkcijos atkūrimo laiko ir taško tikslai."
+      expectedEvidence: "Funkcijų atkūrimo laiko ir taško tikslai, jų pagrindimas ir sutartų paslaugų lygių užtikrinimo testai."
+      deadline: ""
+  - id: dora-31
+    act: "DORA"
+    expect: not_applicable
+    accept: [partial]
+    why: >-
+      Applies only when TLPT is carried out, which depends on the competent
+      authority identifying the company; the testing policy itself makes TLPT
+      conditional on that and nothing shows such a designation. If it applied,
+      partial would be arguable: the policy scopes TLPT to 'several or all
+      CIFs' without a step identifying all underlying and outsourced systems.
+    obligation:
+      provisions: "26 str."
+      category: ict_security
+      title: "Nustatyti TLPT aktualias sistemas, procesus ir technologijas"
+      text: >-
+        Finansų sektoriaus subjektai privalo nustatyti visas atitinkamas
+        pagrindines IRT sistemas, procesus ir technologijas, palaikančias
+        ypatingos svarbos arba svarbias funkcijas ir IRT paslaugas, įskaitant
+        tas, kurios palaiko IRT paslaugas teikiančioms trečiosioms šalims
+        perduotas arba pagal sutartis patikėtas vykdyti ypatingos svarbos arba
+        svarbias funkcijas.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Atliekamas TLPT."
+      expectedEvidence: "IRT sistemų, procesų ir technologijų sąrašas bei jų sąsajų su funkcijomis dokumentai."
+      deadline: ""
+  - id: dora-32
+    act: "DORA"
+    expect: not_applicable
+    accept: [partial]
+    why: >-
+      The duty applies only when TLPT is carried out, which depends on the
+      competent authority identifying this company; nothing shows that
+      decision was taken and the policy itself makes TLPT conditional on it.
+      If treated as applicable it would be partial: the scope rule (several or
+      all CIFs on live production) exists, but the scoping assessment and the
+      authority's validation do not.
+    obligation:
+      provisions: "26 str."
+      category: ict_security
+      title: "Nustatyti ir patvirtinti tinkamą TLPT aprėptį"
+      text: >-
+        Finansų sektoriaus subjektai privalo įvertinti, kurioms ypatingos
+        svarbos arba svarbioms funkcijoms taikyti TLPT, pagal vertinimą
+        nustatyti tikslią testavimo aprėptį ir gauti kompetentingos
+        institucijos patvirtinimą dėl vertinimo rezultato. Kiekvienas testas
+        turi apimti kelias arba visas tokias funkcijas ir būti atliekamas jas
+        palaikančių tikralaikių produkcijos sistemų atžvilgiu.
+      addressee: "finansų sektoriaus subjektai"
+      appliesWhen: "Atliekamas TLPT."
+      expectedEvidence: "TLPT aprėpties vertinimas, kompetentingos institucijos patvirtinimas, testavimo planas ir ataskaita."
+      deadline: ""
+  - id: gdpr-54
+    act: "GDPR"
+    expect: met
+    accept: [unknown]
+    why: >-
+      Arrangement (a) on security of processing: the access control and human
+      resource policies restrict staff to the data needed for their role,
+      require information to be used only for the assigned business role under
+      company policies, with logging and discipline, which covers the
+      substance of processing only on instructions. Unknown is arguable
+      because no privacy document was provided.
+    obligation:
+      provisions: "32 str."
+      category: data_protection
+      title: "Užtikrinti pavaldžių asmenų tvarkymą tik pagal nurodymus"
+      text: >-
+        Duomenų valdytojas ir duomenų tvarkytojas turi imtis priemonių, kad
+        jiems pavaldūs fiziniai asmenys, galintys susipažinti su asmens
+        duomenimis, netvarkytų jų be valdytojo nurodymų, nebent asmuo privalo
+        tvarkyti pagal Sąjungos ar valstybės narės teisę.
+      addressee: "duomenų valdytojas ir duomenų tvarkytojas"
+      appliesWhen: "Pavaldūs fiziniai asmenys gali susipažinti su asmens duomenimis."
+      expectedEvidence: "Prieigos valdymo priemonės, pavaldžių asmenų tvarkymo nurodymai ir kontrolės įrašai."
+      deadline: ""
+  - id: gdpr-55
+    act: "GDPR"
+    expect: met
+    accept: [not_applicable]
+    why: >-
+      Whatever its role, the documents require confidentiality commitments
+      from everyone who handles non-public data: non-disclosure agreements for
+      new hires and signed confidentiality agreements under the physical
+      security policy. Not applicable is arguable because nothing shows the
+      company acts as a processor, the duty's addressee.
+    obligation:
+      provisions: "28 str."
+      category: data_protection
+      title: "Užtikrinti įgaliotų asmenų konfidencialumo prievolę"
+      text: >-
+        Duomenų tvarkytojas turi užtikrinti, kad asmens duomenis tvarkyti
+        įgalioti asmenys būtų įsipareigoję užtikrinti konfidencialumą arba
+        jiems būtų taikoma atitinkama įstatais nustatyta konfidencialumo
+        prievolė.
+      addressee: "duomenų tvarkytojas"
+      appliesWhen: "Asmenys įgaliojami tvarkyti asmens duomenis."
+      expectedEvidence: "Konfidencialumo įsipareigojimai arba taikomos įstatais nustatytos prievolės dokumentai."
+      deadline: ""
+  - id: gdpr-56
+    act: "GDPR"
+    expect: unknown
+    accept: [partial]
+    adjudicated: true
+    why: >-
+      Criminal-record data is handled (suitability checks, screening), but no
+      privacy document was provided that could set out the legal basis and
+      safeguards.
+    obligation:
+      provisions: "10 str."
+      category: data_protection
+      title: "Teisėtai tvarkyti duomenis apie nuosprendžius ir nusikalstamas veikas"
+      text: >-
+        Duomenų valdytojas asmens duomenis apie apkaltinamuosius
+        nuosprendžius, nusikalstamas veikas arba susijusias saugumo priemones,
+        remdamasis 6 straipsnio 1 dalimi, gali tvarkyti tik prižiūrint
+        valdžios institucijai arba kai tai leidžia Sąjungos ar valstybės narės
+        teisė, nustatanti tinkamas duomenų subjektų teisių ir laisvių apsaugos
+        priemones.
+      addressee: "duomenų valdytojas"
+      appliesWhen: "Tvarkomi duomenys apie apkaltinamuosius nuosprendžius, nusikalstamas veikas arba susijusias saugumo priemones."
+      expectedEvidence: "Teisinio pagrindo ir taikomų apsaugos priemonių vertinimas arba valdžios institucijos priežiūrą patvirtinantys dokumentai."
+      deadline: ""
+  - id: gdpr-57
+    act: "GDPR"
+    expect: met
+    accept: [partial]
+    why: >-
+      The security policy set (information security, access control, backup,
+      operations, network, continuity, resilience testing) establishes
+      encryption, confidentiality/integrity/availability controls, timely
+      restoration from backups and regular testing and audit on the basis of
+      IT risk assessment. Partial is arguable because the risk assessment does
+      not expressly consider risks to data subjects' rights and freedoms.
+    obligation:
+      provisions: "28 str., 32 str."
+      category: ict_security
+      title: "Užtikrinti pavojus atitinkantį duomenų tvarkymo saugumą"
+      text: >-
+        Duomenų valdytojas ir duomenų tvarkytojas turi įgyvendinti tinkamas
+        technines ir organizacines priemones, užtikrinančias pavojus
+        atitinkantį saugumo lygį, atsižvelgdami į techninių galimybių
+        išsivystymo lygį, įgyvendinimo sąnaudas, tvarkymo pobūdį, aprėptį,
+        kontekstą, tikslus ir įvairios tikimybės bei rimtumo pavojus fizinių
+        asmenų teisėms ir laisvėms. Jei reikia, priemonės turi apimti
+        pseudonimų suteikimą ir šifravimą, nuolatinį sistemų bei paslaugų
+        konfidencialumą, vientisumą, prieinamumą ir atsparumą, galimybę laiku
+        atkurti prieinamumą ir naudojimąsi duomenimis po fizinio ar techninio
+        incidento bei reguliarų priemonių tikrinimo, vertinimo ir veiksmingumo
+        vertinimo procesą. Nustatant saugumo lygį būtina ypač atsižvelgti į
+        netyčinio ar neteisėto duomenų sunaikinimo, praradimo, pakeitimo,
+        atskleidimo be leidimo ir neteisėtos prieigos pavojus.
+      addressee: "duomenų valdytojas ir duomenų tvarkytojas"
+      appliesWhen: "Asmens duomenų tvarkymas; konkrečios priemonės parenkamos pagal pavojus ir nurodytus vertinimo veiksnius."
+      expectedEvidence: "Saugumo rizikos vertinimas, techninių ir organizacinių priemonių dokumentai, atkūrimo bei saugumo bandymų ir veiksmingumo vertinimo įrašai."
+      deadline: "Nuolatinis saugumas, laiku atliekamas atkūrimas ir reguliarus tikrinimas bei vertinimas, jei reikia."
+  - id: gdpr-58
+    act: "GDPR"
+    expect: unknown
+    accept: [not_applicable]
+    why: >-
+      No privacy document (consent wording, privacy notice) was provided and
+      nothing states whether the company relies on consent for processing
+      personal data, so the documents cannot tell. Not_applicable is arguable
+      because no use of consent is shown.
+    obligation:
+      provisions: "7 str."
+      category: disclosure
+      title: "Informuoti apie teisę atšaukti sutikimą"
+      text: >-
+        Duomenų valdytojas prieš duomenų subjektui duodant sutikimą turi jį
+        informuoti, kad sutikimą galima bet kuriuo metu atšaukti ir kad
+        atšaukimas nedaro poveikio sutikimu pagrįsto duomenų tvarkymo, atlikto
+        iki atšaukimo, teisėtumui.
+      addressee: "Duomenų valdytojas"
+      appliesWhen: "Prašoma duomenų subjekto sutikimo tvarkyti asmens duomenis."
+      expectedEvidence: "Prieš sutikimą pateikiamos informacijos tekstai ir jos pateikimo duomenų subjektui įrodymai."
+      deadline: "Prieš duomenų subjektui duodant sutikimą."
+  - id: gdpr-59
+    act: "GDPR"
+    expect: unknown
+    why: >-
+      No privacy documents (such as a data protection impact assessment
+      procedure) were provided and no document deals with seeking data
+      subjects' views on intended processing; general security policies do not
+      count. The DPIA procedure and DPIA records would show it.
+    obligation:
+      provisions: "35 str."
+      category: data_protection
+      title: "Siekti išsiaiškinti duomenų subjektų nuomonę apie numatytą tvarkymą"
+      text: >-
+        Duomenų valdytojas atitinkamais atvejais turi siekti išsiaiškinti
+        duomenų subjektų ar jų atstovų nuomonę apie numatytą duomenų tvarkymą,
+        nepažeisdamas komercinių ar viešųjų interesų apsaugos arba duomenų
+        tvarkymo operacijų saugumo reikalavimų.
+      addressee: "duomenų valdytojas"
+      appliesWhen: "Numatomas duomenų tvarkymas ir tikslinga išsiaiškinti duomenų subjektų ar jų atstovų nuomonę."
+      expectedEvidence: "Konsultacijų su duomenų subjektais ar jų atstovais medžiaga ir gautos nuomonės."
+      deadline: ""
+  - id: gdpr-60
+    act: "GDPR"
+    expect: not_applicable
+    why: >-
+      Concerns the content of binding corporate rules of a group of
+      undertakings; nothing shows the company belongs to a group or uses
+      binding corporate rules.
+    obligation:
+      provisions: "47 str."
+      category: training
+      title: "Numatyti mokymus prieigą prie duomenų turintiems darbuotojams"
+      text: >-
+        Įmonei privalomose taisyklėse turi būti numatyti atitinkami mokymai
+        duomenų apsaugos srityje darbuotojams, kurie turi teisę nuolat ar
+        reguliariai susipažinti su asmens duomenimis.
+      addressee: "įmonių grupė arba bendrą ekonominę veiklą vykdančių įmonių grupė"
+      appliesWhen: "Naudojant įmonei privalomas taisykles ir turint darbuotojų, kuriems suteikta nuolatinė arba reguliari prieiga prie asmens duomenų."
+      expectedEvidence: "Taisyklių nuostatos dėl mokymų, mokymo programa ir dalyvavimo įrašai."
+      deadline: ""
+  - id: kri-61
+    act: "KRĮ"
+    expect: met
+    why: >-
+      The Complaints Handling Procedure states that complaints from clients,
+      prospective clients and affected third parties are submitted, processed
+      and investigated free of charge.
+    obligation:
+      provisions: "9 str."
+      category: customer_protection
+      title: "Skundus nagrinėti neatlygintinai"
+      text: >-
+        Su turtu susietų žetonų emitento ar kriptoturto paslaugų teikėjo
+        bendrovė turi neatlygintinai nagrinėti klientų ir kitų susijusių
+        asmenų skundus, susijusius su su turtu susietų žetonų leidimu arba
+        teikiamomis kriptoturto paslaugomis.
+      addressee: "Bendrovė"
+      appliesWhen: "Nagrinėjami klientų ar kitų susijusių asmenų skundai dėl žetonų leidimo ar kriptoturto paslaugų."
+      expectedEvidence: "Skundų nagrinėjimo tvarka ir duomenys, patvirtinantys, kad už skundų nagrinėjimą neimamas atlygis."
+      deadline: ""
+  - id: kri-62
+    act: "KRĮ"
+    expect: met
+    why: >-
+      Restates the general duty to comply; the documents set up compliance
+      arrangements for MiCA and the supervisory framework (management-body
+      responsibility, Compliance Officer monitoring, a policy set tied to Bank
+      of Lithuania expectations). The claimed licence still needs verifying
+      against the register.
+    obligation:
+      provisions: "3 str."
+      category: other
+      title: "Vykdyti veiklą laikantis taikomų teisės aktų"
+      text: >-
+        Su turtu susietų žetonų emitentas ar kriptoturto paslaugų teikėjas
+        turi vykdyti veiklą vadovaudamasis Reglamente (ES) 2023/1114,
+        Kriptoturto rinkų įstatyme ir kituose teisės aktuose, kurių laikymosi
+        priežiūra priskirta priežiūros institucijos kompetencijai, nustatytais
+        reikalavimais.
+      addressee: "Su turtu susietų žetonų emitentas ar kriptoturto paslaugų teikėjas"
+      appliesWhen: ""
+      expectedEvidence: "Veiklos atitikties vertinimai ir taikomų reikalavimų vykdymą patvirtinantys dokumentai."
+      deadline: ""
+  - id: kri-63
+    act: "KRĮ"
+    expect: partial
+    accept: [unknown]
+    why: >-
+      Conduct on a change in management: the governance policy provides a
+      suitability assessment at appointment and notification of the authority
+      before the change takes effect, but not obtaining the supervisory
+      authority's permission before the person becomes a manager - the
+      required approval is absent. Unknown is arguable if read as a fact
+      (whether permissions were obtained for the current managers).
+    obligation:
+      provisions: "4 str."
+      category: governance
+      title: "Vadovais skirti tik priežiūros institucijos leidimą gavusius asmenis"
+      text: >-
+        Su turtu susietų žetonų emitento ar kriptoturto paslaugų teikėjo
+        vadovais gali tapti tik asmenys, dėl kurių priežiūros institucijos
+        nustatyta tvarka gautas leidimas juos rinkti ar skirti vadovais.
+      addressee: "Su turtu susietų žetonų emitentas ar kriptoturto paslaugų teikėjas"
+      appliesWhen: "Asmuo renkamas ar skiriamas vadovu."
+      expectedEvidence: "Priežiūros institucijos leidimas ir vadovo išrinkimo ar paskyrimo dokumentai."
+      deadline: "Iki asmeniui tampant vadovu."
+  - id: kri-64
+    act: "KRĮ"
+    expect: partial
+    accept: [met]
+    why: >-
+      Conduct on a change in management (b): the governance policy has the
+      company notify the authority of a change in the management body before
+      it takes effect and keep suitability assessments available on request,
+      but does not provide for applying for the authority's permission before
+      the appointment and submitting the supporting documents with it. Met is
+      arguable if prior notification is read as covering the substance.
+    obligation:
+      provisions: "4 str."
+      category: governance
+      title: "Pateikti pranešimą ir prašymą dėl vadovo paskyrimo"
+      text: >-
+        Su turtu susietų žetonų emitentas ar kriptoturto paslaugų teikėjas iki
+        asmens rinkimo ar skyrimo vadovu privalo pranešti apie tai priežiūros
+        institucijai, pateikti prašymą išduoti leidimą ir priežiūros
+        institucijos teisės aktuose nustatytus duomenis, informaciją bei
+        dokumentus, patvirtinančius asmens atitiktį Reglamento (ES) 2023/1114
+        34 straipsnio 2 dalies arba 68 straipsnio 1 dalies, Kriptoturto rinkų
+        įstatymo ir jų įgyvendinamųjų teisės aktų reikalavimams.
+      addressee: "Su turtu susietų žetonų emitentas ar kriptoturto paslaugų teikėjas"
+      appliesWhen: "Numatoma rinkti ar skirti asmenį vadovu."
+      expectedEvidence: "Priežiūros institucijai pateiktas pranešimas, prašymas, priedai ir pateikimo patvirtinimas."
+      deadline: "Iki asmens rinkimo ar skyrimo vadovu."
+  - id: kri-65
+    act: "KRĮ"
+    expect: unknown
+    accept: [met]
+    why: >-
+      A fact about the company's managers: neither the profile nor any record
+      shows their reputation, qualification and experience; the governance
+      policy describes a suitability assessment whose records were not
+      provided, and a policy does not prove a fact. Met is arguable if the
+      duty is read as an arrangement, which the policy's fit-and-proper
+      assessment establishes.
+    obligation:
+      provisions: "4 str."
+      category: governance
+      title: "Užtikrinti vadovų nepriekaištingą reputaciją, kvalifikaciją ir patirtį"
+      text: >-
+        Su turtu susietų žetonų emitento ar kriptoturto paslaugų teikėjo
+        vadovai turi būti nepriekaištingos reputacijos ir turėti kvalifikaciją
+        bei patirtį, leidžiančias tinkamai eiti pareigas, pagal Kriptoturto
+        rinkų įstatymo 4 straipsnio 4 ir 5 dalyse nustatytus reikalavimus.
+      addressee: "Su turtu susietų žetonų emitento ar kriptoturto paslaugų teikėjo vadovai"
+      appliesWhen: ""
+      expectedEvidence: "Vadovų reputaciją, išsilavinimą, kvalifikacijos tobulinimą ir profesinę patirtį patvirtinantys dokumentai."
+      deadline: ""
+  - id: kri-66
+    act: "KRĮ"
+    expect: not_applicable
+    accept: [missing]
+    why: >-
+      Depends on an individual binding instruction of the supervisory
+      authority addressed to this company; nothing shows one was given. If
+      read instead as ordinary-course conduct, no document provides for
+      carrying out such instructions.
+    obligation:
+      provisions: "10 str."
+      category: other
+      title: "Vykdyti priežiūros institucijos privalomuosius nurodymus"
+      text: >-
+        Prižiūrimi subjektai privalo priežiūros institucijos nustatytais
+        terminais vykdyti jos duotus Kriptoturto rinkų įstatymo 10 straipsnio
+        3 dalyje nustatytus privalomuosius nurodymus.
+      addressee: "Prižiūrimi subjektai"
+      appliesWhen: "Priežiūros institucija duoda privalomąjį nurodymą pagal Kriptoturto rinkų įstatymo 10 straipsnio 3 dalį."
+      expectedEvidence: "Privalomasis nurodymas ir jo įvykdymą patvirtinantys dokumentai."
+      deadline: "Priežiūros institucijos nustatytais terminais."
+  - id: mica-01
+    act: "MiCA"
+    expect: met
+    accept: [not_applicable]
+    why: >-
+      Design: the Marketing Communications & Disclosures Policy requires every
+      marketing communication to be consistent with any applicable white paper
+      and to be checked against it by Compliance before first publication; the
+      company operates a trading platform, so it is among the addressees. Not
+      applicable is arguable only because nothing shows the company itself has
+      had to draw up a white paper.
+    obligation:
+      provisions: "7 str."
+      category: disclosure
+      title: "Suderinti rinkodaros informaciją su baltąja knyga"
+      text: >-
+        Kai pagal 4 arba 5 straipsnį privaloma parengti kriptoturto baltąją
+        knygą, siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos
+        platformos operatorius turi užtikrinti, kad rinkodaros pranešimuose
+        pateikta informacija atitiktų baltosios knygos informaciją.
+      addressee: "siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos platformos operatorius"
+      appliesWhen: "Pagal 4 arba 5 straipsnį reikalaujama parengti baltąją knygą."
+      expectedEvidence: "Rinkodaros pranešimų ir baltosios knygos palyginimo patikra."
+      deadline: ""
+  - id: mica-02
+    act: "MiCA"
+    expect: met
+    why: >-
+      Prohibition (d): the Market Abuse Prevention Policy forbids recommending
+      or inducing another person to deal on inside information and adopts the
+      MiCA Art. 89 definition of insider dealing, which covers every element
+      (including cancelling or amending orders); it binds all staff and
+      management.
+    obligation:
+      provisions: "89 str., 86 str."
+      category: other
+      title: "Nerekomenduoti ir neskatinti prekybos pasinaudojant neatskleista informacija"
+      text: >-
+        Asmuo negali patarti kitam asmeniui ar skatinti jį užsiimti prekyba
+        pasinaudojant viešai neatskleista informacija. Viešai neatskleistą
+        informaciją apie kriptoturtą turintis asmuo negali ja remdamasis
+        patarti kitam asmeniui ar raginti jį įsigyti arba perleisti tą
+        kriptoturtą, atšaukti arba pakeisti su juo susijusį pavedimą.
+      addressee: "Bet kuris asmuo; asmuo, turintis viešai neatskleistos informacijos apie kriptoturtą"
+      appliesWhen: "Patarimai ar raginimai susiję su kriptoturtu, kuris įtrauktas į prekybą arba dėl kurio pateiktas prašymas įtraukti į prekybą."
+      expectedEvidence: "Su rekomendacijomis susijusi korespondencija, pokalbių įrašai ir prekybos stebėsenos rezultatai."
+      deadline: ""
+  - id: mica-03
+    act: "MiCA"
+    expect: met
+    why: >-
+      Design: the marketing policy sets 'fair, clear and not misleading' as a
+      core standard for all marketing communications (including those on
+      offers and admission to trading), with Compliance approval before
+      publication and withdrawal of misleading ones.
+    obligation:
+      provisions: "7 str."
+      category: customer_protection
+      title: "Užtikrinti rinkodaros informacijos teisingumą ir aiškumą"
+      text: >-
+        Siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos
+        platformos operatorius turi užtikrinti, kad rinkodaros pranešimų apie
+        kriptoturto, išskyrus su turtu susietus žetonus ir e. pinigų žetonus,
+        viešą siūlymą arba įtraukimą į prekybą informacija būtų teisinga,
+        aiški ir neklaidinanti.
+      addressee: "siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos platformos operatorius"
+      appliesWhen: "Rengiami rinkodaros pranešimai apie 7 straipsnyje nurodytą kriptoturtą."
+      expectedEvidence: "Rinkodaros pranešimai ir jų teiginius pagrindžiantys duomenys."
+      deadline: ""
+  - id: mica-04
+    act: "MiCA"
+    expect: met
+    accept: [partial]
+    why: >-
+      Arrangement (a): the AML/CFT policy establishes the ML/TF risk
+      assessment (business-wide risk assessment with its factors, annual
+      review, management-body approval) and risk-proportionate CDD under
+      national AML law; operating proof is not needed for met. Partial is
+      arguable only because no owner of the assessment is named.
+    obligation:
+      provisions: "68 str."
+      category: aml_kyc
+      title: "Nustatyti veiksmingas PPTFP rizikos vertinimo procedūras"
+      text: >-
+        Kriptoturto paslaugų teikėjai turi nustatyti veiksmingas rizikos
+        vertinimo procedūras ir tvarką, užtikrinančias nacionalinės teisės
+        nuostatų, kuriomis perkeliama Direktyva (ES) 2015/849, laikymąsi.
+      addressee: "kriptoturto paslaugų teikėjai"
+      appliesWhen: ""
+      expectedEvidence: "PPTFP rizikos vertinimo procedūros, rizikos vertinimai ir atitikties nacionaliniams reikalavimams dokumentai."
+      deadline: ""
+  - id: mica-05
+    act: "MiCA"
+    expect: partial
+    accept: [missing]
+    why: >-
+      Conduct on a client's request: the documents give clients on request
+      only custody position statements and statements of funds; no rule gives
+      clients the records of services, orders and transactions kept under Art.
+      68(9), so the scope is absent. Missing is arguable because the
+      governance policy's record-keeping section (its Art. 68 document) is
+      silent on client access.
+    obligation:
+      provisions: "68 str."
+      category: customer_protection
+      title: "Pateikti klientams jų prašomus įrašus"
+      text: >-
+        Kriptoturto paslaugų teikėjai turi klientų prašymu pateikti pagal
+        Reglamento (ES) 2023/1114 68 straipsnio 9 dalį tvarkomus paslaugų,
+        veiklos, pavedimų ir sandorių įrašus.
+      addressee: "kriptoturto paslaugų teikėjai"
+      appliesWhen: "Gautas kliento prašymas pateikti įrašus."
+      expectedEvidence: "Klientų prašymų registras ir įrašų pateikimo įrodymai."
+      deadline: ""
+  - id: mica-06
+    act: "MiCA"
+    expect: partial
+    accept: [unknown]
+    why: >-
+      The company operates a trading platform and the library covers capacity
+      for peak order volumes, resilience under stressed markets, load/stress
+      testing, continuity, market-abuse surveillance and AML monitoring, but
+      nothing establishes the rejection of orders exceeding pre-set volume and
+      price thresholds or clearly erroneous orders. Unknown is arguable
+      because no trading-system rules were provided.
+    obligation:
+      provisions: "76 str."
+      category: ict_security
+      title: "Užtikrinti prekybos sistemų atsparumą ir kontrolę"
+      text: >-
+        Prekybos kriptoturtu platformą valdantys kriptoturto paslaugų teikėjai
+        turi įdiegti veiksmingas sistemas, procedūras ir priemones,
+        užtikrinančias prekybos sistemų atsparumą, pajėgumą apdoroti
+        didžiausius pavedimų ir pranešimų kiekius ir sklandžią prekybą itin
+        nepalankiomis rinkos sąlygomis. Sistemos turi atmesti iš anksto
+        nustatytas apimties ir kainos ribas viršijančius arba akivaizdžiai
+        klaidingus pavedimus, būti visapusiškai patikrintos dėl šių
+        reikalavimų, turėti veiksmingas veiklos tęstinumo priemones sistemos
+        gedimo atveju, užkirsti kelią piktnaudžiavimui rinka arba jį nustatyti
+        ir būti pakankamai patikimos, kad nebūtų naudojamos pinigų plovimui ar
+        teroristų finansavimui.
+      addressee: "Kriptoturto paslaugų teikėjai, valdantys prekybos kriptoturtu platformą"
+      appliesWhen: "Prekybos kriptoturtu platformos valdymas."
+      expectedEvidence: "Sistemų bandymų rezultatai, pajėgumo vertinimai, pavedimų kontrolės, veiklos tęstinumo ir piktnaudžiavimo stebėsenos priemonės."
+      deadline: ""
+  - id: mica-07
+    act: "MiCA"
+    expect: partial
+    why: >-
+      The company gives advice and manages portfolios; the marketing policy
+      requires a warning on value changes and loss and disclosure to advice
+      clients of 'risks of the crypto-assets considered', but the warnings on
+      illiquidity and on non-coverage by deposit guarantee and investor
+      compensation schemes are prescribed only for white papers, not for these
+      clients - a required content item is absent.
+    obligation:
+      provisions: "81 str."
+      category: disclosure
+      title: "Perspėti klientus apie kriptoturto riziką ir garantijų nebuvimą"
+      text: >-
+        Rekomendacijas dėl kriptoturto arba portfelio valdymo paslaugą
+        teikiantys kriptoturto paslaugų teikėjai turi perspėti klientus ir
+        potencialius klientus, kad kriptoturto vertė gali svyruoti, jis gali
+        būti visiškai ar iš dalies prarastas ir nelikvidus, jam netaikomos
+        indėlių garantijų sistemos pagal Direktyvą 2014/49/ES ir, kai
+        taikytina, jis nėra įtrauktas į investuotojų kompensavimo sistemas
+        pagal Direktyvą 97/9/EB.
+      addressee: "Kriptoturto paslaugų teikėjai, teikiantys rekomendacijas dėl kriptoturto arba kriptoturto portfelio valdymo paslaugą"
+      appliesWhen: "Rekomendacijų dėl kriptoturto arba portfelio valdymo paslaugų teikimas."
+      expectedEvidence: "Klientams ir potencialiems klientams pateikti rizikos perspėjimai."
+      deadline: ""
+  - id: mica-08
+    act: "MiCA"
+    expect: partial
+    accept: [met]
+    why: >-
+      The marketing and disclosures policy provides for updating the white
+      paper on a significant new factor, but only for the company's own
+      offers; a material mistake or inaccuracy as a trigger and the amendment
+      of published marketing communications are absent. Met is arguable if the
+      update rule is read as covering the substance.
+    obligation:
+      provisions: "12 str."
+      category: disclosure
+      title: "Pakeisti dokumentus atsiradus reikšmingai naujai informacijai"
+      text: >-
+        Kriptoturto, išskyrus su turtu susietus žetonus ir e. pinigų žetonus,
+        siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos
+        platformos operatorius turi pakeisti paskelbtą baltąją knygą ir, kai
+        taikytina, paskelbtus rinkodaros pranešimus, jei atsiranda reikšmingas
+        naujas veiksnys, esminė klaida arba esminis netikslumas, galintis
+        turėti įtakos kriptoturto vertinimui. Pareiga taikoma viešo siūlymo
+        laikotarpiu arba tol, kol kriptoturtas įtrauktas į prekybą.
+      addressee: "siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos platformos operatorius"
+      appliesWhen: "Atsiranda reikšmingas naujas veiksnys, esminė klaida arba esminis netikslumas, galintis turėti įtakos kriptoturto vertinimui."
+      expectedEvidence: "Pakeisti dokumentai, pakeitimų istorija ir pakeitimą pagrindžiantys duomenys."
+      deadline: "Viešo siūlymo laikotarpiu arba tol, kol kriptoturtas įtrauktas į prekybą."
+  - id: mica-09
+    act: "MiCA"
+    expect: unknown
+    accept: [not_applicable]
+    adjudicated: true
+    why: >-
+      No provided document deals with services in asset-referenced tokens or
+      the remuneration of their holders, so nothing can show the prohibition;
+      the marketing policy is not the document dedicated to it. The model
+      answered "missing".
+    obligation:
+      provisions: "40 str."
+      category: customer_protection
+      title: "Paslaugų teikėjams neskirti palūkanų už su turtu susietus žetonus"
+      text: >-
+        Kriptoturto paslaugų teikėjai, teikdami paslaugas su turtu susietų
+        žetonų srityje, privalo neskirti palūkanų. Draudimas apima bet kokį
+        atlygį ar išmoką, susijusius su žetonų laikymo trukme, taip pat
+        grynąją kompensaciją ar nuolaidas, kurių poveikis lygiavertis
+        palūkanoms, tiesiogiai gaunamoms iš emitento ar trečiųjų šalių ir
+        tiesiogiai susijusioms su žetonais arba suteikiamoms atlyginant ar
+        nustatant kitų produktų kainą.
+      addressee: "Kriptoturto paslaugų teikėjai"
+      appliesWhen: "Teikiamos kriptoturto paslaugos su turtu susietų žetonų srityje."
+      expectedEvidence: "Paslaugų ir susijusių produktų sąlygos, atlygio bei nuolaidų taisyklės ir išmokų apskaita."
+      deadline: ""
+  - id: mica-10
+    act: "MiCA"
+    expect: missing
+    accept: [partial]
+    why: >-
+      Conduct on an authority's request (b), which is never not_applicable:
+      the marketing policy, the document whose subject this is, keeps an
+      approvals register but says nothing about providing marketing
+      communications to the home or host competent authority on request.
+      Partial is arguable because records and an NCA contact function exist.
+    obligation:
+      provisions: "8 str."
+      category: reporting
+      title: "Gavus prašymą pateikti rinkodaros pranešimus"
+      text: >-
+        Kriptoturto, išskyrus su turtu susietus žetonus ir e. pinigų žetonus,
+        siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos
+        platformos operatorius, gavęs prašymą, turi pateikti rinkodaros
+        pranešimus buveinės ir priimančiosios valstybių narių kompetentingoms
+        institucijoms, kai pranešimai skirti potencialiems turėtojams tose
+        valstybėse narėse.
+      addressee: "siūlytojas, asmuo, prašantis įtraukti į prekybą, arba prekybos platformos operatorius"
+      appliesWhen: "Gautas prašymas; pranešimai skirti potencialiems turėtojams atitinkamose valstybėse narėse."
+      expectedEvidence: "Institucijos prašymas, pateikti rinkodaros pranešimai ir pateikimo patvirtinimas."
+      deadline: ""
+  - id: mica-11
+    act: "MiCA"
+    expect: unknown
+    accept: [missing]
+    why: >-
+      The company operates a trading platform, but no provided document is the
+      platform's operating rules or market-data policy: publication of bid/ask
+      and trade data, its commercial terms, free machine-readable access after
+      15 minutes and two-year availability are dealt with nowhere (the
+      marketing policy only lists 'trading rules' as client information). The
+      trading platform operating rules would show it.
+    obligation:
+      provisions: "76 str."
+      category: disclosure
+      title: "Užtikrinti prieigą prie prekybos skaidrumo duomenų"
+      text: >-
+        Prekybos kriptoturtu platformą valdantys kriptoturto paslaugų teikėjai
+        pagal 76 straipsnio 9 ir 10 dalis skelbiamą informaciją turi viešai
+        teikti pagrįstomis komercinėmis sąlygomis ir užtikrinti
+        nediskriminacines galimybes su ja susipažinti. Praėjus 15 minučių nuo
+        paskelbimo, informacija turi būti nemokamai pateikiama kompiuterio
+        skaitomu formatu ir skelbiama ne trumpiau kaip dvejus metus.
+      addressee: "Kriptoturto paslaugų teikėjai, valdantys prekybos kriptoturtu platformą"
+      appliesWhen: "Pirkimo ir pardavimo kainų, susidomėjimo bei įvykdytų operacijų duomenų skelbimas."
+      expectedEvidence: "Prieigos sąlygos, nemokama kompiuterio skaitomų duomenų prieiga ir dvejų metų skelbimo archyvas."
+      deadline: "Nemokamai po 15 minučių nuo paskelbimo; skelbti ne trumpiau kaip dvejus metus."
+  - id: mica-12
+    act: "MiCA"
+    expect: partial
+    accept: [missing]
+    why: >-
+      Prohibition (d): the conflicts policy restricts third-party fees and
+      benefits but allows them when quality-enhancing and disclosed, so the
+      unconditional ban on any remuneration, discount or non-monetary benefit
+      for routing client orders is not established (reception and transmission
+      is not even listed in the inducement scenario). Missing is arguable if
+      the conditional permission is read as contradicting the ban.
+    obligation:
+      provisions: "80 str."
+      category: customer_protection
+      title: "Negauti naudos už pavedimų nukreipimą"
+      text: >-
+        Kriptoturto paslaugų teikėjai, priimantys ir perduodantys pavedimus
+        klientų vardu, negali gauti atlygio, nuolaidos ar nepiniginės naudos
+        už klientų pavedimų nukreipimą į konkrečią prekybos kriptoturtu
+        platformą arba kitam kriptoturto paslaugų teikėjui.
+      addressee: "Kriptoturto paslaugų teikėjai, priimantys ir perduodantys su kriptoturtu susijusius pavedimus klientų vardu"
+      appliesWhen: "Klientų pavedimų nukreipimas platformai arba kitam teikėjui."
+      expectedEvidence: "Sutartys su pavedimų gavėjais, atlygio apskaita ir nepiniginių naudų registras."
+      deadline: ""
+  - id: mica-13
+    act: "MiCA"
+    expect: unknown
+    accept: [missing]
+    why: >-
+      No order execution policy was provided: the marketing policy merely
+      mentions 'best-execution arrangements' as information given to clients,
+      which presupposes but does not establish the policy or the ability to
+      demonstrate compliance to a client or the authority. The order execution
+      policy is the document that would show it.
+    obligation:
+      provisions: "78 str."
+      category: record_keeping
+      title: "Gebėti įrodyti pavedimų vykdymo reikalavimų laikymąsi"
+      text: >-
+        Kriptoturto paslaugų teikėjai, vykdantys pavedimus klientų vardu, turi
+        galėti kliento prašymu įrodyti, kad jo pavedimai įvykdyti pagal
+        pavedimų vykdymo politiką, o kompetentingos institucijos prašymu –
+        įrodyti 78 straipsnio laikymąsi.
+      addressee: "Kriptoturto paslaugų teikėjai, vykdantys su kriptoturtu susijusius pavedimus klientų vardu"
+      appliesWhen: "Kliento arba kompetentingos institucijos prašymas."
+      expectedEvidence: "Pavedimų vykdymo įrašai ir atitiktį vykdymo politikai bei 78 straipsniui pagrindžiantys dokumentai."
+      deadline: ""
+  - id: mica-14
+    act: "MiCA"
+    expect: missing
+    accept: [unknown]
+    why: >-
+      The company operates a trading platform; the only document dealing with
+      white papers covers them solely for the company's own offers and is
+      silent on ensuring by 31 December 2027 white papers for crypto-assets
+      admitted to trading before 30 December 2024. Unknown is arguable because
+      nothing states whether such crypto-assets exist and no admission rules
+      were provided.
+    obligation:
+      provisions: "143 str."
+      category: disclosure
+      title: "Užtikrinti anksčiau į prekybą įtraukto kriptoturto baltąją knygą"
+      text: >-
+        Prekybos platformų operatoriai ne vėliau kaip 2027 m. gruodžio 31 d.
+        turi užtikrinti, kad kriptoturto, išskyrus su turtu susietus žetonus
+        ir e. pinigų žetonus, kuriuo leista prekiauti iki 2024 m. gruodžio 30
+        d., baltoji knyga šiame reglamente nustatytais atvejais būtų parengta,
+        apie ją būtų pranešta ir ji būtų paskelbta pagal 6, 8 ir 9 straipsnius
+        bei atnaujinta pagal 12 straipsnį.
+      addressee: "Prekybos platformų operatoriai"
+      appliesWhen: "Kriptoturtu, išskyrus su turtu susietus žetonus ir e. pinigų žetonus, leista prekiauti iki 2024 m. gruodžio 30 d.; reglamente nustatytais atvejais reikalinga kriptoturto baltoji knyga."
+      expectedEvidence: "Kriptoturto baltoji knyga, pranešimo apie ją įrodymai, paskelbimo įrašai ir atnaujintos versijos."
+      deadline: "Ne vėliau kaip 2027-12-31."
+  - id: mica-15
+    act: "MiCA"
+    expect: met
+    accept: [unknown]
+    why: >-
+      General continuity duty: the Business Continuity, Backup and related
+      security policies establish continuity governance and resources, impact
+      analysis with recovery objectives, redundant capacity and annual plan
+      testing. Unknown is arguable because the detailed IT Business Continuity
+      and Response Plans they refer to were not provided.
+    obligation:
+      provisions: "68 str."
+      category: ict_security
+      title: "Užtikrinti kriptoturto paslaugų tęstinumą ir reguliarumą"
+      text: >-
+        Kriptoturto paslaugų teikėjai turi imtis visų pagrįstų veiksmų savo
+        paslaugų teikimo tęstinumui ir reguliarumui užtikrinti ir naudoti
+        tinkamus bei proporcingus išteklius ir procedūras, įskaitant atsparias
+        ir saugias IRT sistemas, kaip reikalaujama Reglamentu (ES) 2022/2554.
+      addressee: "kriptoturto paslaugų teikėjai"
+      appliesWhen: ""
+      expectedEvidence: "Veiklos tęstinumo priemonių dokumentai, išteklių vertinimai ir IRT sistemų atsparumo bei saugumo įrodymai."
+      deadline: ""
+  - id: mica-16
+    act: "MiCA"
+    expect: not_applicable
+    why: >-
+      Addressed to issuers of asset-referenced tokens; the company is a
+      crypto-asset service provider and nothing in the profile or documents
+      shows it issues such tokens.
+    obligation:
+      provisions: "II priedas"
+      category: disclosure
+      title: "Atskleisti su turtu susieto žetono turėtojų teises"
+      text: >-
+        Su turtu susieto žetono emitentas baltojoje knygoje turi aprašyti
+        žetono savybes, funkcijas ir jų planuojamą pradžią, pirkėjo teises ir,
+        jei yra, pareigas, naudojimosi teisėmis procedūras bei sąlygas ir jų
+        keitimo sąlygas. Jei aktualu, reikia nurodyti būsimus viešus siūlymus,
+        emitento pasiliekamų vienetų skaičių, perleidimo apribojimus, pasiūlą
+        pagal paklausą keičiančių protokolų veikimą, vertės apsaugos bei
+        kompensavimo schemas ir likvidumo užtikrinimo priemones bei už jas
+        atsakingus subjektus. Jei įtraukti į prekybą neprašoma, reikia
+        paaiškinti, kaip ir kur žetoną įsigyti ar parduoti pasibaigus
+        siūlymui. Būtina atskleisti teisių pobūdį ir įgyvendinamumą,
+        nuolatines išpirkimo teises, turėtojų ir 39 straipsnio 2 dalyje
+        nurodytų asmenų reikalavimus emitentui, jų traktavimą nemokumo atveju,
+        skirtingas turėtojų teises ir nediskriminacines skirtumų priežastis.
+        Reikalavimo teisę reikia aprašyti išsamiai: nurodyti kiekvieną susieto
+        turto vienetą ir tikslią jo proporciją, susieto turto vertės,
+        reikalavimo sumos ir turto rezervo ryšį bei teisingo ir skaidraus
+        reikalavimo sudedamųjų dalių vertinimo tvarką, kai aktualu,
+        nepriklausomas šalis. Taip pat reikia pateikti skundų kontaktinius
+        duomenis, skundų nagrinėjimo, ginčų sprendimo ar teisių gynimo
+        procedūras; aprašyti turėtojų teises emitentui nevykdant pareigų,
+        įskaitant nemokumą, ir įgyvendinant atkūrimo bei išpirkimo planus;
+        išsamiai nurodyti išpirkimo tvarką ir galimybę pasirinkti išpirkimo ar
+        perleidimo formą arba oficialią valiutą; nurodyti taikytiną teisę ir
+        kompetentingą teismą.
+      addressee: "su turtu susieto žetono emitentas"
+      appliesWhen: "Rengiama su turtu susietam žetonui skirta kriptoturto baltoji knyga; papildomi duomenys pateikiami pagal žetono ir jo teisių savybes."
+      expectedEvidence: "Su turtu susieto žetono baltosios knygos D dalis, reikalavimo teisės ir išpirkimo tvarkos aprašymai."
+      deadline: ""
+  - id: mica-17
+    act: "MiCA"
+    expect: not_applicable
+    why: >-
+      Addressed to issuers of asset-referenced tokens; the company is a
+      crypto-asset service provider and nothing shows it issues such tokens.
+    obligation:
+      provisions: "22 str."
+      category: reporting
+      title: "Kas ketvirtį teikti informaciją apie su turtu susietus žetonus"
+      text: >-
+        Su turtu susieto žetono emitentas kiekvieno žetono, kurio emisijos
+        vertė yra didesnė kaip 100 000 000 EUR, atveju kas ketvirtį
+        kompetentingai institucijai turi pateikti turėtojų skaičių, išleistų
+        žetonų vertę, turto rezervo dydį, vidutinį per dieną atliekamų
+        sandorių skaičių ir bendrą jų vertę bei per ketvirtį apskaičiuotą
+        vidutinį per dieną atliekamų sandorių, kuriuose žetonai naudojami kaip
+        keitimo priemonė, skaičių ir vidutinę bendrą jų vertę bendros valiutos
+        zonoje. Ši pareiga taip pat taikoma žetonams, kurių emisijos vertė
+        mažesnė kaip 100 000 000 EUR, jeigu to reikalauja kompetentinga
+        institucija. Apskaičiuojant sandorius turi būti įtraukiamas žetono
+        teises turinčio asmens pasikeitimas dėl pervedimo tarp paskirstytojo
+        registro adresų ar sąskaitų. Keitimo į lėšas ar kitą kriptoturtą
+        sandoriai su emitentu arba kriptoturto paslaugų teikėju nelaikomi
+        naudojimu kaip keitimo priemone, nebent yra įrodymų, kad žetonu
+        atsiskaitoma už sandorius kitu kriptoturtu.
+      addressee: "su turtu susieto žetono emitentas"
+      appliesWhen: "Žetono emisijos vertė didesnė kaip 100 000 000 EUR arba kompetentinga institucija reikalauja teikti informaciją apie žetoną, kurio emisijos vertė mažesnė kaip 100 000 000 EUR."
+      expectedEvidence: "Ketvirtiniai pranešimai, jų pateikimo patvirtinimai ir sandorių rodiklių skaičiavimai."
+      deadline: "Kas ketvirtį."
+  - id: mica-18
+    act: "MiCA"
+    expect: partial
+    accept: [not_applicable]
+    why: >-
+      The marketing policy sets content standards and pre-publication approval
+      of marketing communications and website publication of the white paper,
+      but does not establish publication of marketing communications on the
+      website before the offer or admission as Art. 9 requires, nor the
+      platform-operator case. Not_applicable is arguable because nothing shows
+      the company offers crypto-assets or admits them on its own initiative.
+    obligation:
+      provisions: "4 str., 5 str."
+      category: disclosure
+      title: "Paskelbti rinkodaros pranešimus"
+      text: >-
+        Kriptoturto, kuris nėra su turtu susieti žetonai arba e. pinigų
+        žetonai, siūlytojas arba asmuo, prašantis jį įtraukti į prekybą
+        Sąjungoje, turi paskelbti rinkodaros pranešimus, jei jų yra, pagal 9
+        straipsnį. Pareiga tenka ir platformos operatoriui, kai jis savo
+        iniciatyva įtraukia kriptoturtą į prekybą, o privaloma baltoji knyga
+        nepaskelbta, arba kai jis raštu perima šią pareigą. Viešo siūlymo
+        atveju pareiga netaikoma siūlymams, skirtiems mažiau nei 150 savo
+        sąskaita veikiančių asmenų kiekvienoje valstybėje narėje, siūlymams,
+        kurių bendra vertė Sąjungoje per 12 mėnesių nuo pradžios neviršija 1
+        000 000 EUR ar lygiavertės sumos, arba siūlymams tik
+        profesionaliesiems investuotojams, kai tik jie gali turėti
+        kriptoturtą. Pareiga taip pat netaikoma neatlygintinam siūlymui,
+        automatiškai sukuriamam atlygiui už registro priežiūrą ar sandorių
+        patvirtinimą, žetonams, suteikiantiems prieigą prie egzistuojančių ar
+        apyvartoje esančių prekių ar paslaugų, arba kriptoturtui, naudojamam
+        tik sutartimis su siūlytoju susietame ribotame prekybininkų tinkle.
+        Siūlymas nėra neatlygintinas, jei mainais reikalaujama asmens duomenų
+        ar siūlytojas gauna piniginę arba nepiniginę naudą. Viešo siūlymo
+        išimtys netaikomos, kai paskelbiamas ketinimas prašyti įtraukti
+        kriptoturtą į prekybą arba baltoji knyga rengiama savanoriškai.
+      addressee: "siūlytojas; asmuo, prašantis įtraukti į prekybą; prekybos kriptoturtu platformos operatorius"
+      appliesWhen: "Yra rinkodaros pranešimų apie viešai siūlomą arba į prekybą siekiamą įtraukti kriptoturtą; taikomos tekste nurodytos išimtys."
+      expectedEvidence: "Paskelbti rinkodaros pranešimai, jų paskelbimo nuorodos ir datų įrodymai."
+      deadline: "Prieš viešai siūlant kriptoturtą arba prašant jį įtraukti į prekybą."
+  - id: pai-67
+    act: "PAĮ"
+    expect: met
+    accept: [unknown]
+    why: >-
+      Prohibition: the HR policy deals with whistleblowing and guarantees
+      confidentiality, non-discrimination and protection from retaliation, and
+      no document allows agreements that waive or limit reporting persons'
+      rights. Unknown is arguable because the employment contract and NDA
+      templates and the whistleblowing procedure were not provided.
+    obligation:
+      provisions: "11 str."
+      category: other
+      title: "Neriboti saugomų asmenų teisių ir gynimo priemonių susitarimais"
+      text: >-
+        Darbdavys ar kita susitarimo šalis negali darbo santykių,
+        arbitražiniais ar jokiais kitais susitarimais nustatyti įstatymo 2
+        straipsnio 2, 6, 8 ir 11 dalyse bei 10 straipsnio 3 dalyje nurodytų
+        asmenų teisių ir jų gynimo priemonių atsisakymo, ribojimo ar
+        paneigimo.
+      addressee: "Darbdavys ar kita susitarimo šalis"
+      appliesWhen: "Susitarimai, susiję su įstatyme nurodytų saugomų asmenų teisėmis ir jų gynimo priemonėmis."
+      expectedEvidence: "Darbo sutartys, arbitražiniai susitarimai ir kiti susitarimai, kuriuose nėra draudžiamų teisių ar gynimo priemonių ribojimų."
+      deadline: ""
+  - id: pai-68
+    act: "PAĮ"
+    expect: partial
+    accept: [met]
+    why: >-
+      The human resource policy requires whistleblowing channels to be
+      established, names who is responsible and promises confidentiality and
+      protection from retaliation, but does not say what the channels are or
+      how their security is ensured (who receives reports, how identity is
+      protected). Met is arguable on design alone.
+    obligation:
+      provisions: "8 str."
+      category: procedure
+      title: "Užtikrinti saugius informacijos apie pažeidimus teikimo kanalus"
+      text: >-
+        Įstaiga turi užtikrinti saugius informacijos apie pažeidimus teikimo
+        kanalus visiems įstatymo nustatyta tvarka informaciją pateikusiems
+        asmenims nuo informacijos gavimo įstaigoje momento, nesvarbu, ar asmuo
+        buvo pripažintas pranešėju.
+      addressee: "Įstaiga"
+      appliesWhen: "Įstaigoje gauta įstatymo nustatyta tvarka pateikta informacija apie pažeidimą."
+      expectedEvidence: "Informacijos teikimo kanalų veikimo ir saugumo priemonių aprašai bei jų veikimo patikrinimų duomenys."
+      deadline: "Nuo informacijos apie pažeidimą gavimo įstaigoje momento."
+  - id: pai-70
+    act: "PAĮ"
+    expect: missing
+    accept: [unknown]
+    why: >-
+      Conduct (b): the only document dealing with whistleblowing channels, the
+      human resource policy, is silent on confirming receipt to the reporting
+      person within 2 working days (the two-day acknowledgement in the
+      complaints procedure concerns client complaints). Unknown is arguable
+      because the policy points to unnamed 'established procedures' that were
+      not provided.
+    obligation:
+      provisions: "4 str."
+      category: procedure
+      title: "Patvirtinti informacijos apie pažeidimą gavimą"
+      text: >-
+        Įstaiga, gavusi informaciją apie pažeidimą per vidinį informacijos
+        apie pažeidimus teikimo kanalą, turi ne vėliau kaip per 2 darbo dienas
+        nuo jos gavimo pranešti informaciją pateikusiam asmeniui apie jos
+        gavimą.
+      addressee: "Įstaiga"
+      appliesWhen: "Informacija apie pažeidimą gauta per vidinį informacijos apie pažeidimus teikimo kanalą."
+      expectedEvidence: "Informacijos gavimo registras ir asmeniui išsiųsti gavimo patvirtinimai su datomis."
+      deadline: "Ne vėliau kaip per 2 darbo dienas nuo informacijos gavimo."
+  - id: pptfpi-33
+    act: "PPTFPĮ"
+    expect: met
+    accept: [partial]
+    why: >-
+      Design: the AML policy has monitoring alerts triaged and disposed, with
+      confirmed suspicions reported to the FIU without delay, and the AML/CFT
+      Officer is charged with the AML obligations - an assessment followed by
+      a decision whether to report. Partial is arguable because the AML policy
+      itself does not name who takes the reporting decision.
+    obligation:
+      provisions: "17 str."
+      category: aml_kyc
+      title: "Įvertinti pranešimo apie neįprastą operaciją tikslingumą"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai, įvertinę 17
+        straipsnyje nurodytos veiklos keliamą pinigų plovimo ir (ar) teroristų
+        finansavimo grėsmę, privalo spręsti dėl pranešimo apie įtartiną
+        piniginę operaciją ar sandorį perdavimo Finansinių nusikaltimų tyrimo
+        tarnybai tikslingumo.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Įvertinama 17 straipsnyje nurodytos veiklos keliama grėsmė."
+      expectedEvidence: "Tyrimo išvada ir sprendimo dėl pranešimo pateikimo pagrindimas."
+      deadline: ""
+  - id: pptfpi-34
+    act: "PPTFPĮ"
+    expect: met
+    why: >-
+      Conduct (b): the AML/CFT policy requires identification and verification
+      of the client and any beneficial owner from reliable and independent
+      sources at the times CDD applies, which covers a senior manager
+      identified as beneficial owner.
+    obligation:
+      provisions: "9 str."
+      category: aml_kyc
+      title: "Tikrinti tapatybę pagal patikimus ir nepriklausomus šaltinius"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai visais kliento ir
+        naudos gavėjo tapatybės nustatymo atvejais privalo patikrinti jų
+        tapatybę remdamiesi dokumentais, duomenimis ar informacija, gauta iš
+        patikimo ir nepriklausomo šaltinio. Ši patikrinimo pareiga taikoma ir
+        vyresniojo vadovo pareigas einančiam fiziniam asmeniui, nustatytam
+        naudos gavėju pagal 2 straipsnio 14 dalies 1 punkto b papunktį.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Nustatoma kliento ir naudos gavėjo tapatybė, įskaitant naudos gavėju nustatytą vyresnįjį vadovą."
+      expectedEvidence: "Patikrinimui naudotų dokumentų, registrų duomenų ir kitų nepriklausomų šaltinių įrašai."
+      deadline: "Nustatant kliento ir naudos gavėjo tapatybę."
+  - id: pptfpi-35
+    act: "PPTFPĮ"
+    expect: met
+    accept: [partial]
+    why: >-
+      The duty is to report to the FNTT when identification is discontinued
+      because of suspicion; the AML policy requires prompt reporting to the
+      FIU of any suspicion and forbids tipping off, which covers the report in
+      that case. Partial is arguable because the specific scenario (stopping
+      identification so as not to alert the client) is not provided for.
+    obligation:
+      provisions: "9 str."
+      category: reporting
+      title: "Pranešti nutraukus tapatybės nustatymą dėl informacijos atskleidimo rizikos"
+      text: >-
+        Jeigu kliento tapatybės nustatymo metu kyla įtarimų dėl pinigų plovimo
+        ir (ar) teroristų finansavimo, o tolesnis tapatybės nustatymas gali
+        klientui sukelti įtarimą apie galimą informacijos perdavimą
+        teisėsaugai, finansų įstaiga ar kitas įpareigotasis subjektas,
+        pasirinkęs netęsti kliento ir naudos gavėjo tapatybės nustatymo ir
+        nepradėti dalykinių santykių, privalo perduoti informaciją Finansinių
+        nusikaltimų tyrimo tarnybai 16 straipsnyje nustatyta tvarka.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Dėl įtarimų ir galimo kliento perspėjimo pasirenkama netęsti tapatybės nustatymo ir nepradėti dalykinių santykių."
+      expectedEvidence: "Sprendimo nutraukti tapatybės nustatymą pagrindimas ir informacijos perdavimo FNTT patvirtinimas."
+      deadline: ""
+  - id: pptfpi-36
+    act: "PPTFPĮ"
+    expect: partial
+    accept: [met]
+    why: >-
+      The AML/CFT policy applies enhanced due diligence to persons from high-
+      risk third countries and runs risk-calibrated transaction monitoring,
+      but does not say what the enhanced ongoing monitoring consists of (more
+      and more frequent controls, selected transaction types for further
+      examination). Met is arguable if risk-calibrated monitoring is read as
+      covering the substance.
+    obligation:
+      provisions: "14 str."
+      category: aml_kyc
+      title: "Sustiprintai stebėti didelės rizikos valstybių klientų santykius"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai, taikydami
+        sustiprintą kliento tapatybės nustatymą Europos Komisijos nustatytų
+        didelės rizikos trečiųjų valstybių klientams, privalo vykdyti
+        sustiprintą nuolatinę dalykinių santykių stebėseną, padidindami
+        taikomų kontrolės priemonių skaičių ir terminus bei atrinkdami
+        sandorių, kuriems reikės tolesnio ištyrimo, tipus.
+      addressee: "finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Santykiai su Europos Komisijos nustatytų didelės rizikos trečiųjų valstybių klientais, kuriems taikomas sustiprintas tapatybės nustatymas."
+      expectedEvidence: "Sustiprintos kontrolės nustatymai, atrinktų sandorių tipai ir tyrimų įrašai."
+      deadline: "Nuolat."
+  - id: pptfpi-37
+    act: "PPTFPĮ"
+    expect: met
+    accept: [partial]
+    why: >-
+      Design: continuous automated transaction monitoring calibrated to the
+      business-wide risk assessment (transaction size, frequency,
+      counterparties) and enhanced due diligence for high-risk third countries
+      and heightened-risk transactions cover the attention the law requires.
+      Partial is arguable because complex or unusually structured transactions
+      are not named as monitoring scenarios.
+    obligation:
+      provisions: "17 str."
+      category: aml_kyc
+      title: "Atkreipti dėmesį į sudėtingą ir neįprastą veiklą"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai privalo atkreipti
+        dėmesį į veiklą, kuri dėl savo pobūdžio, jų nuomone, gali būti
+        susijusi su pinigų plovimu ir (ar) teroristų finansavimu, ypač į
+        sudėtingus, neįprastai didelius ar neįprastu būdu vykdomus sandorius,
+        neįprastas sandorių struktūras be akivaizdaus ekonominio ar matomo
+        teisėto tikslo ir dalykinius santykius ar pinigines operacijas su
+        klientais iš trečiųjų valstybių, kurių prevencijos priemonės pagal
+        oficialiai paskelbtą tarptautinių tarpvyriausybinių organizacijų
+        informaciją yra nepakankamos arba neatitinka tarptautinių standartų.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Klientų veikla turi 17 straipsnio 1 dalyje nurodytų požymių."
+      expectedEvidence: "Stebėsenos taisyklės, nustatytų neįprastų operacijų įrašai ir geografinių rizikų vertinimai."
+      deadline: ""
+  - id: pptfpi-38
+    act: "PPTFPĮ"
+    expect: partial
+    accept: [met]
+    why: >-
+      The AML/CFT policy establishes identification and verification of the
+      beneficial owner and retention of CDD records with verification
+      evidence, but does not provide for collecting the ownership and control
+      structure data of legal-entity clients. Met is arguable if 'CDD records'
+      is read as including it.
+    obligation:
+      provisions: "12 str."
+      category: record_keeping
+      title: "Kaupti naudos gavėjo ir kontrolės struktūros duomenis"
+      text: >-
+        Finansų įstaiga ar kitas įpareigotasis subjektas privalo kaupti naudos
+        gavėjo tapatybės duomenis, kliento pateiktos informacijos tikrinimo
+        patikimuose ir nepriklausomuose šaltiniuose įrodymus ir kliento –
+        juridinio asmens nuosavybės bei kontrolės struktūros duomenis.
+      addressee: "Finansų įstaiga ar kitas įpareigotasis subjektas"
+      appliesWhen: ""
+      expectedEvidence: "Naudos gavėjo byla su tapatybės duomenimis, tikrinimo įrodymais ir nuosavybės bei kontrolės struktūros duomenimis."
+      deadline: ""
+  - id: pptfpi-39
+    act: "PPTFPĮ"
+    expect: partial
+    accept: [missing]
+    why: >-
+      The AML policy's record-keeping rule sets at least five years for CDD,
+      transaction, Travel Rule and reporting records, but business
+      correspondence with the client is not among the records kept and the
+      period is not tied to the end of the relationship - the scope element is
+      absent. Missing is arguable because correspondence is not mentioned at
+      all.
+    obligation:
+      provisions: "19 str."
+      category: record_keeping
+      title: "Saugoti dalykinių santykių korespondenciją penkerius metus"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai dalykinių santykių su
+        klientu korespondenciją privalo saugoti popierine forma arba
+        elektroninėje laikmenoje 5 metus nuo sandorių ar dalykinių santykių su
+        klientu pabaigos dienos.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Turi dalykinių santykių su klientu korespondencijos."
+      expectedEvidence: "Kliento korespondencijos archyvas."
+      deadline: "5 metus nuo sandorių ar dalykinių santykių su klientu pabaigos dienos."
+  - id: pptfpi-40
+    act: "PPTFPĮ"
+    expect: missing
+    accept: [unknown]
+    why: >-
+      Arrangement (a): the AML/CFT policy, the document whose subject this is,
+      covers own-initiative reports to the FIU but is silent on internal
+      systems for answering Financial Crime Investigation Service enquiries
+      promptly through secure channels with confidentiality. Unknown is
+      arguable only because the policy mentions separate reporting procedures
+      that were not provided.
+    obligation:
+      provisions: "22 str."
+      category: procedure
+      title: "Įdiegti saugias sistemas Tarnybos paklausimams vykdyti"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai privalo įdiegti
+        vidines sistemas, leidžiančias saugiais kanalais ir užtikrinant
+        visapusišką užklausų konfidencialumą skubiai reaguoti į Finansinių
+        nusikaltimų tyrimo tarnybos paklausimus dėl įstatyme nurodytos
+        informacijos pateikimo.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: ""
+      expectedEvidence: "Paklausimų valdymo sistemos aprašymas, saugių kanalų ir prieigos kontrolės įrodymai."
+      deadline: ""
+  - id: pptfpi-41
+    act: "PPTFPĮ"
+    expect: partial
+    accept: [missing]
+    why: >-
+      The AML policy keeps transaction records and suspicious-activity reports
+      for 'at least five (5) years (or longer where required by national
+      law)'; registration journals are not named and the eight-year period is
+      not set, and a generic deferral to national law does not establish that
+      deadline. Missing is arguable because the journals are not mentioned
+      (and met, more weakly, via the deferral clause).
+    obligation:
+      provisions: "19 str."
+      category: record_keeping
+      title: "Saugoti registracijos žurnalų duomenis aštuonerius metus"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai registracijos žurnalų
+        duomenis privalo saugoti popierine forma arba elektroninėje laikmenoje
+        8 metus nuo sandorių ar dalykinių santykių su klientu pabaigos dienos.
+      addressee: "Finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Turi pagal 19 straipsnį pildomų registracijos žurnalų duomenų."
+      expectedEvidence: "Išsaugoti registracijos žurnalų duomenys ir saugojimo terminų kontrolės įrašai."
+      deadline: "8 metus nuo sandorių ar dalykinių santykių su klientu pabaigos dienos."
+  - id: pptfpi-42
+    act: "PPTFPĮ"
+    expect: unknown
+    accept: [missing]
+    adjudicated: true
+    why: >-
+      The AML policy applies enhanced due diligence and is silent on a senior
+      manager's approval, but it refers to customer due diligence procedures
+      that were not provided.
+    obligation:
+      provisions: "14 str."
+      category: aml_kyc
+      title: "Gauti vadovo pritarimą didesnės rizikos klientų santykiams"
+      text: >-
+        Finansų įstaigos ir kiti įpareigotieji subjektai privalo gauti
+        vyresniojo vadovo pritarimą dalykiniams santykiams užmegzti ar tęsti,
+        kai klientas gyvena ar yra įsteigtas Finansinių veiksmų darbo grupės
+        sąrašuose nustatytoje didelės rizikos trečiojoje valstybėje arba pagal
+        vidaus rizikos vertinimo ir valdymo procedūras nustatyta didesnė
+        pinigų plovimo ir (ar) teroristų finansavimo rizika.
+      addressee: "finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Finansinių veiksmų darbo grupės sąrašuose nustatytos didelės rizikos trečiosios valstybės klientas arba pagal vidaus procedūras nustatyta didesnė rizika."
+      expectedEvidence: "Vyresniojo vadovo pritarimai."
+      deadline: ""
+  - id: pptfpi-43
+    act: "PPTFPĮ"
+    expect: unknown
+    why: >-
+      No provided document deals with the company's own beneficial-owner
+      information (obtaining, updating and keeping it): the AML policy
+      concerns clients' beneficial owners and the governance policy only the
+      fitness of qualifying holders. The company's beneficial-owner file or
+      its register (JANGIS) record would show it.
+    obligation:
+      provisions: "25 str."
+      category: record_keeping
+      title: "Gauti, atnaujinti ir saugoti informaciją apie naudos gavėjus"
+      text: >-
+        Lietuvos Respublikoje įsteigti juridiniai asmenys, išskyrus tuos,
+        kurių vienintelė dalyvė yra valstybė ar savivaldybė, privalo gauti,
+        atnaujinti ir saugoti tikslią informaciją apie savo naudos gavėjus:
+        vardą, pavardę, gimimo datą, asmens kodą, asmens tapatybę
+        patvirtinantį dokumentą išdavusią valstybę, gyvenamąją vietą, turimas
+        nuosavybės teises ir jų apimtį (akcijų ir balsavimo teisių procentinę
+        dalį) arba kitokios kontrolės teises (valdybos pirmininko, valdybos
+        nario, vadovo, vyresniojo vadovo ar kitas pareigas, perleistų
+        balsavimo teisių procentinę dalį). Ši pareiga taikoma ir patikos
+        paslaugų teikėjams 25 straipsnio 1 dalyje nustatytais atvejais.
+      addressee: "Lietuvos Respublikoje įsteigti juridiniai asmenys ir patikos paslaugų teikėjai"
+      appliesWhen: "Netaikoma juridiniams asmenims, kurių vienintelė dalyvė yra valstybė ar savivaldybė. Patikos paslaugų teikėjams taikoma 25 straipsnio 1 dalyje nustatytais teritorinio ryšio atvejais."
+      expectedEvidence: "Naudos gavėjų duomenų byla, nuosavybės ir kontrolės duomenys, duomenų atnaujinimo istorija."
+      deadline: ""
+  - id: pptfpi-44
+    act: "PPTFPĮ"
+    expect: not_applicable
+    accept: [unknown]
+    why: >-
+      Depends on belonging to a group of undertakings; neither the profile nor
+      the documents show the company has a parent or group, and the policy
+      mentions a group framework only 'where applicable'. Unknown is arguable
+      because group membership is a fact nothing states either way.
+    obligation:
+      provisions: "22 str."
+      category: policy
+      title: "Įgyvendinti visos įmonių grupės PPTFP politiką ir procedūras"
+      text: >-
+        Įmonių grupei, kaip ji apibrėžta Lietuvos Respublikos įmonių,
+        priklausančių finansų konglomeratui, papildomos priežiūros įstatymo 2
+        straipsnio 12 dalyje, priklausančios finansų įstaigos ir kiti
+        įpareigotieji subjektai privalo įgyvendinti visos įmonių grupės pinigų
+        plovimo ir (ar) teroristų finansavimo prevencijos politiką ir
+        procedūras.
+      addressee: "Įmonių grupei priklausančios finansų įstaigos ir kiti įpareigotieji subjektai"
+      appliesWhen: "Priklausymas įmonių grupei, apibrėžtai nurodytame įstatyme."
+      expectedEvidence: "Grupės PPTFP politika, procedūros ir jų įgyvendinimo dokumentai."
+      deadline: ""
+  - id: pptfpi-45
+    act: "PPTFPĮ"
+    expect: not_applicable
+    accept: [missing]
+    why: >-
+      Depends on the supervisory authority having given this company binding
+      instructions (an individual instruction), and nothing shows that any
+      were given. If treated as conduct to be provided for in advance, missing
+      would be arguable, the AML policy being silent on reporting back to the
+      supervisor.
+    obligation:
+      provisions: "35 str."
+      category: reporting
+      title: "Raštu pranešti apie privalomų nurodymų vykdymo veiksmus"
+      text: >-
+        Finansų įstaiga ar kitas įpareigotasis subjektas privalo raštu
+        pranešti priežiūros institucijai apie veiksmus, kurių imasi dėl jos
+        duotų privalomų nurodymų, per priežiūros institucijos nustatytą
+        laikotarpį.
+      addressee: "Finansų įstaiga ar kitas įpareigotasis subjektas"
+      appliesWhen: "Priežiūros institucijai davus privalomus nurodymus."
+      expectedEvidence: "Rašytinis pranešimas apie vykdymo veiksmus ir jo pateikimo priežiūros institucijai patvirtinimas."
+      deadline: "Per priežiūros institucijos nustatytą laikotarpį."
+  - id: tfr-46
+    act: "TFR"
+    expect: met
+    why: >-
+      Arrangement (a): for incoming transfers as beneficiary's provider the
+      AML/CFT and Travel Rule policy requires effective procedures to detect
+      whether the required originator and beneficiary information accompanies
+      the transfer, with records of deficiencies; the company provides
+      transfer services.
+    obligation:
+      provisions: "16 str."
+      category: procedure
+      title: "Trūkstamos informacijos nustatymo procedūros naudos gavėjo teikėjui"
+      text: >-
+        Naudos gavėjo kriptoturto paslaugų teikėjas įgyvendina veiksmingas
+        procedūras, įskaitant, kai tinkama, stebėseną po pervedimų arba jų
+        metu, kad nustatytų, ar 14 straipsnio 1 ir 2 dalyse nurodyta
+        informacija apie iniciatorių ir naudos gavėją įtraukta į kriptoturto
+        pervedimą ar paketinį pervedimą arba pateikiama po jų.
+      addressee: "Naudos gavėjo kriptoturto paslaugų teikėjas"
+      appliesWhen: "Kriptoturto pervedimų ar paketinių pervedimų gavimas."
+      expectedEvidence: "Informacijos pilnumo tikrinimo procedūros ir stebėsenos įrašai."
+      deadline: ""
+  - id: tfr-47
+    act: "TFR"
+    expect: met
+    why: >-
+      The AML/Travel Rule policy requires the company to assess and document
+      the ML/TF risk of each transfer involving a self-hosted address and
+      includes the use of self-hosted addresses in the business-wide risk
+      assessment.
+    obligation:
+      provisions: "38 str."
+      category: risk_management
+      title: "Įvertinti pervedimų į saviprieglobius adresus ir iš jų riziką"
+      text: >-
+        Kriptoturto paslaugų teikėjai turi nustatyti ir įvertinti pinigų
+        plovimo ir teroristų finansavimo riziką, susijusią su kriptoturto
+        pervedimais į saviprieglobį adresą ar iš jo.
+      addressee: "Kriptoturto paslaugų teikėjai"
+      appliesWhen: "Kriptoturto pervedimai į saviprieglobį adresą ar iš jo."
+      expectedEvidence: "Dokumentuotas pervedimų į saviprieglobius adresus ir iš jų pinigų plovimo ir teroristų finansavimo rizikos vertinimas."
+      deadline: "Taikoma nuo 2024-12-30."
+  - id: tfr-48
+    act: "TFR"
+    expect: met
+    adjudicated: true
+    why: >-
+      The policy forbids executing a transfer whose required information is
+      missing or incomplete and requires the Article 14 information with every
+      transfer; that it says "execute" and not also "initiate" is the law's
+      wording left unrepeated, not a gap. The model answered "partial".
+    obligation:
+      provisions: "14 str."
+      category: aml_kyc
+      title: "Draudimas sudaryti galimybes neatitinkančiam kriptoturto pervedimui"
+      text: >-
+        Iniciatoriaus kriptoturto paslaugų teikėjas nesudaro galimybių
+        inicijuoti ar vykdyti jokio kriptoturto pervedimo, kol neužtikrinta
+        visapusiška atitiktis 14 straipsnio reikalavimams.
+      addressee: "Iniciatoriaus kriptoturto paslaugų teikėjas"
+      appliesWhen: "Kriptoturto pervedimo inicijavimas ar vykdymas."
+      expectedEvidence: "Pervedimų blokavimo kontrolės priemonės ir prieš pervedimą atliktų atitikties patikrų įrašai."
+      deadline: "Prieš sudarant galimybes inicijuoti ar vykdyti pervedimą."
+  - id: tfr-49
+    act: "TFR"
+    expect: partial
+    accept: [missing]
+    why: >-
+      The Travel Rule policy deals with incoming transfers lacking information
+      (suspension, return or rejection) and records deficiencies, but provides
+      nothing for a CASP that repeatedly fails - warnings and deadlines,
+      rejecting future transfers, restricting or ending the relationship.
+      Missing is arguable because that specific duty is not mentioned at all.
+    obligation:
+      provisions: "17 str."
+      category: aml_kyc
+      title: "Naudos gavėjo teikėjo veiksmai dėl pakartotinio informacijos nepateikimo"
+      text: >-
+        Kai kriptoturto paslaugų teikėjas pakartotinai nepateikia
+        reikalaujamos informacijos apie iniciatorių ar naudos gavėją, naudos
+        gavėjo kriptoturto paslaugų teikėjas, jei informacija vis dar
+        nepateikta, prieš atmesdamas pervedimus, apribodamas ar nutraukdamas
+        verslo santykius imasi veiksmų, kurie iš pradžių gali apimti įspėjimus
+        ir terminų nustatymą, arba iškart atmeta visus būsimus pervedimus tam
+        teikėjui ar iš jo arba apriboja ar nutraukia verslo santykius su juo.
+      addressee: "Naudos gavėjo kriptoturto paslaugų teikėjas"
+      appliesWhen: "Kriptoturto paslaugų teikėjas pakartotinai nepateikia reikalaujamos informacijos."
+      expectedEvidence: "Įspėjimai, terminai, pervedimų atmetimo ir verslo santykių apribojimo ar nutraukimo sprendimai."
+      deadline: ""
+  - id: tfr-50
+    act: "TFR"
+    expect: missing
+    accept: [partial]
+    why: >-
+      Conduct (b): the Travel Rule policy deals with transfers lacking
+      information (suspension, return, rejection, records) but is silent on
+      reporting a provider that repeatedly fails to supply the information,
+      and the steps taken, to the AML supervisory authority. Partial is
+      arguable if the report is seen as one missing step of the established
+      handling.
+    obligation:
+      provisions: "17 str."
+      category: reporting
+      title: "Naudos gavėjo teikėjo pranešimas apie informacijos nepateikimą"
+      text: >-
+        Naudos gavėjo kriptoturto paslaugų teikėjas praneša kompetentingai
+        institucijai, atsakingai už kovos su pinigų plovimu ir teroristų
+        finansavimu nuostatų laikymosi stebėseną, apie kriptoturto paslaugų
+        teikėjo pakartotinį reikalaujamos informacijos apie iniciatorių ar
+        naudos gavėją nepateikimą ir veiksmus, kurių imtasi.
+      addressee: "Naudos gavėjo kriptoturto paslaugų teikėjas"
+      appliesWhen: "Kriptoturto paslaugų teikėjas pakartotinai nepateikia reikalaujamos informacijos."
+      expectedEvidence: "Kompetentingai institucijai pateiktas pranešimas ir pateikimo patvirtinimas."
+      deadline: ""
+  - id: tfr-51
+    act: "TFR"
+    expect: unknown
+    accept: [missing]
+    why: >-
+      Prohibition on using Travel Rule personal data for other, notably
+      commercial, purposes: no privacy or processing-purpose document was
+      provided and the AML/Travel Rule policy only regulates collection,
+      transmission and retention of the data, so what was provided cannot
+      tell. Missing is arguable (the Travel Rule policy is silent on it), as
+      is met under the prohibition rule (nothing allows commercial use).
+    obligation:
+      provisions: "25 str."
+      category: data_protection
+      title: "Asmens duomenų naudojimo tikslų ribojimas"
+      text: >-
+        Mokėjimo paslaugų teikėjai ir kriptoturto paslaugų teikėjai pagal šį
+        reglamentą gautus asmens duomenis tvarko tik pinigų plovimo ir
+        teroristų finansavimo prevencijos tikslais ir jų toliau netvarko su
+        šiais tikslais nesuderinamais būdais. Draudžiama pagal šį reglamentą
+        tvarkyti asmens duomenis komerciniais tikslais.
+      addressee: "Mokėjimo paslaugų teikėjai ir kriptoturto paslaugų teikėjai"
+      appliesWhen: "Asmens duomenų tvarkymas remiantis reglamentu."
+      expectedEvidence: "Duomenų tvarkymo tikslų aprašai, prieigos ir naudojimo kontrolės įrašai."
+      deadline: ""
+  - id: tfr-52
+    act: "TFR"
+    expect: unknown
+    accept: [missing]
+    why: >-
+      A data-protection information duty and no privacy notice or other
+      privacy document was provided; the pre-contractual information list and
+      the Travel Rule policy only touch client information and say nothing on
+      GDPR Art. 13 information. Missing is arguable if the pre-contractual
+      disclosure section is taken as the document whose subject this is.
+    obligation:
+      provisions: "25 str."
+      category: disclosure
+      title: "Naujų klientų informavimas apie asmens duomenų tvarkymą"
+      text: >-
+        Mokėjimo paslaugų teikėjai ir kriptoturto paslaugų teikėjai naujiems
+        klientams prieš pradėdami verslo santykius arba prieš atlikdami
+        operaciją, kuri nėra nuolatinė, pateikia Reglamento (ES) 2016/679 13
+        straipsnyje reikalaujamą informaciją. Ji pateikiama glausta, skaidria,
+        suprantama ir lengvai prieinama forma pagal jo 12 straipsnį ir apima
+        bendrą pranešimą apie teikėjų teisines pareigas pagal šį reglamentą
+        tvarkant asmens duomenis pinigų plovimo ir teroristų finansavimo
+        prevencijos tikslais.
+      addressee: "Mokėjimo paslaugų teikėjai ir kriptoturto paslaugų teikėjai"
+      appliesWhen: "Verslo santykių su nauju klientu pradžia arba operacija, kuri nėra nuolatinė."
+      expectedEvidence: "Klientams teikiamas privatumo pranešimas ir jo pateikimo laiko įrodymai."
+      deadline: "Prieš pradedant verslo santykius arba prieš atliekant operaciją, kuri nėra nuolatinė."
+  - id: tfr-53
+    act: "TFR"
+    expect: not_applicable
+    accept: [unknown]
+    why: >-
+      Depends on correspondent relationships with respondent entities; neither
+      the profile nor any document shows that the company has such
+      relationships. Unknown is arguable because the fact is simply not stated
+      either way.
+    obligation:
+      provisions: "38 str."
+      category: aml_kyc
+      title: "Atnaujinti korespondentinių santykių deramo tikrinimo informaciją"
+      text: >-
+        Kriptoturto paslaugų teikėjai turi reguliariai arba kai kyla nauja
+        rizika dėl subjekto respondento atnaujinti korespondentinių santykių
+        deramo tikrinimo informaciją.
+      addressee: "Kriptoturto paslaugų teikėjai"
+      appliesWhen: "Korespondentiniai santykiai; dėl subjekto respondento kylanti nauja rizika."
+      expectedEvidence: "Atnaujintos respondentų deramo tikrinimo bylos ir informacijos peržiūros įrašai."
+      deadline: "Reguliariai arba kai kyla nauja rizika dėl subjekto respondento; taikoma nuo 2024-12-30."

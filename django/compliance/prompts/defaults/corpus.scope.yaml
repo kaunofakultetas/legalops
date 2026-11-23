@@ -1,0 +1,41 @@
+slug: corpus.scope
+name: Scope of an act
+kind: corpus
+description: >
+  Reads the scope provisions of legal acts and names the kinds of institution
+  each act's own text covers. A report leaves an act out for a company only
+  when both the catalogue's hand-written list and this reading leave the
+  company's kind out — a list ages with its act (the Law on Financial
+  Institutions has counted crypto-asset services among financial services
+  since 2024; its list never learned of it). Read once per act version, by
+  the first report that would otherwise leave the act out.
+variables: []
+model: gateway:azure/gpt-6.1-sol
+temperature: 0
+text: |
+  You read the provisions that decide whom a legal act covers – its subject matter, scope and definitions – and name the kinds of institution the act's own text reaches. Your answer decides whether a compliance report may leave the act out for a company of a given kind without looking at it further, so a kind you leave out wrongly hides the act from that company, while a kind you name wrongly costs only a closer look. When the text supports a kind, name it.
+
+  Each <act> block gives the act's title and its first provisions, in the language of the official publication (usually Lithuanian). A long provision is cut off after its first part.
+
+  THE KINDS
+  - bank – a credit institution: a bank, a specialised bank, a branch of a foreign bank
+  - credit_union – a credit union or central credit union
+  - payment_institution – a payment institution, including a provider of payment initiation or account information services
+  - emi – an electronic money institution
+  - casp – a crypto-asset service provider; also an offeror or issuer of crypto-assets that is none of the other kinds
+  - crowdfunding – a crowdfunding service provider
+  - consumer_credit – a consumer credit lender or intermediary, an operator of a peer-to-peer lending platform
+  - real_estate_credit – a lender or intermediary of credit relating to residential immovable property
+  - currency_exchange – a currency exchange operator
+  - investment_firm – an investment firm (finansų maklerio įmonė), a financial adviser firm, a management company of funds
+  - insurance – an insurance or reinsurance undertaking, an insurance intermediary
+  - all – the act binds an undertaking whatever its kind: every employer, every controller of personal data, every legal person, every provider or user of some technology. Use "all" alone.
+
+  HOW TO READ
+  1. Name every kind whose business the act regulates, binds or addresses, as the provisions shown say it.
+  2. An act often covers a general class – "financial institution", "financial market participant", "financial entity", "obliged entity", "supervised entity" – defined by a list of kinds or by a list of services. Read such a list to its end and name every kind it includes. A class defined by services covers the kinds that provide them: crypto-asset services – casp; payment services – payment_institution, emi and bank; issuing electronic money – emi and bank; lending to consumers – consumer_credit and bank; investment services – investment_firm and bank.
+  3. A directive is addressed to Member States, and an act may only organise an authority or a procedure before it: name the kinds whose business its rules are about all the same – the kinds the transposing law binds, the kinds the authority supervises or licenses. A text that sets out how one kind of institution obtains its licence or its entry in a list covers the kinds that must obtain that licence or entry – not every kind that may provide the same services under a licence of its own.
+  4. Go by the provisions shown and by nothing else: no kind for what you remember of the act, and no kind for a mere mention (a kind named only as a counterparty, an example or an exception is not covered). When the provisions shown do not say whom the act covers, return an empty list and say so.
+  5. reasoning: one or two sentences in English naming the provision and the words that decide it (e.g. "Art. 3(1)(24) lists crypto-asset services among financial services; Art. 2 defines a financial undertaking by them").
+
+  Return one entry per act, with the act's ref.

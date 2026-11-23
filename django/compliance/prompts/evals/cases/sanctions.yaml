@@ -1,0 +1,133 @@
+# What a breach of a provision can cost (prompt corpus.sanctions), act by act.
+#
+# Each case names an act of the catalogue by its slug — the act whose sanction
+# provisions are read — and an article whose breach is asked about: an article
+# of that act, or of another one when `infringed` names it (a national law
+# lays down the fines for an EU regulation). `expect` is the ceiling that
+# holds for any breach of the article by a company: `eur`, `percent` of
+# annual turnover or income, either left out when the text states none;
+# `none: true` when the provisions read state no ceiling at all (the act
+# leaves fines to national law). `graver`, where given, is the higher ceiling
+# the act binds to a kind of breach — `none: true` there says that no such
+# ceiling may be shown beside the first; `whose`, where given, the kind of person
+# the ceiling must be said to bind — the act sets another one for another
+# kind. `highest`, in place of `expect`, is the highest ceiling the article is
+# shown, for any breach or bound to a kind of breach: an act that grades its
+# fines by the gravity of the breach is read either way, and both are right.
+# The suite reads the act's provisions from the corpus of the
+# installation it runs on and joins the tiers to the article with the code a
+# report uses.
+#
+# Labelled by the assistant (Claude) on 2026-11-12 from the provisions named
+# in `why`, read in the corpus; the last two cases on 2026-11-20. Overrule a
+# label by editing it here.
+cases:
+  - id: mica-casp-conduct
+    act: mica
+    article: 68
+    expect: {eur: 5000000, percent: 5}
+    why: Art. 111(3)(a) and (c) — EUR 5 000 000 or 5 % of turnover for infringements of Articles 59, 60, 64 and 65 to 83.
+  - id: mica-white-paper
+    act: mica
+    article: 6
+    expect: {eur: 5000000, percent: 3}
+    why: Art. 111(3)(a) and (b) — 3 % for infringements of Articles 4 to 14.
+  - id: mica-art-issuer-reserve
+    act: mica
+    article: 36
+    expect: {eur: 5000000, percent: 12.5}
+    why: Art. 111(3)(a) and (d) — 12,5 % for infringements of Articles 16, 17, 19, 22, 23, 25, 27 to 41, 46 to 51, 53, 54 and 55.
+  - id: mica-insider-dealing
+    act: mica
+    article: 89
+    expect: {eur: 15000000, percent: 15}
+    why: Art. 111(5) — EUR 15 000 000 or 15 % for infringements of Articles 89 to 92.
+  - id: mica-inside-information-disclosure
+    act: mica
+    article: 88
+    expect: {eur: 2500000, percent: 2}
+    why: Art. 111(5) — EUR 2 500 000 or 2 % for infringements of Article 88.
+  - id: gdpr-security
+    act: gdpr
+    article: 32
+    expect: {eur: 10000000, percent: 2}
+    why: Art. 83(4)(a) — EUR 10 000 000 or 2 % for the obligations of the controller under Articles 8, 11, 25 to 39, 42 and 43.
+  - id: gdpr-principles
+    act: gdpr
+    article: 5
+    expect: {eur: 20000000, percent: 4}
+    why: Art. 83(5)(a) — EUR 20 000 000 or 4 % for the basic principles of Articles 5, 6, 7 and 9.
+  - id: national-fine-for-dora
+    act: kriptoturto-rinku-istatymas
+    infringed: dora
+    article: 11
+    expect: {eur: 5000000, percent: 10}
+    why: 15 str. 1 d. 1 p. — for breaches of Regulation (EU) 2023/1114, of this law and of Regulation (EU) 2022/2554, legal persons up to EUR 5 000 000 or 10 % of annual income.
+  - id: national-fine-for-market-abuse
+    act: kriptoturto-rinku-istatymas
+    infringed: mica
+    article: 90
+    expect: {eur: 15000000, percent: 15}
+    why: 15 str. 2 d. 1 p. — for the breaches of Articles 88 to 92 of Regulation (EU) 2023/1114, legal persons up to EUR 15 000 000 or 15 %.
+  - id: national-fine-for-casp-conduct
+    act: kriptoturto-rinku-istatymas
+    infringed: mica
+    article: 68
+    expect: {eur: 5000000, percent: 10}
+    graver: {none: true}
+    why: >-
+      15 str. 1 d. 1 p. — legal persons up to EUR 5 000 000 or 10 % for breaches
+      of Regulation (EU) 2023/1114. The 12,5 % of 15 str. 3 d. is for the
+      infringements Article 111(1)(b) and (c) of the regulation lists — those
+      of issuers — and Article 111 is not among the provisions read: it must
+      not become a ceiling for any breach of the regulation, nor be shown
+      beside the first as its graver case (labelled 2026-11-20, after one
+      prompt wording did the first and the next, in most readings, the second).
+  - id: aml-law-any-breach-and-the-gross-one
+    act: pptfp-istatymas
+    article: 9
+    expect: {percent: 5}
+    graver: {eur: 5100000, percent: 10}
+    why: >-
+      39 str. 1 d. 1 p. — 0,5 to 5 % of annual income for breaches of the law;
+      2 p. — up to 10 % or EUR 5 100 000 when the breach is systematic, gross
+      or repeated within a year.
+  - id: aml-law-fines-reach-the-transfer-regulation
+    act: pptfp-istatymas
+    infringed: tfr
+    article: 14
+    expect: {percent: 5}
+    graver: {eur: 5100000, percent: 10}
+    why: 36-1 str. applies the measures of 36–42 str. to breaches of Regulation (EU) 2023/1113, so the ceilings of 39 str. hold for it.
+  - id: dora-leaves-fines-to-national-law
+    act: dora
+    article: 11
+    expect: {none: true}
+    why: Art. 50 has Member States lay down penalties and lists minimum powers; it states no ceiling.
+  - id: tfr-leaves-fines-to-national-law
+    act: tfr
+    article: 14
+    expect: {none: true}
+    why: Art. 28 has Member States lay down sanctions and measures; it states no ceiling.
+  - id: cybersecurity-law-fines-what-another-article-lists
+    act: kibernetinio-saugumo-istatymas
+    article: 14
+    highest: {eur: 10000000, percent: 2}
+    whose: esminis subjektas
+    why: >-
+      30 str. 2 d. 1 p. — for the infringements 29 str. lists, an essential
+      entity up to EUR 10 000 000 or 2 %; an important entity up to
+      EUR 7 000 000 or 1,4 % (2 p.). 29 str. is not a sanction article and is
+      read because 30 str. cites it: its 2 d. names 14 str. 1 d. among the
+      dangerous infringements, fined up to the full ceiling (30 str. 3 d.),
+      its 3 and 4 d. other parts of 14 str. among the lesser ones — so the
+      ceiling may be read as bound to the dangerous breach.
+  - id: nis2-one-ceiling-a-kind-of-entity
+    act: nis2
+    article: 21
+    expect: {eur: 10000000, percent: 2}
+    whose: esminis subjektas
+    why: >-
+      Art. 34(4) — essential entities, for infringements of Article 21 or 23,
+      at least EUR 10 000 000 or 2 %; Art. 34(5) — important entities, for the
+      same articles, EUR 7 000 000 or 1,4 %.

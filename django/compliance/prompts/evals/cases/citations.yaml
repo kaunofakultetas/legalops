@@ -1,0 +1,31 @@
+# The citation check (prompt corpus.check_citations), reference by reference.
+#
+# Each case is a reference as a company document might write it — an act, an
+# article and what the document says the article is about — and whether the
+# article really regulates that (`match`) or something else (`mismatch`). The
+# suite looks the article up in the corpus of the installation it runs on.
+# The MiCA pairs are the sample company's own mistake: its overview shifts
+# the crypto-asset services by one article from Article 78 on. Labelled by
+# the assistant (Claude) on 2026-11-12 against the articles' headings.
+# Overrule a label by editing it here.
+cases:
+  - {id: mica-78-execution, act: MiCA, article: "78", claim: execution of orders for crypto-assets on behalf of clients, expect: match}
+  - {id: mica-79-execution, act: MiCA, article: "79", claim: execution of orders for crypto-assets on behalf of clients, expect: mismatch}
+  - {id: mica-79-placing, act: MiCA, article: "79", claim: placing of crypto-assets, expect: match}
+  - {id: mica-80-placing, act: MiCA, article: "80", claim: placing of crypto-assets, expect: mismatch}
+  - {id: mica-80-reception, act: MiCA, article: "80", claim: reception and transmission of orders for crypto-assets on behalf of clients, expect: match}
+  - {id: mica-81-reception, act: MiCA, article: "81", claim: reception and transmission of orders for crypto-assets on behalf of clients, expect: mismatch}
+  - {id: mica-81-advice, act: MiCA, article: "81", claim: advice on crypto-assets and portfolio management of crypto-assets, expect: match}
+  - {id: mica-82-advice, act: MiCA, article: "82", claim: advice on crypto-assets and portfolio management of crypto-assets, expect: mismatch}
+  - {id: mica-82-transfer, act: MiCA, article: "82", claim: transfer services for crypto-assets on behalf of clients, expect: match}
+  - {id: mica-75-custody, act: MiCA, article: "75", claim: custody and administration of crypto-assets on behalf of clients, expect: match}
+  - {id: mica-72-conflicts, act: MiCA, article: "72", claim: identification, prevention, management and disclosure of conflicts of interest, expect: match}
+  - {id: mica-73-outsourcing, act: MiCA, article: "73", claim: outsourcing of services or activities to third parties, expect: match}
+  - {id: mica-73-complaints, act: MiCA, article: "73", claim: complaints-handling procedures, expect: mismatch}
+  - {id: mica-67-prudential, act: MiCA, article: "67", claim: prudential requirements and own funds, expect: match}
+  - {id: dora-19-incident-reporting, act: DORA, article: "19", claim: reporting of major ICT-related incidents to the competent authority, expect: match}
+  - {id: dora-19-testing, act: DORA, article: "19", claim: digital operational resilience testing programme, expect: mismatch}
+  - {id: dora-28-third-party, act: DORA, article: "28", claim: general principles for managing ICT third-party risk, expect: match}
+  - {id: gdpr-33-breach, act: GDPR, article: "33", claim: notification of a personal data breach to the supervisory authority, expect: match}
+  - {id: gdpr-33-dpo, act: GDPR, article: "33", claim: designation of the data protection officer, expect: mismatch}
+  - {id: gdpr-30-records, act: GDPR, article: "30", claim: records of processing activities, expect: match}

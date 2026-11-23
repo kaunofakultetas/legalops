@@ -1,0 +1,45 @@
+{
+  "verify": {
+    "passed": 14,
+    "of": 14,
+    "prompt": "corpus.verify_obligations v1",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-12"
+  },
+  "scope": {
+    "passed": 9,
+    "of": 9,
+    "prompt": "corpus.scope v1",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-12"
+  },
+  "citations": {
+    "passed": 19,
+    "of": 20,
+    "prompt": "corpus.check_citations v4",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-12"
+  },
+  "gap": {
+    "passed": 67,
+    "of": 71,
+    "slack": 2,
+    "prompt": "report.gap_analysis v8",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-12"
+  },
+  "applicability": {
+    "passed": 19,
+    "of": 19,
+    "prompt": "report.applicability v8",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-12"
+  },
+  "sanctions": {
+    "passed": 16,
+    "of": 16,
+    "prompt": "corpus.sanctions v4",
+    "model": "gateway:azure/gpt-6.1-sol",
+    "date": "2026-11-20"
+  }
+}

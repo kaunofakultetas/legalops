@@ -1,0 +1,13 @@
+# Bytecode — the image compiles its own
+**/__pycache__
+**/*.py[cod]
+
+# Runtime data and secrets never belong in an image
+data
+.env
+.env.*
+
+# Host-side helper (it BUILDS images from this folder).
+# compliance/tests stays in: runTests.sh builds its test
+# image from this same context and runs the suite in it
+runTests.sh

@@ -1,0 +1,78 @@
+slug: report.summary
+name: Executive summary
+kind: pipeline
+description: >
+  Writes the board-level executive summary (markdown) and the report title
+  from what the report assessed and what it did not: the acts in force with
+  their finding counts and gravest gaps, the acts assessed as preparation, the
+  acts waiting for facts, the plan's first actions and the citation audit's
+  counts.
+variables: [LANGUAGE, TODAY, COMPANY_NAME]
+model: gateway:azure/gpt-6.1-sol
+text: |
+  Write the executive summary of a compliance gap report on {COMPANY_NAME} for its
+  management board, in {LANGUAGE} (official Lithuanian legal terms, no English
+  loanwords). Today is {TODAY}.
+
+  The input says what the report assessed and what it did not: the acts in force for
+  the company with the counts of their findings — in all and act by act — and the
+  gravest open ones; when there
+  are any, the acts that start to apply later (assessed as preparation and counted
+  apart), the acts whose applicability waits for facts, the directives that bind
+  through national law, the acts that only organise an authority and the acts the
+  person who approved the report's scope left out (none of them assessed); an act
+  marked as assessed by the company's own choice does not bind it — say once that its
+  findings are gaps against good practice, not breaches; then the first actions of the plan and the
+  audit of the legal references in the company's own documents.
+
+  Markdown, 250–500 words, in this structure:
+  1. **Bendras vertinimas / Overall assessment** — one paragraph: the regulatory
+     regime that governs the company, whether it holds (or only claims) the licence or
+     registration it needs, and its overall compliance maturity. Give the finding
+     counts of the acts in force, calling the statuses what the report calls them —
+     atitinka, iš dalies, neatitinka, neįrodyta, netaikoma (met, partially met, not
+     met, not evidenced, not applicable); "neįrodyta" means nothing provided could
+     show it, not that it is unclear. Then one sentence from the counts act by act:
+     under which act the documents cover the most, and under which the least. When the
+     input has THE COMPANY'S OWN POLICIES AS CRITERIA, add one sentence with those
+     counts, as how far the company's procedures carry out its own policies — gaps
+     between its policies and its procedures, never breaches of law, and never added
+     to the counts of the acts. When the input has SINCE THE PREVIOUS REPORT, close the
+     paragraph with one sentence on the movement — how many gaps closed, how many are
+     new, how many went back — naming at most two of the obligations that went back or
+     are new; when all three are zero, say that nothing moved.
+  2. **Pagrindinės rizikos / Key risks** — 3–6 bullets, most severe first, each naming
+     the act and the provision as the input gives them. Where a finding's line says
+     what a breach can cost, close its bullet with that — the ceiling of the fine and
+     the gravest measure, with the provision that sets them — worded as a ceiling the
+     act provides ("iki", "up to"), never as what will happen; say nothing about cost
+     where the input gives none. Put first a finding where the
+     company's own rules allow what the act forbids, before one where they are only
+     silent. When most of an act's applicable duties are not evidenced, that is a key
+     risk of its own: one bullet naming the act and the count — the company cannot
+     show compliance with it at all. When the CITATION AUDIT counts
+     wrong references (mismatch) or references to provisions that do not exist
+     (notFound), add one bullet saying how many of the checked references are wrong —
+     the company's documents misstate its legal basis; give the counts only, never
+     article numbers the input does not name.
+  3. **Licencijavimas / Licensing** — what authorisation, notification or list entry
+     the company needs, from which authority, and whether it has it.
+  4. **Prioritetai / Priorities** — the first 3–5 actions.
+  5. **Ribotumai / Limitations** — what could not be assessed (findings not evidenced,
+     documents referenced but not provided, claimed credentials not verified); which
+     acts were not assessed because their applicability waits for facts — name them
+     and say the next analysis can assess them once the company profile answers the
+     questions; which acts apply only from a later date and were assessed as
+     preparation; which acts apply and were left out of this report by the person
+     who approved its scope (ACTS LEFT OUT) — name them: the report says nothing
+     about compliance with them; and, when the input says so, that obligations were
+     not yet reviewed by a person or the corpus lacks acts.
+  Use the heading language matching {LANGUAGE}. Say plainly what could not be
+  assessed. Never present a gap under an act that is not yet in force as a breach of
+  today. Do not introduce facts, dates or article numbers that are not in the input.
+  The reader never sees the refs of the input (D…, C…): name a document by its title
+  and a licence by its name.
+
+  Also give the title of the whole report (it is printed on the cover — not a title
+  for this summary) in at most 12 words: the company and the regime or the main acts
+  it was assessed against.

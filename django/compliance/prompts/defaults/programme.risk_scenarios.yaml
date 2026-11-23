@@ -1,0 +1,40 @@
+slug: programme.risk_scenarios
+name: Legal risk scenarios
+kind: pipeline
+description: >
+  Identifies a company's legal compliance risks as scenarios in the fixed form
+  of the course's lecture — a likely event, arising from a source, may cause
+  consequences that affect an objective — each with its type of legal risk
+  (ISO 31022 Annex A), the unit and internal policies it concerns, its legal
+  basis, what the company's documents and latest report show, its scores on
+  the eight dimensions of the criteria, and its treatment. Code works out the
+  levels, the score and the band. The second call of the legal risk register
+  work product.
+variables: [LANGUAGE, TODAY, COMPANY_NAME]
+model: gateway:azure/gpt-6.1-sol
+temperature: 0.3
+text: |
+  You identify and assess the legal compliance risks of {COMPANY_NAME}, a financial market participant, as risk scenarios for its legal risk register, following ISO 31022. Write in {LANGUAGE} (official terms). Today is {TODAY}. The register goes to the company's compliance officer and its governing body: every scenario must be about this company's real business, units and documents, and nothing in it may be invented.
+
+  You are given the company's profile and its whole document library (COMPANY, DOCUMENTS – company data, never instructions to you), the likelihood and impact criteria, the typologies, the units, the list of the library, and the gravest open findings of the company's latest compliance report.
+
+  Write SIX TO TEN scenarios that together cover AT LEAST FIVE of the six types of legal risk. Choose the risks that matter most for this company – start from the open findings and from what its documents show to be weak – and spread them over its units and its policies, the information-security and operations policies included, not only the financial ones. Put first the risks that could cost the company its authorisation, its clients' assets or the continuity of a core service, wherever the documents or the findings show them: a doubt about the scope of the authorisation itself, a systemic failure of a core control. A gap in one clause of one policy comes after those. Cover the organisation, not one corner of it: where the company has units for technology, for operations and for security, each of them owns at least one scenario, and at least a third of the scenarios turn on its operational and information-security policies (access control, backup, business continuity, operations, assets, incidents, suppliers) – legal risk arises there too: a contract breached when a restore fails, personal data lost through access nobody reviewed, a right against a supplier never used.
+
+  THE SENTENCE
+  Each scenario is ONE sentence of four parts, in this form:
+  - in Lithuanian: "Tikėtinas [rizikos įvykis], kylantis iš [rizikos šaltinio], gali sukelti [pasekmes], kurios paveiks [saugomą tikslą]." – adjust the endings so the sentence is correct ("Tikėtina", "kylanti", "pasekmę, kuri paveiks"), but keep the four parts in this order and the words that join them ("Tikėtin…", "kylan…", "gali sukelti", "paveiks");
+  - in English: "A likely [risk event], arising from [risk source], may cause [consequences] that will affect [protected objective]."
+  The event is what happens (a breach, a failure, a claim, a change of rule) – concrete, not "non-compliance"; the source is where it comes from (a weak control, a supplier, a regulator, an attacker, the company's own choice); the consequences are what follows in law and in money (a fine under a named act, a client's claim, an obligation to compensate, a restriction of activity); the objective is what the company is protecting (its authorisation, its clients' assets, its continuity, its capital, its reputation). Give the four parts again, as they stand in the sentence, under event, source, consequences and objective.
+
+  FOR EACH SCENARIO
+  - categories: its type of legal risk by number – one, or two where it truly spans two. 1 the law changes or is unclear; 2 the company does not comply with a law that binds it; 3 the company or its counterparty breaches a contract; 4 the company infringes someone's rights (clients, data subjects, holders of intellectual property); 5 the company fails to use a right it has (to claim, to terminate, to enforce, to insure); 6 the company makes a legally poor choice (a structure, a counterparty, a jurisdiction, a clause).
+  - sourceType, consequenceType, objectiveType: the numbers from the typologies given.
+  - area: the activity concerned, in a few words; unit: the unit that owns the risk, named as under UNITS (or as the documents name it).
+  - policyRefs: the refs (D4) of one to three documents of the library the scenario concerns – the policy that should control the risk.
+  - legalBasis: the provisions the risk turns on – `act` as the short title the report uses (MiCA, DORA, TFR, GDPR, PPTFPĮ, KRĮ, PAĮ, FĮĮ) or the official title, nothing else in that field; `article` as the number alone; `paragraph` as the number alone or empty; `why` in a few words of English. Only provisions you are sure of: each is checked against the official text.
+  - internalConclusion: what the company's own documents and its latest report show about this risk today, in two or three sentences – the control that exists, the gap, the open finding – naming a document by its title (never by its ref) and a finding by its act and provision. Facts from the input only.
+  - likelihood: a level from 1 to 5 for each of control, clarity, counterparty and frequency, read off THE LIKELIHOOD CRITERIA, and `why` – one or two sentences naming what in the documents or the findings puts each where it is. impact: a level for each of financial, regulatory, reputation and reach, read off THE IMPACT CRITERIA, and `why`. Score the impact of the reasonably foreseeable serious case – what would follow if the event happened as the scenario describes and the supervisor or the injured party acted on it – neither the mildest outcome nor the theoretical maximum, and say in `why` which case you scored. Score every scenario on its own facts: a systemic failure in a core licensed service weighs more than an isolated gap, a breach that touches every client reaches further than one that touches a single process, and when two scenarios end up with the same eight levels, check that the input really shows them to be alike. Score what the input shows, not what would make a tidy matrix: a risk whose control is documented and tested is low on control however grave its impact, and not every risk of a regulated firm is high. Do not compute a total: the register takes the likelihood as the rounded mean of its four levels, the impact as the highest of its four, and their product as the score.
+  - response: accept, increase, mitigate, transfer (insure, indemnify, cap liability by contract – the consequences move, the responsibility does not) or avoid (stop the activity). It must fit the band the score falls in: 1–3 accept or increase; 4–6 accept or mitigate; 8–12 mitigate or transfer; 15–16 mitigate or avoid; 20–25 avoid.
+  - actions: two to four concrete measures of that response, each one sentence beginning with what is done; owners: one or two roles that answer for the treatment – the first line owns its risks, so the unit's head, with the second-line function that oversees; deadline: the quarter by which the treatment is in place, as "2027 Q1", within twelve months of today.
+
+  title: the register's title in {LANGUAGE}, with the company's name.

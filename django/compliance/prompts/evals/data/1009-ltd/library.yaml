@@ -1,0 +1,90 @@
+# The sample company of the gap-analysis cases: 1009 LTD, a simulated
+# crypto-asset service provider (Grigaliūnas, S., et al., 2026. 1009 LTD
+# Governance, LLM Risk and Quantum-Safe Readiness Dataset, version 1.0.0,
+# Zenodo, https://doi.org/10.5281/zenodo.21306952, CC BY 4.0). Its 26
+# documents are in documents/ as the demo company held them on 2026-11-12,
+# profile.txt is the profile text the gap analysis was given for it, and
+# the acts below carry the verdicts of the report of 2026-11-11 — what a
+# call is told about the act whose obligations it assesses.
+documents:
+  - {file: 00-company-profile.md, kind: profile}
+  - {file: 01-access-control.md, kind: policy}
+  - {file: 02-backup.md, kind: policy}
+  - {file: 03-human-resource.md, kind: policy}
+  - {file: 04-asset-management.md, kind: policy}
+  - {file: 05-business-continuity.md, kind: policy}
+  - {file: 06-operations-management.md, kind: policy}
+  - {file: 07-incident-management.md, kind: policy}
+  - {file: 08-information-security.md, kind: policy}
+  - {file: 09-risk-management.md, kind: policy}
+  - {file: 10-physical-environmental.md, kind: policy}
+  - {file: 11-network-security.md, kind: policy}
+  - {file: 12-identity-management.md, kind: policy}
+  - {file: F00-fintech-overview.md, kind: policy}
+  - {file: F01-governance-accountability.md, kind: policy}
+  - {file: F02-crypto-safeguarding.md, kind: policy}
+  - {file: F03-client-funds-safeguarding.md, kind: policy}
+  - {file: F04-conflict-of-interest.md, kind: policy}
+  - {file: F05-complaints-handling.md, kind: procedure}
+  - {file: F06-ict-third-party-risk.md, kind: policy}
+  - {file: F07-resilience-testing.md, kind: policy}
+  - {file: F08-major-incident-reporting.md, kind: policy}
+  - {file: F09-market-abuse-prevention.md, kind: policy}
+  - {file: F10-aml-travel-rule.md, kind: policy}
+  - {file: F11-own-funds.md, kind: policy}
+  - {file: F12-marketing-disclosures.md, kind: policy}
+acts:
+  "GDPR":
+    title: "EUROPOS PARLAMENTO IR TARYBOS REGLAMENTAS (ES) 2016/679 2016 m. balandžio 27 d. dėl fizinių asmenų apsaugos tvarkant asmens duomenis ir dėl laisvo tokių duomenų judėjimo ir kuriuo panaikinama Direktyva 95/46/EB (Bendrasis duomenų apsaugos reglamentas)"
+    docType: regulation
+    applicability: applies
+    appliesFrom: null
+    reasoning: "Pagal 2 str. 1 d. reglamentas taikomas automatizuotam asmens duomenų tvarkymui ir susistemintuose rinkiniuose esančių duomenų tvarkymui; bendrovė patvirtina tvarkanti asmens duomenis, o jos dokumentuose aprašytos klientų patikros, tapatybių ir paskyrų apskaitos sistemos. Pagal 3 str. 1 d. teritorinė sąlyga tenkinama, nes bendrovė įsteigta Lietuvoje, nepriklausomai nuo faktinės duomenų saugojimo vietos. Komercinei kriptoturto paslaugų veiklai 2 str. 2 d. išimtys netinka, o 40 darbuotojų skaičius bendro reglamento taikymo nepanaikina."
+  "DORA":
+    title: "EUROPOS PARLAMENTO IR TARYBOS REGLAMENTAS (ES) 2022/2554 2022 m. gruodžio 14 d. dėl skaitmeninės veiklos atsparumo finansų sektoriuje, kuriuo iš dalies keičiami reglamentai (EB) Nr. 1060/2009, (ES) Nr. 648/2012, (ES) Nr. 600/2014, (ES) Nr. 909/2014 ir (ES) 2016/1011"
+    docType: regulation
+    applicability: applies
+    appliesFrom: null
+    reasoning: "Pagal 2 str. 1 d. f punktą reglamentas taikomas kriptoturto paslaugų teikėjams, turintiems veiklos leidimą pagal MiCA; bendrovė Lietuvoje teikia tokias paslaugas ir deklaruoja Lietuvos banko išduotą leidimą. Mažas įmonės dydis ir 40 darbuotojų šios kategorijos subjektams nesuteikia 2 str. 3 d. numatytos išimties. Pagal 1 str. 1 d. reglamentas nustato tiesioginius IRT rizikos valdymo, incidentų pranešimo, atsparumo testavimo ir trečiųjų šalių rizikos valdymo reikalavimus; jis jau taikomas nuo 2025-01-17."
+  "TFR":
+    title: "EUROPOS PARLAMENTO IR TARYBOS REGLAMENTAS (ES) 2023/1113 2023 m. gegužės 31 d. dėl informacijos, teikiamos pervedant lėšas ir tam tikrą kriptoturtą, kuriuo iš dalies keičiama Direktyva (ES) 2015/849 (nauja redakcija)"
+    docType: regulation
+    applicability: applies
+    appliesFrom: null
+    reasoning: "Pagal 2 str. 1 d. reglamentas taikomas kriptoturto pervedimams, kai iniciatoriaus, naudos gavėjo arba tarpinio kriptoturto paslaugų teikėjo registruota buveinė yra Sąjungoje. Lietuvoje įsteigta bendrovė aiškiai nurodo teikianti kriptoturto pervedimo klientų vardu paslaugas, atitinkančias 3 str. 10 ir 15 punktuose apibrėžtą veiklą, todėl 2 str. 4 d. išimtys pervedimams nedalyvaujant paslaugų teikėjui arba vien savo vardu nepanaikina jos veiklos patekimo į taikymo sritį. Pagal 1 str. bendrovei tenka tiesioginiai pervedimus lydinčios informacijos ir ribojamųjų priemonių įgyvendinimo reikalavimai; reglamentas jau taikomas nuo 2024-12-30."
+  "MiCA":
+    title: "EUROPOS PARLAMENTO IR TARYBOS REGLAMENTAS (ES) 2023/1114 2023 m. gegužės 31 d. dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937"
+    docType: regulation
+    applicability: applies
+    appliesFrom: null
+    reasoning: "Pagal 2 str. 1 d. reglamentas taikomas asmenims, teikiantiems su kriptoturtu susijusias paslaugas Sąjungoje. Lietuvoje įsteigtos bendrovės nurodytas klientų kriptoturto saugojimas, prekybos platformos valdymas, keitimas, pavedimų vykdymas, platinimas, rekomendacijos, portfelio valdymas ir pervedimai atitinka 3 str. 1 d. 16 punkte išvardytas paslaugas; bendrovė taip pat deklaruoja MiCA veiklos leidimą. Pagal 1 str. reglamentas nustato tiesioginius veiklos, organizavimo, valdymo ir klientų apsaugos reikalavimus, o paslaugų teikėjams aktualios nuostatos jau taikomos nuo 2024-12-30; Lietuvoje jį papildo Kriptoturto rinkų įstatymas."
+  "AMLR":
+    title: "EUROPOS PARLAMENTO IR TARYBOS REGLAMENTAS (ES) 2024/1624 2024 m. gegužės 31 d. dėl finansų sistemos naudojimo pinigų plovimui ar teroristų finansavimui prevencijos"
+    docType: regulation
+    applicability: applies
+    appliesFrom: "2027-07-10"
+    reasoning: "2 straipsnio 1 dalies 6 punkto i papunktis kriptoturto paslaugų teikėją priskiria finansų įstaigoms, o 3 straipsnio 2 punktas finansų įstaigas priskiria įpareigotiesiems subjektams. Bendrovės Lietuvoje vykdomos kriptoturto saugojimo, keitimo, prekybos ir pervedimo paslaugos bei deklaruojamas MiCA leidimas lemia jos patekimą į reglamento taikymo sritį, nepriklausomai nuo nurodyto mažo įmonės dydžio. Pagal 1 straipsnį bendrovė turės pati vykdyti prevencijos priemones, tačiau jai aktualūs reglamento reikalavimai pradedami taikyti 2027 m. liepos 10 d."
+  "ADTAĮ":
+    title: "Lietuvos Respublikos asmens duomenų teisinės apsaugos įstatymas"
+    docType: law
+    applicability: applies
+    appliesFrom: null
+    reasoning: "A3.P1 (1 str. 4 d. 1 p.) įstatymą taiko Lietuvoje buveinę turinčiam duomenų valdytojui arba duomenų tvarkytojui, vykdančiam savo veiklą, nepriklausomai nuo duomenų tvarkymo vietos. Bendrovė yra Lietuvos UAB ir nurodo tvarkanti asmens duomenis, todėl ši teritorinė ir dalykinė taikymo sąlyga tenkinama. Pagal A3.P1 (1 str. 2–3 d.) įstatymas ne tik reglamentuoja priežiūrą, bet ir nustato duomenų tvarkymo ypatumus kartu su Reglamentu (ES) 2016/679, todėl jo poveikis tiesioginis."
+  "KRĮ":
+    title: "Lietuvos Respublikos kriptoturto rinkų įstatymas"
+    docType: law
+    applicability: applies
+    appliesFrom: null
+    reasoning: "KRĮ 3 str. 2–3 d. nustato Lietuvoje veikiančių licencijuotų kriptoturto paslaugų teikėjų teisinės formos ir veiklos vykdymo reikalavimus. „1009 LTD“ yra Lietuvos UAB, teikianti kriptoturto saugojimo, prekybos platformos valdymo, keitimo ir kitas kriptoturto paslaugas bei deklaruojanti Lietuvos banko išduotą veiklos leidimą. Kadangi bendrovė taip pat teikia rekomendacijas dėl kriptoturto, jai aktualus 3 str. 8 d. nustatytas konsultuojančių darbuotojų žinių ir kompetencijų reikalavimas; įstatymo poveikis nėra vien institucinis."
+  "PPTFPĮ":
+    title: "Lietuvos Respublikos pinigų plovimo ir teroristų finansavimo prevencijos įstatymas"
+    docType: law
+    applicability: applies
+    appliesFrom: null
+    reasoning: "PPTFPĮ 1 str. nustato pinigų plovimo ir teroristų finansavimo prevencijos priemones, o 2 str. apibrėžia įstatymo reguliuojamus subjektus ir dalykinius santykius. Lietuvoje įsteigta bendrovė teikia kriptoturto saugojimo, keitimo ir pervedimo paslaugas klientams, todėl patenka į šio įstatymo reguliuojamų kriptoturto paslaugų teikėjų veiklos sritį. Jai tenka tiesioginės prevencijos pareigos, o 40 darbuotojų skaičius jų taikymo nepanaikina; būsima redakcija nuo 2027-01-01 neatideda dabar galiojančių reikalavimų."
+  "PAĮ":
+    title: "Lietuvos Respublikos pranešėjų apsaugos įstatymas"
+    docType: law
+    applicability: applies
+    appliesFrom: null
+    reasoning: "PAĮ 2 str. 3 d. įstaigos sąvoka apima privačiuosius juridinius asmenis, todėl Lietuvoje įsteigta „1009 LTD“ patenka į įstatymo taikymo sritį. Bendrovė turi 40 darbuotojų, kurių darbo santykiuose gauta informacija apie viešajam interesui reikšmingus pažeidimus gali būti teikiama pagal 2 str. 2 d. ir 3 str. Bendrovė turi laikytis pranešančių asmenų apsaugos ir konfidencialumo reikalavimų; mažesnis nei 50 darbuotojų skaičius savaime nepanaikina bendro įstatymo taikymo."

@@ -1,0 +1,161 @@
+# Which acts apply to a company (prompt report.applicability), act by act.
+#
+# Each case names a company profile from `companies` below and an act of the
+# catalogue by its slug, and says what a careful reader of the act's scope
+# provisions answers for that company: `expect` is applies, not_applies or
+# uncertain (`accept` lists a second answer where two careful readers could
+# differ). Where it matters to what a report then does with the act, a case
+# also fixes `effect` (direct — the act lays duties on the company;
+# institutional — it organises an authority or a procedure before it) or
+# `appliesFrom` (the date the act starts to bind the company, when that is
+# still ahead). A case that expects "applies" and names no date fails when
+# the answer puts the act's application in the future. The suite reads the
+# act's provisions from the corpus of the installation it runs on.
+#
+# Labelled by the assistant (Claude) on 2026-11-12 from the provisions named
+# in `why`. The crypto-asset provider is the course's sample company, and the
+# verdicts of its report of 2026-11-11 were at hand when its cases were
+# chosen — so only acts whose scope leaves no room for a second reading were
+# taken, and the one act that report got wrong (the Law on Financial
+# Institutions, left out by a stale catalogue list) is among them. The
+# payment institution is made up for this file and was labelled without any
+# model answer. Overrule a label by editing it here.
+companies:
+  casp:
+    file: 1009-ltd/profile.txt
+  payments:
+    profile: |-
+      Company: Mokėk (UAB, LT); registration code -
+      Financial institution type: payment_institution
+      Size: small; employees: 25; annual turnover EUR: -
+      NACE codes: 64.99; sector: Mokėjimo paslaugos
+      Activities: Licencijuota mokėjimo įstaiga: pinigų perlaidos, mokėjimo inicijavimo ir sąskaitos informacijos paslaugos Lietuvos klientams. Elektroninių pinigų neleidžia, indėlių nepriima, kreditų neteikia, kriptoturto paslaugų neteikia ir kriptoturto neleidžia.
+      Uses AI systems: no; provides AI systems: no; AI description: -
+      Processes personal data: yes; public sector: no
+      Financial-market classification on file: -
+      Other facts: -
+
+      Credentials the company holds:
+      - [C1] license: Mokėjimo įstaigos licencija; issuer Lietuvos bankas; no. 51; valid 2021-03-04 – open; scope pinigų perlaidos, mokėjimo inicijavimas, sąskaitos informacija; VERIFIED
+
+      Company documents:
+      (none)
+cases:
+  - id: casp-mica
+    company: casp
+    act: mica
+    expect: applies
+    effect: direct
+    why: Art. 2(1) — persons providing crypto-asset services in the Union; the profile lists eight such services.
+  - id: casp-dora
+    company: casp
+    act: dora
+    expect: applies
+    effect: direct
+    why: Art. 2(1)(f) — crypto-asset service providers authorised under MiCA are financial entities; small size changes proportionality, not scope.
+  - id: casp-tfr
+    company: casp
+    act: tfr
+    expect: applies
+    effect: direct
+    why: Art. 2(1) — transfers of crypto-assets where a crypto-asset service provider is established in the Union; the company provides transfer services.
+  - id: casp-gdpr
+    company: casp
+    act: gdpr
+    expect: applies
+    effect: direct
+    why: Art. 2(1) and 3(1) — a controller established in the Union that processes personal data; the profile says it does.
+  - id: casp-aml-law
+    company: casp
+    act: pptfp-istatymas
+    expect: applies
+    effect: direct
+    why: Art. 2 lists crypto-asset service providers among the financial institutions that are obliged entities.
+  - id: casp-crypto-markets-law
+    company: casp
+    act: kriptoturto-rinku-istatymas
+    expect: applies
+    effect: direct
+    why: Arts. 2–3 — the law sets the legal form and conduct of crypto-asset service providers licensed in Lithuania.
+  - id: casp-financial-institutions-law
+    company: casp
+    act: finansu-istaigu-istatymas
+    expect: applies
+    effect: direct
+    why: >-
+      Art. 1(2) applies the law to whoever provides the financial services of
+      Art. 3, and Art. 3(1)(24) lists crypto-asset services. The catalogue's
+      own list once left crypto providers out; the act's text does not.
+  - id: casp-ai-act-waits-for-a-fact
+    company: casp
+    act: ai-act
+    expect: uncertain
+    why: >-
+      Art. 2(1) binds providers and deployers of AI systems. The profile says
+      the company provides none and that its use of AI is unknown — the act's
+      application turns on a fact nobody has stated.
+  - id: casp-amlr-from-2027
+    company: casp
+    act: amlr
+    expect: applies
+    appliesFrom: "2027-07-10"
+    why: Art. 2(1)(6) and 3(2) make a crypto-asset service provider an obliged entity; Art. 90 applies the regulation from 10 July 2027.
+  - id: casp-central-bank-law-is-institutional
+    company: casp
+    act: lietuvos-banko-istatymas
+    expect: applies
+    effect: institutional
+    why: The law organises the supervisor — its status, tasks and powers; it reaches a supervised company through the Bank's decisions and lays no duty a company's documents could meet.
+  - id: casp-fines-rulebook-is-institutional
+    company: casp
+    act: lb-03-126-baudu-aprasas
+    expect: applies
+    effect: institutional
+    why: Points 1–3 — rules by which the Bank of Lithuania calculates fines on financial market participants; a procedure before the authority, not a duty of the company.
+  - id: casp-consumer-credit-law
+    company: casp
+    act: vartojimo-kredito-istatymas
+    expect: not_applies
+    why: Arts. 1–2 — consumer credit agreements, lenders and intermediaries; nothing in the profile is lending.
+  - id: casp-banking-law
+    company: casp
+    act: banku-istatymas
+    expect: not_applies
+    why: Arts. 1–2 — the licensing and activity of banks; the company is not a bank and takes no deposits.
+  - id: payments-payments-law
+    company: payments
+    act: mokejimu-istatymas
+    expect: applies
+    effect: direct
+    why: Arts. 1–3 — payment services and the providers that may offer them, payment institutions among them.
+  - id: payments-payment-institutions-law
+    company: payments
+    act: mokejimo-istaigu-istatymas
+    expect: applies
+    effect: direct
+    why: Arts. 1–2 — the licensing, activity and supervision of payment institutions; the company holds that licence.
+  - id: payments-dora
+    company: payments
+    act: dora
+    expect: applies
+    effect: direct
+    why: Art. 2(1)(b) — payment institutions are financial entities.
+  - id: payments-mica
+    company: payments
+    act: mica
+    expect: not_applies
+    why: Art. 2(1) — issuers, offerors and providers of crypto-asset services; the profile says the company provides no crypto-asset service and issues no crypto-asset.
+  - id: payments-crypto-markets-law
+    company: payments
+    act: kriptoturto-rinku-istatymas
+    expect: not_applies
+    why: Arts. 2–3 concern crypto-asset service providers and token issuers; the company is neither.
+  - id: payments-ai-act
+    company: payments
+    act: ai-act
+    expect: not_applies
+    accept: [uncertain]
+    why: >-
+      Art. 2(1) binds providers and deployers of AI systems, and the profile
+      says the company neither uses nor provides any. A reader may still
+      leave it uncertain on the ground that "uses" is self-declared.

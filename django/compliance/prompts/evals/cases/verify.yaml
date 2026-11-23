@@ -1,0 +1,553 @@
+# The judge of the register (prompt corpus.verify_obligations), case by case.
+#
+# Each case is one entry of the register and the article it cites, word for
+# word as the corpus held it on 2026-11-12. `expect` is what a careful reader
+# answers: "supported", or "doubt" for an entry a person must look at (the
+# judge's "partly" and "unsupported" both count). The entries marked doubt
+# were written wrong on purpose, except the last, which the extraction made.
+# Labelled by the assistant (Claude) on 2026-11-12 against the provisions
+# shown; `why` says on what ground. Overrule a label by editing it here.
+cases:
+  - id: fii-23-control-system
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: supported
+    why: >-
+      Paragraph 1 says what ensures internal control: both are named.
+    provision:
+      path: 23 str.
+      text: |-
+        23 straipsnis. Finansų įstaigos veiklos vidaus kontrolė
+        1. Finansų įstaigos veiklos vidaus kontrolę finansų įstaigoje užtikrina patikima bei tinkamai veikianti vidaus kontrolės sistema ir nepriklausoma, tinkamai veikianti vidaus audito tarnyba, kurią gali sudaryti vienas arba keli asmenys.
+        2. Finansų įstaigos veiklos vidaus kontrolės sistemą sudaro:
+        1) tinkama organizacinė struktūra, leidžianti užtikrinti vertikalius ir horizontalius ryšius;
+        2) tinkama vidaus informacinė sistema;
+        3) vidaus norminiuose aktuose nustatyta personalo atsakomybė ir kompetencija;
+        4) dviguba veiklos procedūrų vidaus kontrolė;
+        5) vadovybės informavimo sistema, leidžianti laiku priimti sprendimus;
+        6) rizikos kontrolė ir rizikos valdymas.
+        3. Vidaus audito tarnybos tikslai:
+        1) vertinti, kaip laikomasi Lietuvos Respublikos teisės aktų ir vidaus taisyklių reikalavimų;
+        2) tikrinti ir vertinti finansų įstaigos vidaus kontrolės sistemos tinkamumą ir veiksmingumą;
+        3) vertinti, ar finansų įstaigos finansinių ataskaitų rinkiniai rodo tikrąją būklę;
+        4) padėti finansų įstaigos valdybai nustatyti veiklos kryptis ir jų įgyvendinimo priemones;
+        5) nustatyti, ar yra veiksminga finansų įstaigos veikla, ar pagrįsta jos pasirinkta veiklos politika, ar pakankamai veiksmingai taikomos jos pasirinktos priemonės;
+        6) teikti finansų įstaigos valdybai analizės bei įvertinimo medžiagą ir rekomendacijas finansų įstaigos valdymo, audituojamų padalinių veiklos organizavimo ir jos veiksmingumo klausimais.
+        4. Vidaus audito tarnybos bei finansų įstaigos nuolatinės vidaus kontrolės sistemos darbuotojų funkcijas, atsakomybę, teises, pareigas ir darbo tvarką nustato Lietuvos Respublikos įstatymai, priežiūros institucijos išleisti teisės aktai, finansų įstaigos steigimo dokumentai, jos darbo reglamentai, darbo sutartys, pareiginės instrukcijos ir kiti finansų įstaigos vidaus dokumentai.
+        5. Vidaus audito tarnyba privalo nedelsdama pranešti finansų įstaigos valdymo organams, o prireikus ir priežiūros institucijai apie nustatytus Lietuvos Respublikos įstatymų ir kitų teisės aktų pažeidimus, kurie kelia grėsmę finansų įstaigos klientų interesams, saugiai ir patikimai finansų įstaigos veiklai.
+    entry:
+      cites: 23 str. 1 d.
+      title: >-
+        Užtikrinti patikimą vidaus kontrolės sistemą
+      text: >-
+        Finansų įstaiga privalo turėti patikimą ir tinkamai veikiančią vidaus
+        kontrolės sistemą ir nepriklausomą, tinkamai veikiančią vidaus audito
+        tarnybą.
+      addressee: finansų įstaiga
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-23-audit-aims
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: supported
+    why: >-
+      The aims the law gives the internal audit service are what it must do.
+    provision:
+      path: 23 str.
+      text: |-
+        23 straipsnis. Finansų įstaigos veiklos vidaus kontrolė
+        1. Finansų įstaigos veiklos vidaus kontrolę finansų įstaigoje užtikrina patikima bei tinkamai veikianti vidaus kontrolės sistema ir nepriklausoma, tinkamai veikianti vidaus audito tarnyba, kurią gali sudaryti vienas arba keli asmenys.
+        2. Finansų įstaigos veiklos vidaus kontrolės sistemą sudaro:
+        1) tinkama organizacinė struktūra, leidžianti užtikrinti vertikalius ir horizontalius ryšius;
+        2) tinkama vidaus informacinė sistema;
+        3) vidaus norminiuose aktuose nustatyta personalo atsakomybė ir kompetencija;
+        4) dviguba veiklos procedūrų vidaus kontrolė;
+        5) vadovybės informavimo sistema, leidžianti laiku priimti sprendimus;
+        6) rizikos kontrolė ir rizikos valdymas.
+        3. Vidaus audito tarnybos tikslai:
+        1) vertinti, kaip laikomasi Lietuvos Respublikos teisės aktų ir vidaus taisyklių reikalavimų;
+        2) tikrinti ir vertinti finansų įstaigos vidaus kontrolės sistemos tinkamumą ir veiksmingumą;
+        3) vertinti, ar finansų įstaigos finansinių ataskaitų rinkiniai rodo tikrąją būklę;
+        4) padėti finansų įstaigos valdybai nustatyti veiklos kryptis ir jų įgyvendinimo priemones;
+        5) nustatyti, ar yra veiksminga finansų įstaigos veikla, ar pagrįsta jos pasirinkta veiklos politika, ar pakankamai veiksmingai taikomos jos pasirinktos priemonės;
+        6) teikti finansų įstaigos valdybai analizės bei įvertinimo medžiagą ir rekomendacijas finansų įstaigos valdymo, audituojamų padalinių veiklos organizavimo ir jos veiksmingumo klausimais.
+        4. Vidaus audito tarnybos bei finansų įstaigos nuolatinės vidaus kontrolės sistemos darbuotojų funkcijas, atsakomybę, teises, pareigas ir darbo tvarką nustato Lietuvos Respublikos įstatymai, priežiūros institucijos išleisti teisės aktai, finansų įstaigos steigimo dokumentai, jos darbo reglamentai, darbo sutartys, pareiginės instrukcijos ir kiti finansų įstaigos vidaus dokumentai.
+        5. Vidaus audito tarnyba privalo nedelsdama pranešti finansų įstaigos valdymo organams, o prireikus ir priežiūros institucijai apie nustatytus Lietuvos Respublikos įstatymų ir kitų teisės aktų pažeidimus, kurie kelia grėsmę finansų įstaigos klientų interesams, saugiai ir patikimai finansų įstaigos veiklai.
+    entry:
+      cites: 23 str. 3 d.
+      title: >-
+        Atlikti vidaus audito vertinimus
+      text: >-
+        Finansų įstaigos vidaus audito tarnyba turi vertinti, kaip laikomasi teisės
+        aktų ir vidaus taisyklių reikalavimų, ir tikrinti bei vertinti vidaus
+        kontrolės sistemos tinkamumą ir veiksmingumą.
+      addressee: vidaus audito tarnyba
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-23-report-breaches
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: supported
+    why: >-
+      Paragraph 5, nearly word for word.
+    provision:
+      path: 23 str.
+      text: |-
+        23 straipsnis. Finansų įstaigos veiklos vidaus kontrolė
+        1. Finansų įstaigos veiklos vidaus kontrolę finansų įstaigoje užtikrina patikima bei tinkamai veikianti vidaus kontrolės sistema ir nepriklausoma, tinkamai veikianti vidaus audito tarnyba, kurią gali sudaryti vienas arba keli asmenys.
+        2. Finansų įstaigos veiklos vidaus kontrolės sistemą sudaro:
+        1) tinkama organizacinė struktūra, leidžianti užtikrinti vertikalius ir horizontalius ryšius;
+        2) tinkama vidaus informacinė sistema;
+        3) vidaus norminiuose aktuose nustatyta personalo atsakomybė ir kompetencija;
+        4) dviguba veiklos procedūrų vidaus kontrolė;
+        5) vadovybės informavimo sistema, leidžianti laiku priimti sprendimus;
+        6) rizikos kontrolė ir rizikos valdymas.
+        3. Vidaus audito tarnybos tikslai:
+        1) vertinti, kaip laikomasi Lietuvos Respublikos teisės aktų ir vidaus taisyklių reikalavimų;
+        2) tikrinti ir vertinti finansų įstaigos vidaus kontrolės sistemos tinkamumą ir veiksmingumą;
+        3) vertinti, ar finansų įstaigos finansinių ataskaitų rinkiniai rodo tikrąją būklę;
+        4) padėti finansų įstaigos valdybai nustatyti veiklos kryptis ir jų įgyvendinimo priemones;
+        5) nustatyti, ar yra veiksminga finansų įstaigos veikla, ar pagrįsta jos pasirinkta veiklos politika, ar pakankamai veiksmingai taikomos jos pasirinktos priemonės;
+        6) teikti finansų įstaigos valdybai analizės bei įvertinimo medžiagą ir rekomendacijas finansų įstaigos valdymo, audituojamų padalinių veiklos organizavimo ir jos veiksmingumo klausimais.
+        4. Vidaus audito tarnybos bei finansų įstaigos nuolatinės vidaus kontrolės sistemos darbuotojų funkcijas, atsakomybę, teises, pareigas ir darbo tvarką nustato Lietuvos Respublikos įstatymai, priežiūros institucijos išleisti teisės aktai, finansų įstaigos steigimo dokumentai, jos darbo reglamentai, darbo sutartys, pareiginės instrukcijos ir kiti finansų įstaigos vidaus dokumentai.
+        5. Vidaus audito tarnyba privalo nedelsdama pranešti finansų įstaigos valdymo organams, o prireikus ir priežiūros institucijai apie nustatytus Lietuvos Respublikos įstatymų ir kitų teisės aktų pažeidimus, kurie kelia grėsmę finansų įstaigos klientų interesams, saugiai ir patikimai finansų įstaigos veiklai.
+    entry:
+      cites: 23 str. 5 d.
+      title: >-
+        Nedelsiant pranešti apie grėsmę keliančius pažeidimus
+      text: >-
+        Vidaus audito tarnyba privalo nedelsdama pranešti finansų įstaigos valdymo
+        organams, o prireikus ir priežiūros institucijai apie nustatytus įstatymų ir
+        kitų teisės aktų pažeidimus, kurie kelia grėsmę finansų įstaigos klientų
+        interesams, saugiai ir patikimai finansų įstaigos veiklai.
+      addressee: vidaus audito tarnyba
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-23-report-wrong-addressee
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: doubt
+    why: >-
+      The duty is the internal audit service's, to the management bodies first,
+      and only for breaches that threaten clients or sound operation.
+    provision:
+      path: 23 str.
+      text: |-
+        23 straipsnis. Finansų įstaigos veiklos vidaus kontrolė
+        1. Finansų įstaigos veiklos vidaus kontrolę finansų įstaigoje užtikrina patikima bei tinkamai veikianti vidaus kontrolės sistema ir nepriklausoma, tinkamai veikianti vidaus audito tarnyba, kurią gali sudaryti vienas arba keli asmenys.
+        2. Finansų įstaigos veiklos vidaus kontrolės sistemą sudaro:
+        1) tinkama organizacinė struktūra, leidžianti užtikrinti vertikalius ir horizontalius ryšius;
+        2) tinkama vidaus informacinė sistema;
+        3) vidaus norminiuose aktuose nustatyta personalo atsakomybė ir kompetencija;
+        4) dviguba veiklos procedūrų vidaus kontrolė;
+        5) vadovybės informavimo sistema, leidžianti laiku priimti sprendimus;
+        6) rizikos kontrolė ir rizikos valdymas.
+        3. Vidaus audito tarnybos tikslai:
+        1) vertinti, kaip laikomasi Lietuvos Respublikos teisės aktų ir vidaus taisyklių reikalavimų;
+        2) tikrinti ir vertinti finansų įstaigos vidaus kontrolės sistemos tinkamumą ir veiksmingumą;
+        3) vertinti, ar finansų įstaigos finansinių ataskaitų rinkiniai rodo tikrąją būklę;
+        4) padėti finansų įstaigos valdybai nustatyti veiklos kryptis ir jų įgyvendinimo priemones;
+        5) nustatyti, ar yra veiksminga finansų įstaigos veikla, ar pagrįsta jos pasirinkta veiklos politika, ar pakankamai veiksmingai taikomos jos pasirinktos priemonės;
+        6) teikti finansų įstaigos valdybai analizės bei įvertinimo medžiagą ir rekomendacijas finansų įstaigos valdymo, audituojamų padalinių veiklos organizavimo ir jos veiksmingumo klausimais.
+        4. Vidaus audito tarnybos bei finansų įstaigos nuolatinės vidaus kontrolės sistemos darbuotojų funkcijas, atsakomybę, teises, pareigas ir darbo tvarką nustato Lietuvos Respublikos įstatymai, priežiūros institucijos išleisti teisės aktai, finansų įstaigos steigimo dokumentai, jos darbo reglamentai, darbo sutartys, pareiginės instrukcijos ir kiti finansų įstaigos vidaus dokumentai.
+        5. Vidaus audito tarnyba privalo nedelsdama pranešti finansų įstaigos valdymo organams, o prireikus ir priežiūros institucijai apie nustatytus Lietuvos Respublikos įstatymų ir kitų teisės aktų pažeidimus, kurie kelia grėsmę finansų įstaigos klientų interesams, saugiai ir patikimai finansų įstaigos veiklai.
+    entry:
+      cites: 23 str. 5 d.
+      title: >-
+        Pranešti Lietuvos bankui apie visus pažeidimus
+      text: >-
+        Atitikties pareigūnas privalo nedelsdamas pranešti Lietuvos bankui apie
+        kiekvieną finansų įstaigoje nustatytą teisės aktų pažeidimą.
+      addressee: atitikties pareigūnas
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-3-no-licence
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: supported
+    why: >-
+      Paragraph 3 forbids it.
+    provision:
+      path: 3 str.
+      text: |-
+        3 straipsnis. Finansinės paslaugos
+        1. Finansinės paslaugos yra:
+        1) indėlių ir kitų grąžintinų lėšų priėmimas;
+        2) skolinimas (įskaitant hipotekines paskolas);
+        3) finansinė nuoma (lizingas);
+        4) mokėjimo paslaugos;
+        5) kelionių čekių, vekselių ir kitų mokėjimo priemonių išdavimas ir administravimas, jei šios veiklos neapima šio straipsnio 1 dalies 4 punkte nurodytos paslaugos;
+        6) finansinių laidavimų ir finansinių garantijų teikimas;
+        7) sandorių sudarymas savo ar kliento sąskaita dėl pinigų rinkos priemonių (čekių, vekselių, indėlių sertifikatų ir t. t.), užsienio valiutos, finansinių būsimųjų ir pasirinkimo sandorių, valiutos keitimo kurso nustatymo ir palūkanų normos nustatymo priemonių, viešosios apyvartos vertybinių popierių, tauriųjų metalų;
+        8) investicinės paslaugos;
+        9) finansinis tarpininkavimas (agento veikla);
+        10) pinigų tvarkymas;
+        11) kreditingumo vertinimo paslaugos;
+        12) seifo kamerų nuoma;
+        13) valiutos keitimas (grynaisiais pinigais);
+        14) atsiskaitymų tarp kredito įstaigų įskaitymas (kliringas);
+        15) piniginių lėšų saugojimas ir administravimas;
+        16) įmonių konsultavimas dėl kapitalo struktūros, gamybos strategijos ir su tuo susijusių klausimų, taip pat konsultacijos ir paslaugos, susijusios su įmonių reorganizavimu, pertvarkymu ir pirkimu;
+        17) su vertybinių popierių emisijomis susijusių paslaugų teikimas;
+        18) elektroninių pinigų, įskaitant elektroninių pinigų žetonus, kaip jie apibrėžti 2023 m. gegužės 31 d. Europos Parlamento ir Tarybos reglamente (ES) 2023/1114 dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937, 3 straipsnio 1 dalies 7 punkte, leidimas;
+        19) investicinių fondų, uždaro tipo investicinių bendrovių, pensijų fondų ar investicinių kintamojo kapitalo bendrovių valdymas;
+        20) finansinių priemonių saugojimas, apskaita ir valdymas klientų sąskaita, įskaitant turto saugojimą ir kitas su tuo susijusias paslaugas, tokias kaip pinigų ar finansinio užstato valdymas;
+        21) sutelktinio finansavimo paslaugų teikėjo veikla, kaip tai apibrėžta Reglamente (ES) 2020/1503;
+        22) tarpusavio skolinimo platformos operatoriaus veikla;
+        23) su turtu susietų žetonų, kaip jie apibrėžti Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 6 punkte, leidimas;
+        24) kriptoturto paslaugos, kaip jos apibrėžtos Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 16 punkte;
+        25) skatinamojo finansavimo veikla, kaip ji apibrėžta Lietuvos Respublikos nacionalinio plėtros banko įstatyme.
+        2. Licencines finansines paslaugas nustato Lietuvos Respublikos įstatymai arba Europos Sąjungos teisės aktai.
+        3. Teikti licencines finansines paslaugas be licencijos yra draudžiama.
+        4. Tik kredito įstaiga turi išimtinę teisę priimti indėlius ir kitas grąžintinas lėšas iš neprofesionalių rinkos dalyvių.
+        5. Finansų įstaigos gali teikti finansines paslaugas užsienio valiuta, jeigu tai nustatyta Lietuvos Respublikos įstatymuose.
+        6. Reglamento (ES) 2020/1503 1 straipsnio 3 dalyje nurodytais atvejais nereikalaujama kredito įstaigos ar kitų licencijų ir leidimų, susijusių su sutelktinio finansavimo paslaugų teikimu.
+    entry:
+      cites: 3 str. 3 d.
+      title: >-
+        Neteikti licencinių finansinių paslaugų be licencijos
+      text: >-
+        Asmeniui draudžiama teikti licencines finansines paslaugas neturint
+        licencijos.
+      addressee: finansines paslaugas teikiantis asmuo
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-3-licence-deadline-invented
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: doubt
+    why: >-
+      No such period: providing licensed services without a licence is forbidden
+      from the start.
+    provision:
+      path: 3 str.
+      text: |-
+        3 straipsnis. Finansinės paslaugos
+        1. Finansinės paslaugos yra:
+        1) indėlių ir kitų grąžintinų lėšų priėmimas;
+        2) skolinimas (įskaitant hipotekines paskolas);
+        3) finansinė nuoma (lizingas);
+        4) mokėjimo paslaugos;
+        5) kelionių čekių, vekselių ir kitų mokėjimo priemonių išdavimas ir administravimas, jei šios veiklos neapima šio straipsnio 1 dalies 4 punkte nurodytos paslaugos;
+        6) finansinių laidavimų ir finansinių garantijų teikimas;
+        7) sandorių sudarymas savo ar kliento sąskaita dėl pinigų rinkos priemonių (čekių, vekselių, indėlių sertifikatų ir t. t.), užsienio valiutos, finansinių būsimųjų ir pasirinkimo sandorių, valiutos keitimo kurso nustatymo ir palūkanų normos nustatymo priemonių, viešosios apyvartos vertybinių popierių, tauriųjų metalų;
+        8) investicinės paslaugos;
+        9) finansinis tarpininkavimas (agento veikla);
+        10) pinigų tvarkymas;
+        11) kreditingumo vertinimo paslaugos;
+        12) seifo kamerų nuoma;
+        13) valiutos keitimas (grynaisiais pinigais);
+        14) atsiskaitymų tarp kredito įstaigų įskaitymas (kliringas);
+        15) piniginių lėšų saugojimas ir administravimas;
+        16) įmonių konsultavimas dėl kapitalo struktūros, gamybos strategijos ir su tuo susijusių klausimų, taip pat konsultacijos ir paslaugos, susijusios su įmonių reorganizavimu, pertvarkymu ir pirkimu;
+        17) su vertybinių popierių emisijomis susijusių paslaugų teikimas;
+        18) elektroninių pinigų, įskaitant elektroninių pinigų žetonus, kaip jie apibrėžti 2023 m. gegužės 31 d. Europos Parlamento ir Tarybos reglamente (ES) 2023/1114 dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937, 3 straipsnio 1 dalies 7 punkte, leidimas;
+        19) investicinių fondų, uždaro tipo investicinių bendrovių, pensijų fondų ar investicinių kintamojo kapitalo bendrovių valdymas;
+        20) finansinių priemonių saugojimas, apskaita ir valdymas klientų sąskaita, įskaitant turto saugojimą ir kitas su tuo susijusias paslaugas, tokias kaip pinigų ar finansinio užstato valdymas;
+        21) sutelktinio finansavimo paslaugų teikėjo veikla, kaip tai apibrėžta Reglamente (ES) 2020/1503;
+        22) tarpusavio skolinimo platformos operatoriaus veikla;
+        23) su turtu susietų žetonų, kaip jie apibrėžti Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 6 punkte, leidimas;
+        24) kriptoturto paslaugos, kaip jos apibrėžtos Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 16 punkte;
+        25) skatinamojo finansavimo veikla, kaip ji apibrėžta Lietuvos Respublikos nacionalinio plėtros banko įstatyme.
+        2. Licencines finansines paslaugas nustato Lietuvos Respublikos įstatymai arba Europos Sąjungos teisės aktai.
+        3. Teikti licencines finansines paslaugas be licencijos yra draudžiama.
+        4. Tik kredito įstaiga turi išimtinę teisę priimti indėlius ir kitas grąžintinas lėšas iš neprofesionalių rinkos dalyvių.
+        5. Finansų įstaigos gali teikti finansines paslaugas užsienio valiuta, jeigu tai nustatyta Lietuvos Respublikos įstatymuose.
+        6. Reglamento (ES) 2020/1503 1 straipsnio 3 dalyje nurodytais atvejais nereikalaujama kredito įstaigos ar kitų licencijų ir leidimų, susijusių su sutelktinio finansavimo paslaugų teikimu.
+    entry:
+      cites: 3 str. 3 d.
+      title: >-
+        Gauti licenciją per 30 dienų nuo veiklos pradžios
+      text: >-
+        Finansų įstaiga privalo gauti licenciją per 30 dienų nuo licencinių
+        finansinių paslaugų teikimo pradžios.
+      addressee: finansų įstaiga
+      conditions: ""
+      deadline: "per 30 dienų nuo veiklos pradžios"
+      appliesTo: [all]
+  - id: fii-3-deposits
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: supported
+    why: >-
+      Only a credit institution has that right (paragraph 4).
+    provision:
+      path: 3 str.
+      text: |-
+        3 straipsnis. Finansinės paslaugos
+        1. Finansinės paslaugos yra:
+        1) indėlių ir kitų grąžintinų lėšų priėmimas;
+        2) skolinimas (įskaitant hipotekines paskolas);
+        3) finansinė nuoma (lizingas);
+        4) mokėjimo paslaugos;
+        5) kelionių čekių, vekselių ir kitų mokėjimo priemonių išdavimas ir administravimas, jei šios veiklos neapima šio straipsnio 1 dalies 4 punkte nurodytos paslaugos;
+        6) finansinių laidavimų ir finansinių garantijų teikimas;
+        7) sandorių sudarymas savo ar kliento sąskaita dėl pinigų rinkos priemonių (čekių, vekselių, indėlių sertifikatų ir t. t.), užsienio valiutos, finansinių būsimųjų ir pasirinkimo sandorių, valiutos keitimo kurso nustatymo ir palūkanų normos nustatymo priemonių, viešosios apyvartos vertybinių popierių, tauriųjų metalų;
+        8) investicinės paslaugos;
+        9) finansinis tarpininkavimas (agento veikla);
+        10) pinigų tvarkymas;
+        11) kreditingumo vertinimo paslaugos;
+        12) seifo kamerų nuoma;
+        13) valiutos keitimas (grynaisiais pinigais);
+        14) atsiskaitymų tarp kredito įstaigų įskaitymas (kliringas);
+        15) piniginių lėšų saugojimas ir administravimas;
+        16) įmonių konsultavimas dėl kapitalo struktūros, gamybos strategijos ir su tuo susijusių klausimų, taip pat konsultacijos ir paslaugos, susijusios su įmonių reorganizavimu, pertvarkymu ir pirkimu;
+        17) su vertybinių popierių emisijomis susijusių paslaugų teikimas;
+        18) elektroninių pinigų, įskaitant elektroninių pinigų žetonus, kaip jie apibrėžti 2023 m. gegužės 31 d. Europos Parlamento ir Tarybos reglamente (ES) 2023/1114 dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937, 3 straipsnio 1 dalies 7 punkte, leidimas;
+        19) investicinių fondų, uždaro tipo investicinių bendrovių, pensijų fondų ar investicinių kintamojo kapitalo bendrovių valdymas;
+        20) finansinių priemonių saugojimas, apskaita ir valdymas klientų sąskaita, įskaitant turto saugojimą ir kitas su tuo susijusias paslaugas, tokias kaip pinigų ar finansinio užstato valdymas;
+        21) sutelktinio finansavimo paslaugų teikėjo veikla, kaip tai apibrėžta Reglamente (ES) 2020/1503;
+        22) tarpusavio skolinimo platformos operatoriaus veikla;
+        23) su turtu susietų žetonų, kaip jie apibrėžti Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 6 punkte, leidimas;
+        24) kriptoturto paslaugos, kaip jos apibrėžtos Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 16 punkte;
+        25) skatinamojo finansavimo veikla, kaip ji apibrėžta Lietuvos Respublikos nacionalinio plėtros banko įstatyme.
+        2. Licencines finansines paslaugas nustato Lietuvos Respublikos įstatymai arba Europos Sąjungos teisės aktai.
+        3. Teikti licencines finansines paslaugas be licencijos yra draudžiama.
+        4. Tik kredito įstaiga turi išimtinę teisę priimti indėlius ir kitas grąžintinas lėšas iš neprofesionalių rinkos dalyvių.
+        5. Finansų įstaigos gali teikti finansines paslaugas užsienio valiuta, jeigu tai nustatyta Lietuvos Respublikos įstatymuose.
+        6. Reglamento (ES) 2020/1503 1 straipsnio 3 dalyje nurodytais atvejais nereikalaujama kredito įstaigos ar kitų licencijų ir leidimų, susijusių su sutelktinio finansavimo paslaugų teikimu.
+    entry:
+      cites: 3 str. 4 d.
+      title: >-
+        Nepriimti indėlių iš neprofesionalių rinkos dalyvių neturint kredito įstaigos statuso
+      text: >-
+        Finansų įstaiga, kuri nėra kredito įstaiga, negali priimti indėlių ir kitų
+        grąžintinų lėšų iš neprofesionalių rinkos dalyvių.
+      addressee: finansų įstaiga, kuri nėra kredito įstaiga
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-3-deposits-inverted
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: doubt
+    why: >-
+      The provision reserves deposit-taking to credit institutions; it obliges
+      nobody to take deposits.
+    provision:
+      path: 3 str.
+      text: |-
+        3 straipsnis. Finansinės paslaugos
+        1. Finansinės paslaugos yra:
+        1) indėlių ir kitų grąžintinų lėšų priėmimas;
+        2) skolinimas (įskaitant hipotekines paskolas);
+        3) finansinė nuoma (lizingas);
+        4) mokėjimo paslaugos;
+        5) kelionių čekių, vekselių ir kitų mokėjimo priemonių išdavimas ir administravimas, jei šios veiklos neapima šio straipsnio 1 dalies 4 punkte nurodytos paslaugos;
+        6) finansinių laidavimų ir finansinių garantijų teikimas;
+        7) sandorių sudarymas savo ar kliento sąskaita dėl pinigų rinkos priemonių (čekių, vekselių, indėlių sertifikatų ir t. t.), užsienio valiutos, finansinių būsimųjų ir pasirinkimo sandorių, valiutos keitimo kurso nustatymo ir palūkanų normos nustatymo priemonių, viešosios apyvartos vertybinių popierių, tauriųjų metalų;
+        8) investicinės paslaugos;
+        9) finansinis tarpininkavimas (agento veikla);
+        10) pinigų tvarkymas;
+        11) kreditingumo vertinimo paslaugos;
+        12) seifo kamerų nuoma;
+        13) valiutos keitimas (grynaisiais pinigais);
+        14) atsiskaitymų tarp kredito įstaigų įskaitymas (kliringas);
+        15) piniginių lėšų saugojimas ir administravimas;
+        16) įmonių konsultavimas dėl kapitalo struktūros, gamybos strategijos ir su tuo susijusių klausimų, taip pat konsultacijos ir paslaugos, susijusios su įmonių reorganizavimu, pertvarkymu ir pirkimu;
+        17) su vertybinių popierių emisijomis susijusių paslaugų teikimas;
+        18) elektroninių pinigų, įskaitant elektroninių pinigų žetonus, kaip jie apibrėžti 2023 m. gegužės 31 d. Europos Parlamento ir Tarybos reglamente (ES) 2023/1114 dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937, 3 straipsnio 1 dalies 7 punkte, leidimas;
+        19) investicinių fondų, uždaro tipo investicinių bendrovių, pensijų fondų ar investicinių kintamojo kapitalo bendrovių valdymas;
+        20) finansinių priemonių saugojimas, apskaita ir valdymas klientų sąskaita, įskaitant turto saugojimą ir kitas su tuo susijusias paslaugas, tokias kaip pinigų ar finansinio užstato valdymas;
+        21) sutelktinio finansavimo paslaugų teikėjo veikla, kaip tai apibrėžta Reglamente (ES) 2020/1503;
+        22) tarpusavio skolinimo platformos operatoriaus veikla;
+        23) su turtu susietų žetonų, kaip jie apibrėžti Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 6 punkte, leidimas;
+        24) kriptoturto paslaugos, kaip jos apibrėžtos Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 16 punkte;
+        25) skatinamojo finansavimo veikla, kaip ji apibrėžta Lietuvos Respublikos nacionalinio plėtros banko įstatyme.
+        2. Licencines finansines paslaugas nustato Lietuvos Respublikos įstatymai arba Europos Sąjungos teisės aktai.
+        3. Teikti licencines finansines paslaugas be licencijos yra draudžiama.
+        4. Tik kredito įstaiga turi išimtinę teisę priimti indėlius ir kitas grąžintinas lėšas iš neprofesionalių rinkos dalyvių.
+        5. Finansų įstaigos gali teikti finansines paslaugas užsienio valiuta, jeigu tai nustatyta Lietuvos Respublikos įstatymuose.
+        6. Reglamento (ES) 2020/1503 1 straipsnio 3 dalyje nurodytais atvejais nereikalaujama kredito įstaigos ar kitų licencijų ir leidimų, susijusių su sutelktinio finansavimo paslaugų teikimu.
+    entry:
+      cites: 3 str. 4 d.
+      title: >-
+        Priimti indėlius iš visų rinkos dalyvių
+      text: >-
+        Kiekviena finansų įstaiga privalo priimti indėlius ir kitas grąžintinas
+        lėšas iš neprofesionalių rinkos dalyvių.
+      addressee: finansų įstaiga
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-3-services-definition
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: doubt
+    why: >-
+      Paragraph 1 is a list of what counts as a financial service — a definition,
+      not a duty.
+    provision:
+      path: 3 str.
+      text: |-
+        3 straipsnis. Finansinės paslaugos
+        1. Finansinės paslaugos yra:
+        1) indėlių ir kitų grąžintinų lėšų priėmimas;
+        2) skolinimas (įskaitant hipotekines paskolas);
+        3) finansinė nuoma (lizingas);
+        4) mokėjimo paslaugos;
+        5) kelionių čekių, vekselių ir kitų mokėjimo priemonių išdavimas ir administravimas, jei šios veiklos neapima šio straipsnio 1 dalies 4 punkte nurodytos paslaugos;
+        6) finansinių laidavimų ir finansinių garantijų teikimas;
+        7) sandorių sudarymas savo ar kliento sąskaita dėl pinigų rinkos priemonių (čekių, vekselių, indėlių sertifikatų ir t. t.), užsienio valiutos, finansinių būsimųjų ir pasirinkimo sandorių, valiutos keitimo kurso nustatymo ir palūkanų normos nustatymo priemonių, viešosios apyvartos vertybinių popierių, tauriųjų metalų;
+        8) investicinės paslaugos;
+        9) finansinis tarpininkavimas (agento veikla);
+        10) pinigų tvarkymas;
+        11) kreditingumo vertinimo paslaugos;
+        12) seifo kamerų nuoma;
+        13) valiutos keitimas (grynaisiais pinigais);
+        14) atsiskaitymų tarp kredito įstaigų įskaitymas (kliringas);
+        15) piniginių lėšų saugojimas ir administravimas;
+        16) įmonių konsultavimas dėl kapitalo struktūros, gamybos strategijos ir su tuo susijusių klausimų, taip pat konsultacijos ir paslaugos, susijusios su įmonių reorganizavimu, pertvarkymu ir pirkimu;
+        17) su vertybinių popierių emisijomis susijusių paslaugų teikimas;
+        18) elektroninių pinigų, įskaitant elektroninių pinigų žetonus, kaip jie apibrėžti 2023 m. gegužės 31 d. Europos Parlamento ir Tarybos reglamente (ES) 2023/1114 dėl kriptoturto rinkų, kuriuo iš dalies keičiami reglamentai (ES) Nr. 1093/2010 bei (ES) Nr. 1095/2010 ir direktyvos 2013/36/ES bei (ES) 2019/1937, 3 straipsnio 1 dalies 7 punkte, leidimas;
+        19) investicinių fondų, uždaro tipo investicinių bendrovių, pensijų fondų ar investicinių kintamojo kapitalo bendrovių valdymas;
+        20) finansinių priemonių saugojimas, apskaita ir valdymas klientų sąskaita, įskaitant turto saugojimą ir kitas su tuo susijusias paslaugas, tokias kaip pinigų ar finansinio užstato valdymas;
+        21) sutelktinio finansavimo paslaugų teikėjo veikla, kaip tai apibrėžta Reglamente (ES) 2020/1503;
+        22) tarpusavio skolinimo platformos operatoriaus veikla;
+        23) su turtu susietų žetonų, kaip jie apibrėžti Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 6 punkte, leidimas;
+        24) kriptoturto paslaugos, kaip jos apibrėžtos Reglamento (ES) 2023/1114 3 straipsnio 1 dalies 16 punkte;
+        25) skatinamojo finansavimo veikla, kaip ji apibrėžta Lietuvos Respublikos nacionalinio plėtros banko įstatyme.
+        2. Licencines finansines paslaugas nustato Lietuvos Respublikos įstatymai arba Europos Sąjungos teisės aktai.
+        3. Teikti licencines finansines paslaugas be licencijos yra draudžiama.
+        4. Tik kredito įstaiga turi išimtinę teisę priimti indėlius ir kitas grąžintinas lėšas iš neprofesionalių rinkos dalyvių.
+        5. Finansų įstaigos gali teikti finansines paslaugas užsienio valiuta, jeigu tai nustatyta Lietuvos Respublikos įstatymuose.
+        6. Reglamento (ES) 2020/1503 1 straipsnio 3 dalyje nurodytais atvejais nereikalaujama kredito įstaigos ar kitų licencijų ir leidimų, susijusių su sutelktinio finansavimo paslaugų teikimu.
+    entry:
+      cites: 3 str. 1 d.
+      title: >-
+        Teikti kriptoturto paslaugas
+      text: >-
+        Finansų įstaiga privalo teikti kriptoturto paslaugas, kaip jos apibrėžtos
+        Reglamente (ES) 2023/1114.
+      addressee: finansų įstaiga
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: fii-1-central-bank
+    act: Lietuvos Respublikos finansų įstaigų įstatymas
+    expect: doubt
+    why: >-
+      Paragraph 3 says the law does not apply to the Bank of Lithuania.
+    provision:
+      path: 1 str.
+      text: |-
+        1 straipsnis. Įstatymo paskirtis
+        1. Šis Įstatymas nustato, kokios paslaugos yra laikomos finansinėmis paslaugomis, reikalavimus finansų įmonių ir kredito įstaigų, kurios verčiasi finansinių paslaugų teikimu, steigėjams, dalyviams bei vadovams, šių teises ir pareigas, finansų įstaigų steigimo, veiklos, jos pabaigos ir pertvarkymo sąlygas, tvarką bei ypatumus, taip pat finansų įstaigų, teikiančių licencines finansines paslaugas, veiklos priežiūros sąlygas, tvarką bei ypatumus.
+        2. Šis Įstatymas taikomas visoms finansų įstaigoms – Lietuvos Respublikos juridiniams asmenims ir užsienio valstybių finansų įstaigų padaliniams, kurie veikia Lietuvos Respublikoje ir verčiasi finansinių paslaugų, nustatytų šio Įstatymo 3 straipsnyje, teikimu Lietuvos Respublikoje, jeigu Lietuvos Respublikos tarptautinės sutartys nenustato ko kita.
+        3. Šis Įstatymas netaikomas:
+        1) Lietuvos Respublikos valstybės ir savivaldybių institucijoms bei įstaigoms, kurios teikia finansines paslaugas, nustatytas Lietuvos Respublikos įstatymuose;
+        2) pašto paslaugų teikėjams, kurie teikia vietines ir tarptautines pašto perlaidų paslaugas;
+        3) Lietuvos bankui, teikiančiam finansines paslaugas Lietuvos Respublikos įstatymų nustatyta tvarka.
+        4. Šiuo Įstatymu įgyvendinami Europos Sąjungos teisės aktai, nurodyti Įstatymo priede.
+    entry:
+      cites: 1 str.
+      title: >-
+        Laikytis Finansų įstaigų įstatymo teikiant finansines paslaugas
+      text: >-
+        Lietuvos bankas, teikdamas finansines paslaugas, privalo laikytis šio
+        įstatymo reikalavimų.
+      addressee: Lietuvos bankas
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
+  - id: kri-22-transition
+    act: Lietuvos Respublikos kriptoturto rinkų įstatymas
+    expect: supported
+    why: >-
+      Paragraph 3.
+    provision:
+      path: 22 str.
+      text: |-
+        22 straipsnis. Įstatymo įsigaliojimas, įgyvendinimas ir taikymas
+        1. Šio įstatymo 7 ir 8 straipsniai įsigalioja 2024 m. rugpjūčio 1 d.
+        2. Priežiūros institucija ir teisingumo ministras iki 2024 m. liepos 31 d. priima šio įstatymo įgyvendinamuosius teisės aktus, o dėl nuostatų, kurios taikomos nuo 2024 m. gruodžio 30 d., priima šio įstatymo įgyvendinamuosius teisės aktus iki 2024 m. gruodžio 29 d.
+        3. Į Juridinių asmenų registro tvarkomą sąrašą įrašyti virtualiųjų valiutų keityklos operatoriai ir depozitinių virtualiųjų valiutų piniginių operatoriai nuo 2026 m. sausio 1 d. netenka teisės vykdyti virtualiųjų valiutų keityklų operatoriaus ir depozitinių virtualiųjų valiutų piniginių operatoriaus veiklos, jeigu jie nėra gavę licencijos Reglamento (ES) 2023/1114 ir šio įstatymo nustatyta tvarka.
+        4. Šio įstatymo reikalavimai asmenims, viešai siūlantiems ar prašantiems įtraukti į prekybą kriptoturtą, kuris nėra su turtu susieti žetonai arba elektroninių pinigų žetonai, kriptoturto paslaugų teikėjams taikomi nuo 2024 m. gruodžio 30 d.
+    entry:
+      cites: 22 str. 3 d.
+      title: >-
+        Nevykdyti virtualiųjų valiutų operatoriaus veiklos be licencijos nuo 2026 m. sausio 1 d.
+      text: >-
+        Į Juridinių asmenų registro tvarkomą sąrašą įrašytas virtualiųjų valiutų
+        keityklos operatorius ar depozitinių virtualiųjų valiutų piniginių
+        operatorius nuo 2026 m. sausio 1 d. negali vykdyti šios veiklos, jeigu nėra
+        gavęs licencijos pagal Reglamentą (ES) 2023/1114 ir šį įstatymą.
+      addressee: į sąrašą įrašytas virtualiųjų valiutų keityklos ar piniginių operatorius
+      conditions: "Operatorius nėra gavęs licencijos."
+      deadline: "nuo 2026-01-01"
+      appliesTo: [casp]
+  - id: kri-22-transition-wrong-date
+    act: Lietuvos Respublikos kriptoturto rinkų įstatymas
+    expect: doubt
+    why: >-
+      The date in paragraph 3 is 1 January 2026.
+    provision:
+      path: 22 str.
+      text: |-
+        22 straipsnis. Įstatymo įsigaliojimas, įgyvendinimas ir taikymas
+        1. Šio įstatymo 7 ir 8 straipsniai įsigalioja 2024 m. rugpjūčio 1 d.
+        2. Priežiūros institucija ir teisingumo ministras iki 2024 m. liepos 31 d. priima šio įstatymo įgyvendinamuosius teisės aktus, o dėl nuostatų, kurios taikomos nuo 2024 m. gruodžio 30 d., priima šio įstatymo įgyvendinamuosius teisės aktus iki 2024 m. gruodžio 29 d.
+        3. Į Juridinių asmenų registro tvarkomą sąrašą įrašyti virtualiųjų valiutų keityklos operatoriai ir depozitinių virtualiųjų valiutų piniginių operatoriai nuo 2026 m. sausio 1 d. netenka teisės vykdyti virtualiųjų valiutų keityklų operatoriaus ir depozitinių virtualiųjų valiutų piniginių operatoriaus veiklos, jeigu jie nėra gavę licencijos Reglamento (ES) 2023/1114 ir šio įstatymo nustatyta tvarka.
+        4. Šio įstatymo reikalavimai asmenims, viešai siūlantiems ar prašantiems įtraukti į prekybą kriptoturtą, kuris nėra su turtu susieti žetonai arba elektroninių pinigų žetonai, kriptoturto paslaugų teikėjams taikomi nuo 2024 m. gruodžio 30 d.
+    entry:
+      cites: 22 str. 3 d.
+      title: >-
+        Nevykdyti virtualiųjų valiutų operatoriaus veiklos be licencijos nuo 2025 m. birželio 1 d.
+      text: >-
+        Į Juridinių asmenų registro tvarkomą sąrašą įrašytas virtualiųjų valiutų
+        keityklos operatorius nuo 2025 m. birželio 1 d. negali vykdyti šios veiklos,
+        jeigu nėra gavęs licencijos.
+      addressee: į sąrašą įrašytas virtualiųjų valiutų keityklos operatorius
+      conditions: ""
+      deadline: "nuo 2025-06-01"
+      appliesTo: [casp]
+  - id: mii-1-credit-unions-whole-law
+    act: Lietuvos Respublikos mokėjimo įstaigų įstatymas
+    expect: doubt
+    why: >-
+      Only Article 13 applies to credit unions, mutatis mutandis.
+    provision:
+      path: 1 str.
+      text: |-
+        1 straipsnis. Įstatymo paskirtis
+        1. Šis įstatymas nustato mokėjimo įstaigų licencijavimo, veiklos, jų pabaigos ir veiklos priežiūros tvarką, kad mokėjimo įstaigų sistema būtų stabili, patikima, veiksminga ir saugi.
+        2. Šis įstatymas taikomas Lietuvos Respublikoje įsteigtoms mokėjimo įstaigoms, jų filialams ir tarpininkams, kitų valstybių narių mokėjimo įstaigoms, jų filialams ir tarpininkams, kurie verčiasi mokėjimo paslaugų teikimu Lietuvos Respublikoje. Šio įstatymo 13 straipsnio nuostatos mutatis mutandis taikomos ir kredito unijoms.
+        3. Šio įstatymo nuostatos suderintos su Europos Sąjungos teisės aktais, nurodytais šio įstatymo priede.
+    entry:
+      cites: 1 str. 2 d.
+      title: >-
+        Kredito unijoms laikytis viso Mokėjimo įstaigų įstatymo
+      text: >-
+        Kredito unija privalo laikytis visų šio įstatymo reikalavimų, taikomų
+        mokėjimo įstaigoms.
+      addressee: kredito unija
+      conditions: ""
+      deadline: ""
+      appliesTo: [credit_union]
+  - id: pai-8-channels-listed-only
+    act: Lietuvos Respublikos pranešėjų apsaugos įstatymas
+    expect: doubt
+    why: >-
+      Article 8 lists the protection measures; the rules on internal channels
+      stand in Article 16.
+    provision:
+      path: 8 str.
+      text: |-
+        8 straipsnis. Apsaugos, skatinimo ir pagalbos priemonės
+        1. Pagrindinės asmenų apsaugos, skatinimo ir pagalbos jiems priemonės:
+        1) saugių informacijos apie pažeidimus teikimo kanalų užtikrinimas;
+        2) konfidencialumo užtikrinimas;
+        3) draudimas daryti neigiamą poveikį;
+        4) teisė gauti atlyginimą už vertingą informaciją;
+        5) teisė gauti kompensaciją;
+        6) nemokamos teisinės pagalbos užtikrinimas;
+        7) atleidimas nuo atsakomybės;
+        8) teisė gauti išsamią, nešališką informaciją ir nemokamas konsultacijas dėl informacijos apie pažeidimus teikimo procedūrų ir teisių gynimo priemonių suteikimo.
+        2. Šio straipsnio 1 dalies 1, 2, 3 ir 8 punktuose nurodytos priemonės taikomos nuo informacijos apie pažeidimą gavimo įstaigoje arba kompetentingoje institucijoje momento visiems šio įstatymo nustatyta tvarka informaciją apie pažeidimus pateikusiems asmenims, nesvarbu, ar informaciją apie pažeidimą pateikęs asmuo buvo pripažintas pranešėju, ar ne. Šio straipsnio 1 dalies 4, 5, 6 ir 7 punktuose nurodytos priemonės gali būti taikomos nuo tos dienos, kurią kompetentinga institucija pripažino informaciją apie pažeidimą pateikusį asmenį pranešėju.
+    entry:
+      cites: 8 str.
+      title: >-
+        Užtikrinti saugius informacijos apie pažeidimus teikimo kanalus
+      text: >-
+        Įstaiga turi užtikrinti saugius informacijos apie pažeidimus teikimo kanalus
+        visiems įstatymo nustatyta tvarka informaciją pateikusiems asmenims.
+      addressee: įstaiga
+      conditions: ""
+      deadline: ""
+      appliesTo: [all]
