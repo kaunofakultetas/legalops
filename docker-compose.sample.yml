@@ -138,7 +138,7 @@ services:
     container_name: legalops-assistant
 
     # Docker hub
-    image: vuknf/legalops-django:latest
+    image: vuknf/legalops-assistant:latest
 
     # # Self-built
     # image: legalops-assistant

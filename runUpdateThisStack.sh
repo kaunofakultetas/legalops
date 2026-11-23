@@ -69,5 +69,5 @@ sudo docker-compose up -d --build
 
 # STEP 6: Apply migrations
 # ========================
-sleep 5
+sleep 10
 sudo docker-compose exec legalops-django python3 manage.py migrate --noinput
